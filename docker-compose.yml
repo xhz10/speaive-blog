@@ -1,0 +1,107 @@
+name: speaive-blog
+
+services:
+  postgres:
+    image: ${SPEAIVE_POSTGRES_IMAGE:-pgvector/pgvector:pg17}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${SPEAIVE_DB_NAME:-speaive_blog}
+      POSTGRES_USER: ${SPEAIVE_DB_USERNAME:-speaive}
+      POSTGRES_PASSWORD: ${SPEAIVE_DB_PASSWORD:?请在 .env 中设置 SPEAIVE_DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - internal
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+      args:
+        JAVA_BUILD_IMAGE: ${SPEAIVE_JAVA_BUILD_IMAGE:-eclipse-temurin:25-jdk-noble}
+        JAVA_RUNTIME_IMAGE: ${SPEAIVE_JAVA_RUNTIME_IMAGE:-eclipse-temurin:25-jre-noble}
+    restart: unless-stopped
+    init: true
+    user: "${SPEAIVE_RUNTIME_UID:-1000}:${SPEAIVE_RUNTIME_GID:-1000}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${SPEAIVE_DB_NAME:-speaive_blog}
+      SPRING_DATASOURCE_USERNAME: ${SPEAIVE_DB_USERNAME:-speaive}
+      SPRING_DATASOURCE_PASSWORD: ${SPEAIVE_DB_PASSWORD:?请在 .env 中设置 SPEAIVE_DB_PASSWORD}
+      SPEAIVE_BACKEND_HOST: 0.0.0.0
+      SPEAIVE_BACKEND_PORT: 8080
+      SPEAIVE_DATA_DIR: /data
+      SPEAIVE_IMPORT_DIR: /data/inbox
+      SPEAIVE_ADMIN_USERNAME: ${SPEAIVE_ADMIN_USERNAME:-admin}
+      SPEAIVE_ADMIN_PASSWORD_HASH: ${SPEAIVE_ADMIN_PASSWORD_HASH:?请在 .env 中设置 SPEAIVE_ADMIN_PASSWORD_HASH}
+      SPEAIVE_SECURE_COOKIES: ${SPEAIVE_SECURE_COOKIES:-false}
+      SPEAIVE_SESSION_TIMEOUT: ${SPEAIVE_SESSION_TIMEOUT:-7d}
+      SPEAIVE_MAX_MARKDOWN_BYTES: ${SPEAIVE_MAX_MARKDOWN_BYTES:-1048576}
+      SPEAIVE_MAX_IMAGE_BYTES: ${SPEAIVE_MAX_IMAGE_BYTES:-8388608}
+      SPEAIVE_LOGIN_MAX_ATTEMPTS: ${SPEAIVE_LOGIN_MAX_ATTEMPTS:-5}
+      SPEAIVE_LOGIN_WINDOW_SECONDS: ${SPEAIVE_LOGIN_WINDOW_SECONDS:-900}
+      SPEAIVE_LOGIN_MAX_TRACKED_ADDRESSES: ${SPEAIVE_LOGIN_MAX_TRACKED_ADDRESSES:-10000}
+    volumes:
+      - type: bind
+        source: ${SPEAIVE_DATA_DIR:-./.data}
+        target: /data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - internal
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+      args:
+        NODE_IMAGE: ${SPEAIVE_NODE_IMAGE:-node:24-bookworm-slim}
+        SPEAIVE_SITE_URL: ${SPEAIVE_SITE_URL:-http://127.0.0.1:4321}
+    restart: unless-stopped
+    init: true
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      HOST: 0.0.0.0
+      PORT: 4321
+      SPEAIVE_BIND_ADDRESS: 0.0.0.0
+      SPEAIVE_PORT: 4321
+      SPEAIVE_SITE_URL: ${SPEAIVE_SITE_URL:-http://127.0.0.1:4321}
+      SPEAIVE_BACKEND_URL: http://backend:8080
+      SPEAIVE_TRUST_PROXY_HEADERS: "true"
+    ports:
+      - "127.0.0.1:${SPEAIVE_PORT:-4321}:4321"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:4321/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - internal
+
+volumes:
+  postgres_data:
+
+networks:
+  internal:
+    driver: bridge

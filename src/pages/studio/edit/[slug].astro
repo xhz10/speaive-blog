@@ -1,0 +1,33 @@
+---
+import { ArrowLeft } from "@lucide/astro";
+import EditorForm from "../../../components/EditorForm.astro";
+import StudioLayout from "../../../layouts/StudioLayout.astro";
+import { fetchStudioApi, isStudioApiError } from "../../../lib/studio/server";
+import type { StudioPostDetail } from "../../../lib/studio/types";
+
+const slug = Astro.params.slug ?? "";
+let post: StudioPostDetail | undefined;
+let loadError: string | undefined;
+
+try {
+  post = await fetchStudioApi<StudioPostDetail>(
+    Astro.request,
+    `/api/v1/studio/posts/${encodeURIComponent(slug)}`
+  );
+} catch (error) {
+  if (isStudioApiError(error) && error.status === 404) Astro.response.status = 404;
+  else Astro.response.status = 502;
+  loadError = error instanceof Error ? error.message : "文章加载失败";
+}
+---
+
+<StudioLayout title={post ? `编辑：${post.title}` : "文章不存在"}>
+  <header class="studio-editor-head">
+    <a class="editor-back" href="/studio/">
+      <ArrowLeft size={16} stroke-width={1.8} aria-hidden="true" />
+      所有文章
+    </a>
+    <span data-editor-context>{post?.slug ?? "无法打开"}</span>
+  </header>
+  {post ? <EditorForm post={post} /> : <p class="notice error">{loadError ?? "文章不存在。"}</p>}
+</StudioLayout>

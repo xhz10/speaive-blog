@@ -1,0 +1,23 @@
+node_modules/
+dist/
+.astro/
+.env
+.env.*
+!.env.example
+.data/
+coverage/
+.DS_Store
+
+# Java / Maven
+target/
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+.factorypath
+hs_err_pid*
+replay_pid*
+*.log

@@ -1,0 +1,85 @@
+---
+import { ArrowRight, LoaderCircle, LogIn } from "@lucide/astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+const requestedNext = Astro.url.searchParams.get("next") ?? "/studio/";
+const next = requestedNext.startsWith("/studio") && !requestedNext.startsWith("//")
+  ? requestedNext
+  : "/studio/";
+---
+
+<BaseLayout title="写作台登录" noindex bare>
+  <div class="login-page">
+    <div class="login-visual" aria-hidden="true">
+      <img src="/images/editorial-writing.jpg" alt="" width="1800" height="1352" />
+      <div class="login-caption">
+        <strong>Speaive</strong>
+        <span>把今天值得留下的部分写下来。</span>
+      </div>
+    </div>
+    <div class="login-form-wrap">
+      <form class="login-form" data-login-form data-next={next}>
+        <div class="login-mark" aria-hidden="true"><LogIn size={20} stroke-width={1.8} /></div>
+        <p class="studio-kicker">Private studio</p>
+        <h1>进入写作台</h1>
+        <p>这里仅供私人写作与发布。</p>
+        <p class="notice error" role="alert" hidden data-login-error></p>
+        <label class="field">
+          <span class="field-label">用户名</span>
+          <input class="input" type="text" name="username" autocomplete="username" required autofocus />
+        </label>
+        <label class="field">
+          <span class="field-label">密码</span>
+          <input class="input" type="password" name="password" autocomplete="current-password" required />
+        </label>
+        <button class="button primary" type="submit" data-login-button>
+          <span data-login-label>登录</span>
+          <ArrowRight class="login-arrow" size={17} stroke-width={1.8} aria-hidden="true" />
+          <span class="spin" hidden data-login-spinner><LoaderCircle size={17} stroke-width={1.8} aria-hidden="true" /></span>
+        </button>
+      </form>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { StudioClientError, studioRequest } from "../../lib/studio/client";
+  import type { StudioSession } from "../../lib/studio/types";
+
+  const form = document.querySelector<HTMLFormElement>("[data-login-form]");
+  const button = form?.querySelector<HTMLButtonElement>("[data-login-button]");
+  const label = form?.querySelector<HTMLElement>("[data-login-label]");
+  const spinner = form?.querySelector<HTMLElement>("[data-login-spinner]");
+  const errorBox = form?.querySelector<HTMLElement>("[data-login-error]");
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!form.reportValidity() || !button || !label || !spinner || !errorBox) return;
+
+    const data = new FormData(form);
+    button.disabled = true;
+    label.textContent = "正在登录";
+    spinner.hidden = false;
+    errorBox.hidden = true;
+
+    try {
+      await studioRequest<StudioSession>("/studio/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: String(data.get("username") ?? "").trim(),
+          password: String(data.get("password") ?? "")
+        })
+      }, { redirectOnUnauthorized: false });
+      window.location.assign(form.dataset.next ?? "/studio/");
+    } catch (error) {
+      errorBox.textContent = error instanceof StudioClientError && error.code === "RATE_LIMITED"
+        ? "尝试次数过多，请稍后再试。"
+        : error instanceof Error ? error.message : "登录失败，请稍后再试。";
+      errorBox.hidden = false;
+      button.disabled = false;
+      label.textContent = "登录";
+      spinner.hidden = true;
+    }
+  });
+</script>

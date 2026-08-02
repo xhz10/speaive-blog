@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: speaive-blog-backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5432/speaive_blog}
+    username: ${SPRING_DATASOURCE_USERNAME:speaive}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  flyway:
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 9MB
+
+server:
+  address: ${SPEAIVE_BACKEND_HOST:127.0.0.1}
+  port: ${SPEAIVE_BACKEND_PORT:8080}
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      timeout: ${SPEAIVE_SESSION_TIMEOUT:7d}
+      cookie:
+        name: SPEAIVE_SESSION
+        http-only: true
+        secure: ${SPEAIVE_SECURE_COOKIES:false}
+        same-site: lax
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+speaive:
+  content:
+    data-directory: ${SPEAIVE_DATA_DIR:./.data}
+    import-directory: ${SPEAIVE_IMPORT_DIR:${SPEAIVE_DATA_DIR:./.data}/inbox}
+    import-enabled: ${SPEAIVE_IMPORT_ENABLED:true}
+    import-scan-interval: ${SPEAIVE_IMPORT_SCAN_INTERVAL:30s}
+    max-markdown-bytes: ${SPEAIVE_MAX_MARKDOWN_BYTES:1048576}
+    max-image-bytes: ${SPEAIVE_MAX_IMAGE_BYTES:8388608}
+  security:
+    admin-username: ${SPEAIVE_ADMIN_USERNAME:admin}
+    admin-password-hash: ${SPEAIVE_ADMIN_PASSWORD_HASH:}
+    secure-cookies: ${SPEAIVE_SECURE_COOKIES:false}
+    login-max-attempts: ${SPEAIVE_LOGIN_MAX_ATTEMPTS:5}
+    login-window-seconds: ${SPEAIVE_LOGIN_WINDOW_SECONDS:900}
+    login-max-tracked-addresses: ${SPEAIVE_LOGIN_MAX_TRACKED_ADDRESSES:10000}

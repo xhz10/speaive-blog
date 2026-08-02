@@ -1,0 +1,723 @@
+---
+import {
+  Archive,
+  Check,
+  Eye,
+  ImagePlus,
+  Save,
+  Send,
+  TriangleAlert,
+  Undo2
+} from "@lucide/astro";
+import type { StudioPostDetail } from "../lib/studio/types";
+
+interface Props {
+  post?: StudioPostDetail;
+}
+
+const { post } = Astro.props;
+const initialState = JSON.stringify(post ?? null).replace(/</g, "\\u003c");
+const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+---
+
+<form id="post-form" class="studio-editor-form" novalidate data-dirty="false">
+  <div class="editor-commandbar">
+    <div class="editor-state-line">
+      <span class:list={["status-badge", { draft: !post || post.status === "DRAFT" }]} data-post-status>
+        {post?.status === "PUBLISHED" ? "已发布" : "草稿"}
+      </span>
+      <span class="save-indicator" data-save-indicator data-state={post ? "saved" : "dirty"} aria-live="polite">
+        <span class="save-indicator-dot" aria-hidden="true"></span>
+        <span data-save-label>{post ? "已保存" : "未保存"}</span>
+      </span>
+    </div>
+    <div class="button-row editor-actions">
+      <button class="button secondary" type="button" data-save-draft hidden={post?.status === "PUBLISHED"}>
+        <Save size={16} stroke-width={1.8} aria-hidden="true" />
+        保存草稿
+      </button>
+      <button class="button secondary" type="button" data-unpublish hidden={post?.status !== "PUBLISHED"}>
+        <Undo2 size={16} stroke-width={1.8} aria-hidden="true" />
+        撤回为草稿
+      </button>
+      <button class="button primary" type="button" data-publish>
+        <Send size={16} stroke-width={1.8} aria-hidden="true" />
+        <span data-publish-label>{post?.status === "PUBLISHED" ? "更新发布" : "发布"}</span>
+      </button>
+      <button class="icon-button" type="button" title="归档文章" aria-label="归档文章" data-archive hidden={!post}>
+        <Archive size={17} stroke-width={1.8} aria-hidden="true" />
+      </button>
+    </div>
+  </div>
+
+  <div class="editor-alert" role="alert" hidden data-editor-error>
+    <TriangleAlert size={17} stroke-width={1.8} aria-hidden="true" />
+    <span data-editor-error-text></span>
+    <a class="button ghost" href="/studio/login" target="_blank" rel="noreferrer" hidden data-login-again>重新登录</a>
+    <button class="button ghost" type="button" hidden data-reload>重新加载</button>
+  </div>
+
+  <section class="editor-document-meta" aria-label="文章信息">
+    <label class="visually-hidden" for="post-title">标题</label>
+    <input
+      id="post-title"
+      class="editor-title-input"
+      type="text"
+      name="title"
+      value={post?.title ?? ""}
+      maxlength="200"
+      placeholder="文章标题"
+      required
+      data-title
+    />
+    <label class="visually-hidden" for="post-description">摘要</label>
+    <textarea
+      id="post-description"
+      class="editor-description-input"
+      name="description"
+      rows="2"
+      maxlength="500"
+      placeholder="写一句摘要，留空也可以"
+      data-description
+    >{post?.description ?? ""}</textarea>
+
+    <div class="editor-metadata-grid">
+      <label class="field slug-field">
+        <span class="field-label">Slug</span>
+        <div class="slug-input-wrap"><span>/blog/</span><input type="text" name="slug" value={post?.slug ?? ""} maxlength="100" pattern="[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*" required readonly={Boolean(post)} data-slug /></div>
+      </label>
+      <label class="field">
+        <span class="field-label">发布日期</span>
+        <input class="input" type="date" name="publishedAt" value={publishedAt} required data-published-at />
+      </label>
+      <label class="field">
+        <span class="field-label">标签</span>
+        <input class="input" type="text" name="tags" value={post?.tags.join(", ") ?? ""} placeholder="阅读, 随记" data-tags />
+      </label>
+      <label class="field cover-field">
+        <span class="field-label">封面</span>
+        <input class="input" type="text" name="cover" value={post?.cover ?? ""} placeholder="上传图片后可以设为封面" data-cover />
+      </label>
+    </div>
+  </section>
+
+  <div class="editor-workspace">
+    <section class="editor-pane" aria-labelledby="editor-title" data-drop-zone>
+      <div class="editor-toolbar">
+        <div>
+          <strong id="editor-title">Markdown</strong>
+          <span>正文</span>
+        </div>
+        <div class="button-row editor-tools">
+          <label class="compact-checkbox" title="上传图片后同时设为文章封面">
+            <input type="checkbox" aria-label="上传图片时设为封面" data-set-cover />
+            <span>设为封面</span>
+          </label>
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif" hidden data-media-picker />
+          <button class="icon-button" type="button" title="上传图片" aria-label="上传图片" data-upload-media>
+            <ImagePlus size={17} stroke-width={1.8} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+      <div class="media-result" hidden data-media-result>
+        <Check size={15} stroke-width={1.8} aria-hidden="true" />
+        <span data-media-message></span>
+        <button type="button" data-use-cover>设为封面</button>
+      </div>
+      <textarea
+        class="editor-textarea"
+        name="body"
+        aria-label="Markdown 正文"
+        placeholder="从这里开始写……"
+        spellcheck="true"
+        data-body
+      >{post?.body ?? ""}</textarea>
+      <div class="drop-overlay" hidden data-drop-overlay>松开以上传图片</div>
+    </section>
+
+    <section class="preview-pane prose" aria-label="文章预览">
+      <div class="editor-toolbar preview-toolbar">
+        <div><strong>预览</strong><span data-preview-state>{post ? "已同步" : "等待正文"}</span></div>
+        <button class="icon-button" type="button" title="立即刷新预览" aria-label="立即刷新预览" data-preview>
+          <Eye size={17} stroke-width={1.8} aria-hidden="true" />
+        </button>
+      </div>
+      <div class="preview-content" data-preview-pane>
+        {post?.html ? <Fragment set:html={post.html} /> : <div class="preview-placeholder"><span>预览会显示在这里</span></div>}
+      </div>
+    </section>
+  </div>
+</form>
+
+<script is:inline id="editor-initial-state" type="application/json" set:html={initialState}></script>
+
+<script>
+  import { StudioClientError, studioRequest } from "../lib/studio/client";
+  import type {
+    CreatePostPayload,
+    PostWritePayload,
+    SavedMedia,
+    StudioPostDetail,
+    UpdatePostPayload
+  } from "../lib/studio/types";
+
+  const NEW_DRAFT_KEY_PREFIX = "speaive:studio:new-draft:v2:";
+  const NEW_DRAFT_TAB_KEY = "speaive:studio:new-draft-tab:v1";
+
+  const form = document.querySelector<HTMLFormElement>("#post-form");
+  const stateScript = document.querySelector<HTMLScriptElement>("#editor-initial-state");
+  if (form && stateScript) {
+    const parsed = JSON.parse(stateScript.textContent || "null") as StudioPostDetail | null;
+    setupEditor(form, parsed);
+  }
+
+  function setupEditor(editorForm: HTMLFormElement, initialPost: StudioPostDetail | null) {
+    const titleInput = editorForm.querySelector<HTMLInputElement>("[data-title]")!;
+    const descriptionInput = editorForm.querySelector<HTMLTextAreaElement>("[data-description]")!;
+    const slugInput = editorForm.querySelector<HTMLInputElement>("[data-slug]")!;
+    const publishedAtInput = editorForm.querySelector<HTMLInputElement>("[data-published-at]")!;
+    const tagsInput = editorForm.querySelector<HTMLInputElement>("[data-tags]")!;
+    const coverInput = editorForm.querySelector<HTMLInputElement>("[data-cover]")!;
+    const bodyInput = editorForm.querySelector<HTMLTextAreaElement>("[data-body]")!;
+    const saveButton = editorForm.querySelector<HTMLButtonElement>("[data-save-draft]")!;
+    const publishButton = editorForm.querySelector<HTMLButtonElement>("[data-publish]")!;
+    const publishLabel = editorForm.querySelector<HTMLElement>("[data-publish-label]")!;
+    const unpublishButton = editorForm.querySelector<HTMLButtonElement>("[data-unpublish]")!;
+    const archiveButton = editorForm.querySelector<HTMLButtonElement>("[data-archive]")!;
+    const statusBadge = editorForm.querySelector<HTMLElement>("[data-post-status]")!;
+    const saveIndicator = editorForm.querySelector<HTMLElement>("[data-save-indicator]")!;
+    const saveLabel = editorForm.querySelector<HTMLElement>("[data-save-label]")!;
+    const errorBox = editorForm.querySelector<HTMLElement>("[data-editor-error]")!;
+    const errorText = editorForm.querySelector<HTMLElement>("[data-editor-error-text]")!;
+    const loginAgain = editorForm.querySelector<HTMLAnchorElement>("[data-login-again]")!;
+    const reloadButton = editorForm.querySelector<HTMLButtonElement>("[data-reload]")!;
+    const previewButton = editorForm.querySelector<HTMLButtonElement>("[data-preview]")!;
+    const previewPane = editorForm.querySelector<HTMLElement>("[data-preview-pane]")!;
+    const previewState = editorForm.querySelector<HTMLElement>("[data-preview-state]")!;
+    const mediaButton = editorForm.querySelector<HTMLButtonElement>("[data-upload-media]")!;
+    const mediaPicker = editorForm.querySelector<HTMLInputElement>("[data-media-picker]")!;
+    const setCover = editorForm.querySelector<HTMLInputElement>("[data-set-cover]")!;
+    const mediaResult = editorForm.querySelector<HTMLElement>("[data-media-result]")!;
+    const mediaMessage = editorForm.querySelector<HTMLElement>("[data-media-message]")!;
+    const useCoverButton = editorForm.querySelector<HTMLButtonElement>("[data-use-cover]")!;
+    const dropZone = editorForm.querySelector<HTMLElement>("[data-drop-zone]")!;
+    const dropOverlay = editorForm.querySelector<HTMLElement>("[data-drop-overlay]")!;
+
+    if (!initialPost) publishedAtInput.value = localDateValue(new Date());
+
+    let post = initialPost;
+    let status = initialPost?.status ?? "DRAFT";
+    let version = initialPost?.version ?? "";
+    let slugTouched = Boolean(initialPost);
+    let dirty = false;
+    let conflicted = false;
+    let busy = false;
+    let autosaveTimer: number | undefined;
+    let activeSave: Promise<StudioPostDetail | null> | null = null;
+    let previewTimer: number | undefined;
+    let previewController: AbortController | undefined;
+    let lastUploadedUrl = "";
+    const localDraftKey = resolveLocalDraftKey();
+    let savedSnapshot = snapshot();
+    const request = <T = void,>(path: string, init: RequestInit = {}) =>
+      studioRequest<T>(path, init, { redirectOnUnauthorized: false });
+
+    loginAgain.href = `/studio/login?next=${encodeURIComponent(window.location.pathname)}`;
+
+    if (!post) restoreLocalDraft();
+    syncDirtyFlag();
+    syncControls();
+    if (!post && bodyInput.value.trim()) schedulePreview(0);
+
+    editorForm.addEventListener("submit", (event) => event.preventDefault());
+    editorForm.addEventListener("input", (event) => {
+      if (event.target === titleInput && !slugTouched && !slugInput.readOnly) {
+        slugInput.value = toSlug(titleInput.value);
+      }
+      if (event.target === slugInput) slugTouched = Boolean(slugInput.value);
+      markDirty();
+      if (event.target === bodyInput) schedulePreview(700);
+    });
+
+    saveButton.addEventListener("click", () => void runCommand(async () => {
+      await saveDraft(true);
+    }));
+
+    publishButton.addEventListener("click", () => void runCommand(publish));
+    unpublishButton.addEventListener("click", () => void runCommand(unpublish));
+    archiveButton.addEventListener("click", () => void runCommand(archive));
+    reloadButton.addEventListener("click", () => window.location.reload());
+    previewButton.addEventListener("click", () => void refreshPreview());
+
+    mediaButton.addEventListener("click", () => mediaPicker.click());
+    mediaPicker.addEventListener("change", () => {
+      const file = mediaPicker.files?.[0];
+      if (file) void uploadImage(file);
+    });
+
+    useCoverButton.addEventListener("click", () => {
+      if (!lastUploadedUrl) return;
+      coverInput.value = lastUploadedUrl;
+      coverInput.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      mediaResult.hidden = true;
+    });
+
+    bodyInput.addEventListener("paste", (event) => {
+      const image = Array.from(event.clipboardData?.files ?? []).find((file) => file.type.startsWith("image/"));
+      if (!image) return;
+      event.preventDefault();
+      void uploadImage(image);
+    });
+
+    let dragDepth = 0;
+    dropZone.addEventListener("dragenter", (event) => {
+      if (!hasImage(event.dataTransfer)) return;
+      event.preventDefault();
+      dragDepth += 1;
+      dropOverlay.hidden = false;
+    });
+    dropZone.addEventListener("dragover", (event) => {
+      if (!hasImage(event.dataTransfer)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    });
+    dropZone.addEventListener("dragleave", () => {
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) dropOverlay.hidden = true;
+    });
+    dropZone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      dragDepth = 0;
+      dropOverlay.hidden = true;
+      const image = Array.from(event.dataTransfer?.files ?? []).find((file) => file.type.startsWith("image/"));
+      if (image) void uploadImage(image);
+    });
+
+    window.addEventListener("beforeunload", (event) => {
+      if (!dirty) return;
+      event.preventDefault();
+    });
+
+    function collectWritePayload(): PostWritePayload {
+      return {
+        title: titleInput.value.trim(),
+        description: descriptionInput.value.trim(),
+        publishedAt: resolvePublishedAt(),
+        tags: tagsInput.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean),
+        cover: coverInput.value.trim() || null,
+        body: bodyInput.value
+      };
+    }
+
+    function snapshot(): string {
+      return JSON.stringify({ slug: slugInput.value.trim(), ...collectWritePayload() });
+    }
+
+    function markDirty() {
+      const nextSnapshot = snapshot();
+      dirty = nextSnapshot !== savedSnapshot;
+      syncDirtyFlag();
+      clearError();
+      if (!dirty) {
+        window.clearTimeout(autosaveTimer);
+        setSaveState("saved", "已保存");
+        return;
+      }
+
+      setSaveState("dirty", status === "PUBLISHED" ? "未发布修改" : "未保存");
+      if (!post) persistLocalDraft();
+      scheduleAutosave();
+    }
+
+    async function saveDraft(explicit: boolean): Promise<StudioPostDetail | null> {
+      window.clearTimeout(autosaveTimer);
+      while (activeSave) await activeSave;
+      if (conflicted || (status === "PUBLISHED" && !explicit)) return post;
+      if (!dirty && post) {
+        setSaveState("saved", "已保存");
+        return post;
+      }
+      if (!validateDocument(explicit)) return null;
+
+      const operation = performSave(explicit);
+      activeSave = operation;
+      try {
+        return await operation;
+      } finally {
+        if (activeSave === operation) activeSave = null;
+      }
+    }
+
+    async function performSave(explicit: boolean): Promise<StudioPostDetail | null> {
+      setSaveState("saving", "正在保存");
+      try {
+        const writePayload = collectWritePayload();
+        const requestSnapshot = JSON.stringify({ slug: slugInput.value.trim(), ...writePayload });
+        const saved = post
+          ? await request<StudioPostDetail>(`/studio/posts/${encodeURIComponent(post.slug)}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...writePayload, version } satisfies UpdatePostPayload)
+            })
+          : await request<StudioPostDetail>("/studio/posts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ slug: slugInput.value.trim(), ...writePayload } satisfies CreatePostPayload)
+            });
+        applyServerPost(saved, false, requestSnapshot);
+        return saved;
+      } catch (error) {
+        handleRequestError(error, explicit ? "保存失败" : "自动保存失败");
+        return null;
+      }
+    }
+
+    function scheduleAutosave() {
+      window.clearTimeout(autosaveTimer);
+      if (!dirty || conflicted || busy || status !== "DRAFT" || !validateDocument(false)) return;
+      autosaveTimer = window.setTimeout(() => void saveDraft(false), 4_000);
+    }
+
+    async function publish() {
+      if (!validateDocument(true)) return;
+
+      if (status === "PUBLISHED") {
+        if (dirty && !window.confirm("确定将本次修改更新到公开文章吗？")) return;
+        if (dirty) {
+          const updated = await saveDraft(true);
+          if (!updated) return;
+        }
+        if (!conflicted) setSaveState("saved", "已发布");
+        return;
+      }
+
+      if (!window.confirm("发布后文章会立即出现在公开博客，确定继续吗？")) return;
+
+      const saved = await saveDraft(true);
+      if (!saved || conflicted) return;
+      if (dirty) {
+        const latest = await saveDraft(true);
+        if (!latest || conflicted) return;
+      }
+      const published = await request<StudioPostDetail>(`/studio/posts/${encodeURIComponent(saved.slug)}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version })
+      });
+      applyServerPost(published, false, savedSnapshot);
+      setSaveState("saved", "已发布");
+    }
+
+    async function unpublish() {
+      if (!post || status !== "PUBLISHED") return;
+      if (!window.confirm("撤回后文章将从公开博客隐藏，并回到草稿。")) return;
+      const hadLocalChanges = dirty;
+      const draft = await request<StudioPostDetail>(`/studio/posts/${encodeURIComponent(post.slug)}/unpublish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version })
+      });
+      const localSnapshot = snapshot();
+      applyServerPost(draft, !hadLocalChanges);
+      if (hadLocalChanges) {
+        savedSnapshot = JSON.stringify({ slug: draft.slug, ...toWritePayload(draft) });
+        dirty = localSnapshot !== savedSnapshot;
+        const saved = await saveDraft(true);
+        if (!saved) return;
+      }
+      setSaveState("saved", "已撤回");
+    }
+
+    async function archive() {
+      if (!post) return;
+      const warning = dirty && status === "PUBLISHED"
+        ? "当前未发布修改不会保留。确定归档这篇文章吗？"
+        : "归档后文章将不再公开，确定继续吗？";
+      if (!window.confirm(warning)) return;
+      if (status === "DRAFT" && dirty) {
+        const saved = await saveDraft(true);
+        if (!saved) return;
+      }
+      await request(`/studio/posts/${encodeURIComponent(post.slug)}/archive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version })
+      });
+      dirty = false;
+      syncDirtyFlag();
+      window.location.assign("/studio/");
+    }
+
+    async function runCommand(command: () => Promise<void>) {
+      if (busy || conflicted) return;
+      window.clearTimeout(autosaveTimer);
+      busy = true;
+      syncDisabledState();
+      try {
+        await command();
+      } catch (error) {
+        handleRequestError(error, "操作失败");
+      } finally {
+        busy = false;
+        syncDisabledState();
+        scheduleAutosave();
+      }
+    }
+
+    async function refreshPreview() {
+      window.clearTimeout(previewTimer);
+      previewController?.abort();
+      previewController = new AbortController();
+      previewButton.disabled = true;
+      previewState.textContent = "正在生成";
+      try {
+        const result = await request<{ html: string }>("/studio/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body: bodyInput.value }),
+          signal: previewController.signal
+        });
+        previewPane.innerHTML = result.html || '<div class="preview-placeholder"><span>预览会显示在这里</span></div>';
+        previewState.textContent = "已同步";
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        previewState.textContent = "预览失败";
+        showError(error instanceof Error ? error.message : "预览失败");
+      } finally {
+        previewButton.disabled = false;
+      }
+    }
+
+    function schedulePreview(delay: number) {
+      window.clearTimeout(previewTimer);
+      previewState.textContent = "等待更新";
+      previewTimer = window.setTimeout(() => void refreshPreview(), delay);
+    }
+
+    async function uploadImage(file: File) {
+      mediaButton.disabled = true;
+      mediaResult.hidden = true;
+      try {
+        const body = new FormData();
+        body.set("image", file);
+        const media = await request<SavedMedia>("/studio/media", { method: "POST", body });
+        insertAtCursor(`![${escapeImageAlt(file.name)}](${media.url})`);
+        lastUploadedUrl = media.url;
+        if (setCover.checked || !coverInput.value.trim()) {
+          coverInput.value = media.url;
+          coverInput.dispatchEvent(new InputEvent("input", { bubbles: true }));
+          mediaMessage.textContent = "图片已插入，并设为封面";
+          useCoverButton.hidden = true;
+        } else {
+          mediaMessage.textContent = "图片已插入正文";
+          useCoverButton.hidden = false;
+        }
+        mediaResult.hidden = false;
+      } catch (error) {
+        showError(error instanceof Error ? error.message : "图片上传失败");
+      } finally {
+        mediaButton.disabled = false;
+        mediaPicker.value = "";
+      }
+    }
+
+    function insertAtCursor(markdown: string) {
+      const before = bodyInput.value.slice(0, bodyInput.selectionStart);
+      const needsLeadingLine = before.length > 0 && !before.endsWith("\n");
+      const insertion = `${needsLeadingLine ? "\n" : ""}${markdown}\n`;
+      bodyInput.setRangeText(insertion, bodyInput.selectionStart, bodyInput.selectionEnd, "end");
+      bodyInput.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      bodyInput.focus();
+    }
+
+    function applyServerPost(next: StudioPostDetail, updateFields = false, persistedSnapshot?: string) {
+      post = next;
+      version = next.version;
+      status = next.status;
+      slugInput.value = next.slug;
+      slugInput.readOnly = true;
+      slugTouched = true;
+      if (updateFields) {
+        titleInput.value = next.title;
+        descriptionInput.value = next.description;
+        publishedAtInput.value = next.publishedAt.slice(0, 10);
+        tagsInput.value = next.tags.join(", ");
+        coverInput.value = next.cover ?? "";
+        bodyInput.value = next.body;
+        previewPane.innerHTML = next.html;
+      }
+      conflicted = false;
+      savedSnapshot = persistedSnapshot ?? snapshot();
+      dirty = snapshot() !== savedSnapshot;
+      syncDirtyFlag();
+      localStorage.removeItem(localDraftKey);
+      const editPath = `/studio/edit/${encodeURIComponent(next.slug)}/`;
+      if (window.location.pathname !== editPath) window.history.replaceState({}, "", editPath);
+      loginAgain.href = `/studio/login?next=${encodeURIComponent(editPath)}`;
+      const editorContext = document.querySelector<HTMLElement>("[data-editor-context]");
+      if (editorContext) editorContext.textContent = next.slug;
+      document.title = `编辑：${next.title}｜Speaive`;
+      if (dirty) {
+        setSaveState("dirty", status === "PUBLISHED" ? "未发布修改" : "未保存");
+        scheduleAutosave();
+      } else {
+        setSaveState("saved", "已保存");
+      }
+      clearError();
+      syncControls();
+    }
+
+    function syncControls() {
+      const published = status === "PUBLISHED";
+      statusBadge.textContent = published ? "已发布" : "草稿";
+      statusBadge.classList.toggle("draft", !published);
+      saveButton.hidden = published;
+      unpublishButton.hidden = !published;
+      archiveButton.hidden = !post;
+      publishLabel.textContent = published ? "更新发布" : "发布";
+      syncDisabledState();
+    }
+
+    function syncDisabledState() {
+      for (const button of [saveButton, publishButton, unpublishButton, archiveButton]) {
+        button.disabled = busy || conflicted;
+      }
+    }
+
+    function setSaveState(state: "dirty" | "saving" | "saved" | "conflict" | "error", label: string) {
+      saveIndicator.dataset.state = state;
+      saveLabel.textContent = label;
+    }
+
+    function handleRequestError(error: unknown, fallback: string) {
+      if (error instanceof StudioClientError && error.status === 401) {
+        setSaveState("error", "登录已过期");
+        showError("登录已过期。请在新窗口重新登录，当前内容会保留在这里。", false, true);
+        return;
+      }
+      if (error instanceof StudioClientError && error.status === 409) {
+        conflicted = true;
+        window.clearTimeout(autosaveTimer);
+        setSaveState("conflict", "冲突");
+        showError("文件已在其他位置更新。请重新加载后再继续编辑。", true);
+        syncDisabledState();
+        return;
+      }
+      setSaveState("error", "保存失败");
+      showError(error instanceof Error ? error.message : fallback);
+    }
+
+    function showError(message: string, allowReload = false, allowLogin = false) {
+      errorText.textContent = message;
+      reloadButton.hidden = !allowReload;
+      loginAgain.hidden = !allowLogin;
+      errorBox.hidden = false;
+    }
+
+    function clearError() {
+      if (conflicted) return;
+      errorBox.hidden = true;
+      reloadButton.hidden = true;
+      loginAgain.hidden = true;
+    }
+
+    function validateDocument(interactive: boolean): boolean {
+      const valid = interactive ? editorForm.reportValidity() : editorForm.checkValidity();
+      if (!valid) return false;
+      if (!slugInput.value.trim()) {
+        if (interactive) {
+          slugInput.focus();
+          showError("请先填写文章 slug。");
+        }
+        return false;
+      }
+      return true;
+    }
+
+    function persistLocalDraft() {
+      try {
+        localStorage.setItem(localDraftKey, snapshot());
+      } catch {
+        // Browsers may disable local storage; editing can continue without recovery.
+      }
+    }
+
+    function restoreLocalDraft() {
+      try {
+        const raw = localStorage.getItem(localDraftKey);
+        if (!raw) return;
+        const draft = JSON.parse(raw) as Partial<CreatePostPayload>;
+        titleInput.value = draft.title ?? "";
+        descriptionInput.value = draft.description ?? "";
+        slugInput.value = draft.slug ?? "";
+        publishedAtInput.value = draft.publishedAt?.slice(0, 10) ?? publishedAtInput.value;
+        tagsInput.value = draft.tags?.join(", ") ?? "";
+        coverInput.value = draft.cover ?? "";
+        bodyInput.value = draft.body ?? "";
+        slugTouched = Boolean(slugInput.value);
+        dirty = true;
+        syncDirtyFlag();
+        setSaveState("dirty", "已恢复未保存内容");
+        scheduleAutosave();
+      } catch {
+        localStorage.removeItem(localDraftKey);
+      }
+    }
+
+    function resolvePublishedAt(): string {
+      const selectedDate = publishedAtInput.value;
+      if (post?.publishedAt?.slice(0, 10) === selectedDate) return post.publishedAt;
+      if (post?.publishedAt?.includes("T")) return `${selectedDate}${post.publishedAt.slice(10)}`;
+      return `${selectedDate}T12:00:00Z`;
+    }
+
+    function syncDirtyFlag() {
+      editorForm.dataset.dirty = String(dirty);
+    }
+  }
+
+  function toSlug(value: string): string {
+    return value.normalize("NFKC").trim().toLocaleLowerCase("zh-CN")
+      .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  function toWritePayload(post: StudioPostDetail): PostWritePayload {
+    return {
+      title: post.title,
+      description: post.description,
+      publishedAt: post.publishedAt,
+      tags: post.tags,
+      cover: post.cover,
+      body: post.body
+    };
+  }
+
+  function escapeImageAlt(value: string): string {
+    return value.replace(/\.[^.]+$/, "").replace(/[\[\]]/g, "");
+  }
+
+  function hasImage(dataTransfer: DataTransfer | null): boolean {
+    return Array.from(dataTransfer?.items ?? []).some((item) => item.type.startsWith("image/"));
+  }
+
+  function localDateValue(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function resolveLocalDraftKey(): string {
+    try {
+      let tabId = sessionStorage.getItem(NEW_DRAFT_TAB_KEY);
+      if (!tabId) {
+        tabId = crypto.randomUUID();
+        sessionStorage.setItem(NEW_DRAFT_TAB_KEY, tabId);
+      }
+      return `${NEW_DRAFT_KEY_PREFIX}${tabId}`;
+    } catch {
+      return `${NEW_DRAFT_KEY_PREFIX}${crypto.randomUUID()}`;
+    }
+  }
+</script>

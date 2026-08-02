@@ -1,0 +1,206 @@
+---
+import { Archive, ExternalLink, FileUp, Pencil, Plus, Search } from "@lucide/astro";
+import StudioLayout from "../../layouts/StudioLayout.astro";
+import { fetchStudioApi } from "../../lib/studio/server";
+import type { StudioPostList } from "../../lib/studio/types";
+
+let result: StudioPostList = { items: [], errors: [] };
+let loadError: string | undefined;
+try {
+  result = await fetchStudioApi<StudioPostList>(Astro.request, "/api/v1/studio/posts");
+} catch (error) {
+  loadError = error instanceof Error ? error.message : "文章列表加载失败";
+}
+
+const draftCount = result.items.filter((post) => post.status === "DRAFT").length;
+const publishedCount = result.items.filter((post) => post.status === "PUBLISHED").length;
+const formatDate = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? "-" : new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
+};
+---
+
+<StudioLayout title="写作台">
+  <header class="studio-page-head">
+    <div>
+      <p class="studio-kicker">Studio</p>
+      <h1>文章</h1>
+      <p>{draftCount} 篇草稿，{publishedCount} 篇已发布</p>
+    </div>
+    <div class="button-row studio-page-actions">
+      <input type="file" accept=".md,text/markdown,text/plain" hidden data-import-picker />
+      <button class="button secondary" type="button" data-import-trigger>
+        <FileUp size={16} stroke-width={1.8} aria-hidden="true" />
+        <span data-import-label>导入 Markdown</span>
+      </button>
+      <a class="button primary" href="/studio/new/">
+        <Plus size={17} stroke-width={1.8} aria-hidden="true" />
+        写文章
+      </a>
+    </div>
+  </header>
+
+  <p class="notice" role="status" hidden data-list-notice></p>
+  {loadError && <p class="notice error">{loadError}</p>}
+  {result.errors.map((item) => <p class="notice error">{item.file}：{item.message}</p>)}
+
+  <section class="studio-content-list" aria-labelledby="posts-title">
+    <h2 class="visually-hidden" id="posts-title">文章列表</h2>
+    <div class="studio-list-toolbar">
+      <div class="status-tabs" role="group" aria-label="按状态筛选">
+        <button class="status-tab active" type="button" data-status="ALL" aria-pressed="true">
+          全部 <span>{result.items.length}</span>
+        </button>
+        <button class="status-tab" type="button" data-status="DRAFT" aria-pressed="false">
+          草稿 <span>{draftCount}</span>
+        </button>
+        <button class="status-tab" type="button" data-status="PUBLISHED" aria-pressed="false">
+          已发布 <span>{publishedCount}</span>
+        </button>
+      </div>
+      <label class="studio-search">
+        <Search size={16} stroke-width={1.8} aria-hidden="true" />
+        <span class="visually-hidden">搜索文章</span>
+        <input type="search" placeholder="搜索标题或 slug" autocomplete="off" data-post-search />
+      </label>
+    </div>
+
+    <div class="studio-list-heading" aria-hidden="true">
+      <span>文章</span><span>状态</span><span>更新</span><span>操作</span>
+    </div>
+
+    <ul class="studio-post-list" data-post-list>
+      {
+        result.items.map((post) => (
+          <li
+            class="studio-post-item"
+            data-post-item
+            data-status={post.status}
+            data-search={`${post.title} ${post.slug}`.toLocaleLowerCase("zh-CN")}
+          >
+            <a class="studio-post-copy" href={`/studio/edit/${encodeURIComponent(post.slug)}/`}>
+              <strong>{post.title}</strong>
+              <span>{post.slug}</span>
+              {post.description && <p>{post.description}</p>}
+            </a>
+            <div><span class:list={["status-badge", { draft: post.status === "DRAFT" }]}>{post.status === "DRAFT" ? "草稿" : "已发布"}</span></div>
+            <time datetime={post.updatedAt}>{formatDate(post.updatedAt)}</time>
+            <div class="button-row studio-row-actions">
+              {post.status === "PUBLISHED" && (
+                <a class="icon-button" href={`/blog/${encodeURIComponent(post.slug)}/`} target="_blank" rel="noreferrer" title="查看文章" aria-label={`查看 ${post.title}`}>
+                  <ExternalLink size={16} stroke-width={1.8} aria-hidden="true" />
+                </a>
+              )}
+              <a class="icon-button" href={`/studio/edit/${encodeURIComponent(post.slug)}/`} title="编辑" aria-label={`编辑 ${post.title}`}>
+                <Pencil size={16} stroke-width={1.8} aria-hidden="true" />
+              </a>
+              <button class="icon-button" type="button" title="归档" aria-label={`归档 ${post.title}`} data-archive-slug={post.slug} data-version={post.version}>
+                <Archive size={16} stroke-width={1.8} aria-hidden="true" />
+              </button>
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+    <div class="studio-empty" hidden={result.items.length > 0} data-empty-state>
+      <p>{result.items.length > 0 ? "没有符合条件的文章。" : "还没有文章。"}</p>
+      <a class="inline-link" href="/studio/new/">开始写第一篇</a>
+    </div>
+  </section>
+</StudioLayout>
+
+<script>
+  import { studioRequest } from "../../lib/studio/client";
+  import type { StudioPostDetail } from "../../lib/studio/types";
+
+  const search = document.querySelector<HTMLInputElement>("[data-post-search]");
+  const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-status]"));
+  const items = Array.from(document.querySelectorAll<HTMLElement>("[data-post-item]"));
+  const empty = document.querySelector<HTMLElement>("[data-empty-state]");
+  const notice = document.querySelector<HTMLElement>("[data-list-notice]");
+  const importPicker = document.querySelector<HTMLInputElement>("[data-import-picker]");
+  const importTrigger = document.querySelector<HTMLButtonElement>("[data-import-trigger]");
+  const importLabel = document.querySelector<HTMLElement>("[data-import-label]");
+  let activeStatus = "ALL";
+
+  function applyFilters() {
+    const query = search?.value.trim().toLocaleLowerCase("zh-CN") ?? "";
+    let visible = 0;
+    for (const item of items) {
+      const matchesStatus = activeStatus === "ALL" || item.dataset.status === activeStatus;
+      const matchesSearch = !query || item.dataset.search?.includes(query);
+      item.hidden = !matchesStatus || !matchesSearch;
+      if (!item.hidden) visible += 1;
+    }
+    if (empty) {
+      empty.hidden = visible > 0;
+      const message = empty.querySelector("p");
+      if (message) message.textContent = items.length > 0 ? "没有符合条件的文章。" : "还没有文章。";
+    }
+  }
+
+  search?.addEventListener("input", applyFilters);
+  for (const tab of tabs) {
+    tab.addEventListener("click", () => {
+      activeStatus = tab.dataset.status ?? "ALL";
+      for (const item of tabs) {
+        const selected = item === tab;
+        item.classList.toggle("active", selected);
+        item.setAttribute("aria-pressed", String(selected));
+      }
+      applyFilters();
+    });
+  }
+
+  function showNotice(message: string, error = false) {
+    if (!notice) return;
+    notice.textContent = message;
+    notice.classList.toggle("error", error);
+    notice.hidden = false;
+  }
+
+  importTrigger?.addEventListener("click", () => importPicker?.click());
+  importPicker?.addEventListener("change", async () => {
+    const file = importPicker.files?.[0];
+    if (!file || !importTrigger || !importLabel) return;
+    importTrigger.disabled = true;
+    importLabel.textContent = "正在导入";
+    try {
+      const body = new FormData();
+      body.set("markdown", file);
+      const post = await studioRequest<StudioPostDetail>("/studio/import", { method: "POST", body });
+      window.location.assign(`/studio/edit/${encodeURIComponent(post.slug)}/?message=imported`);
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Markdown 导入失败", true);
+      importTrigger.disabled = false;
+      importLabel.textContent = "导入 Markdown";
+      importPicker.value = "";
+    }
+  });
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-archive-slug]")) {
+    button.addEventListener("click", async () => {
+      const slug = button.dataset.archiveSlug;
+      const version = button.dataset.version;
+      if (!slug || !version || !window.confirm("归档后文章将不再公开，确定继续吗？")) return;
+      button.disabled = true;
+      try {
+        await studioRequest(`/studio/posts/${encodeURIComponent(slug)}/archive`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ version })
+        });
+        button.closest<HTMLElement>("[data-post-item]")?.remove();
+        showNotice("文章已归档。");
+        window.setTimeout(() => window.location.reload(), 450);
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "归档失败", true);
+        button.disabled = false;
+      }
+    });
+  }
+</script>

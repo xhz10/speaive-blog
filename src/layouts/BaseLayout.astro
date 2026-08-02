@@ -1,0 +1,118 @@
+---
+import { PenLine } from "@lucide/astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import { site } from "../site";
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+  canonical?: string | URL;
+  image?: string | URL;
+  imageAlt?: string;
+  type?: "website" | "article";
+  publishedAt?: Date | string;
+  updatedAt?: Date | string;
+  noindex?: boolean;
+  bare?: boolean;
+}
+
+const {
+  title,
+  description = site.description,
+  canonical,
+  image = site.defaultCover,
+  imageAlt,
+  type = "website",
+  publishedAt,
+  updatedAt,
+  noindex = false,
+  bare = false
+} = Astro.props;
+
+const pageTitle = title ? `${title}｜${site.name}` : site.title;
+const configuredSite = process.env.SPEAIVE_SITE_URL ?? Astro.site?.href ?? Astro.url.origin;
+const canonicalUrl = new URL(canonical ?? Astro.url.pathname, configuredSite);
+const imageUrl = image ? new URL(image, configuredSite) : undefined;
+const toIso = (value?: Date | string) => {
+  if (!value) return undefined;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.valueOf()) ? undefined : date.toISOString();
+};
+const publishedIso = toIso(publishedAt);
+const updatedIso = toIso(updatedAt);
+const schema = type === "article"
+  ? {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      headline: title,
+      description,
+      url: canonicalUrl.href,
+      image: imageUrl?.href,
+      datePublished: publishedIso,
+      dateModified: updatedIso,
+      inLanguage: site.locale,
+      author: { "@type": "Person", name: "Speaive" }
+    }
+  : {
+      "@context": "https://schema.org",
+      "@type": "Blog",
+      name: site.name,
+      description: site.description,
+      url: new URL("/", configuredSite).href,
+      inLanguage: site.locale
+    };
+const serializedSchema = JSON.stringify(schema).replace(/</g, "\\u003c");
+---
+
+<!doctype html>
+<html lang={site.locale}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="robots" content={noindex ? "noindex, nofollow" : "index, follow"} />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content={type} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:locale" content="zh_CN" />
+    {imageUrl && <meta property="og:image" content={imageUrl} />}
+    {imageUrl && <meta property="og:image:alt" content={imageAlt ?? title ?? site.name} />}
+    {type === "article" && publishedIso && <meta property="article:published_time" content={publishedIso} />}
+    {type === "article" && updatedIso && <meta property="article:modified_time" content={updatedIso} />}
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="alternate" type="application/rss+xml" title={`${site.name} RSS`} href="/rss.xml" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>{pageTitle}</title>
+    <script is:inline type="application/ld+json" set:html={serializedSchema} />
+  </head>
+  <body class:list={{ "bare-page": bare }}>
+    <a class="skip-link" href="#main-content">跳到正文</a>
+    {!bare && <SiteHeader />}
+    <main id="main-content" tabindex="-1">
+      <slot />
+    </main>
+    {
+      !bare && (
+        <footer class="site-footer">
+          <div class="shell footer-inner">
+            <div>
+              <strong>Speaive</strong>
+              <span>一些文章，以及偶尔出现的更新。</span>
+            </div>
+            <nav aria-label="页脚导航">
+              <a href="/rss.xml">RSS</a>
+              <a class="studio-entry" href="/studio/">
+                <PenLine size={15} stroke-width={1.8} aria-hidden="true" />
+                写作台
+              </a>
+            </nav>
+          </div>
+        </footer>
+      )
+    }
+  </body>
+</html>

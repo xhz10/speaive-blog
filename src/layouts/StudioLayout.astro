@@ -1,0 +1,53 @@
+---
+import { ExternalLink, LogOut } from "@lucide/astro";
+import BaseLayout from "./BaseLayout.astro";
+
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<BaseLayout title={title} noindex bare>
+  <div class="studio-shell">
+    <header class="studio-header">
+      <nav class="shell studio-nav" aria-label="写作台导航">
+        <a class="studio-brand" href="/studio/">
+          <span class="studio-brand-mark" aria-hidden="true"></span>
+          Speaive <span>写作台</span>
+        </a>
+        <div class="studio-nav-actions">
+          <a class="button ghost studio-blog-link" href="/" target="_blank" rel="noreferrer">
+            <ExternalLink size={16} stroke-width={1.8} aria-hidden="true" />
+            查看博客
+          </a>
+          <button class="icon-button" type="button" title="退出登录" aria-label="退出登录" data-logout>
+            <LogOut size={17} stroke-width={1.8} aria-hidden="true" />
+          </button>
+        </div>
+      </nav>
+    </header>
+    <div class="studio-main">
+      <slot />
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { studioRequest } from "../lib/studio/client";
+
+  document.querySelector<HTMLButtonElement>("[data-logout]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    if (!(button instanceof HTMLButtonElement)) return;
+    const editor = document.querySelector<HTMLFormElement>("#post-form");
+    if (editor?.dataset.dirty === "true" && !window.confirm("还有未保存的修改，确定退出写作台吗？")) return;
+    button.disabled = true;
+    try {
+      await studioRequest("/studio/logout", { method: "POST" });
+      window.location.assign("/studio/login");
+    } catch {
+      button.disabled = false;
+    }
+  });
+</script>

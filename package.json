@@ -1,0 +1,33 @@
+{
+  "name": "speaive-blog",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "./scripts/dev.sh",
+    "dev:frontend": "astro dev",
+    "dev:stop": "astro dev stop",
+    "build": "./scripts/build.sh",
+    "build:frontend": "astro check && astro build",
+    "check": "astro check",
+    "start": "./scripts/start.sh",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "password:hash": "./scripts/hash-password.sh"
+  },
+  "dependencies": {
+    "@astrojs/node": "^11.0.3",
+    "@lucide/astro": "^1.28.0",
+    "astro": "^7.1.6"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@types/node": "^24.13.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

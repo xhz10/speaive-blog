@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+.env.*
+.data
+.astro
+dist
+node_modules
+coverage
+*.log
+.DS_Store
+.idea
+backend/**/target

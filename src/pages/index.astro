@@ -1,0 +1,59 @@
+---
+import PostRow from "../components/PostRow.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { listPublishedPosts } from "../lib/public-api";
+import { site } from "../site";
+
+const posts = await listPublishedPosts();
+const latestPosts = posts.slice(0, 8);
+---
+
+<BaseLayout>
+  <section class="home-intro" aria-labelledby="site-title">
+    <div class="shell intro-grid">
+      <div class="intro-copy">
+        <p class="eyebrow">Personal notes / 个人博客</p>
+        <h1 id="site-title">Speaive</h1>
+        <p class="intro-statement">写下想法、见闻，以及那些还没有完全想明白的事情。</p>
+        <p class="intro-note">这里不限定主题。文章可能来自一本书、一次出门、一件小事，也可能只是某天突然想留下的一段话。</p>
+      </div>
+      <figure class="intro-figure">
+        <img
+          src={site.defaultCover}
+          alt="正在纸页上书写的钢笔笔尖"
+          width="1800"
+          height="1352"
+          fetchpriority="high"
+        />
+        <figcaption>WRITE WHEN IT MATTERS</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="content-section" aria-labelledby="latest-title">
+    <div class="shell">
+      <div class="section-heading">
+        <div>
+          <p class="section-label">Latest writing</p>
+          <h2 id="latest-title">最近更新</h2>
+        </div>
+        {posts.length > latestPosts.length && <a class="section-link" href="/archive/">查看全部</a>}
+      </div>
+
+      {
+        latestPosts.length > 0 ? (
+          <div class="post-list">
+            {latestPosts.map((post) => <PostRow post={post} />)}
+          </div>
+        ) : (
+          <div class="empty-state">
+            <div>
+              <h2>还没有文章</h2>
+              <p>第一篇可以慢慢来。</p>
+            </div>
+          </div>
+        )
+      }
+    </div>
+  </section>
+</BaseLayout>

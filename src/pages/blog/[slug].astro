@@ -1,0 +1,71 @@
+---
+import { ArrowLeft } from "@lucide/astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getPublishedPost } from "../../lib/public-api";
+
+const slug = Astro.params.slug ?? "";
+const post = await getPublishedPost(slug);
+
+if (!post) {
+  Astro.response.status = 404;
+}
+
+const formatDate = (date: Date) => new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "long",
+  day: "numeric"
+}).format(date);
+---
+
+{
+  post ? (
+    <BaseLayout
+      title={post.title}
+      description={post.description}
+      image={post.cover}
+      imageAlt={post.title}
+      type="article"
+      publishedAt={post.publishedAt}
+      updatedAt={post.updatedAt}
+    >
+      <article class="article-page">
+        <header class="article-header">
+          <div class="shell">
+            <a class="back-link" href="/archive/">
+              <ArrowLeft size={16} stroke-width={1.8} aria-hidden="true" />
+              返回归档
+            </a>
+            <p class="article-kicker">Writing</p>
+            <h1>{post.title}</h1>
+            {post.description && <p class="article-deck">{post.description}</p>}
+            <div class="article-meta">
+              <time datetime={post.publishedAt.toISOString()}>{formatDate(post.publishedAt)}</time>
+              {post.updatedAt && <span>更新于 {formatDate(post.updatedAt)}</span>}
+              {post.tags.length > 0 && <span>{post.tags.join(" · ")}</span>}
+            </div>
+          </div>
+          {
+            post.cover && (
+              <figure class="article-cover">
+                <img src={post.cover} alt="" width="1600" height="900" />
+              </figure>
+            )
+          }
+        </header>
+        <div class="article-body reading-width">
+          <div class="prose" set:html={post.html} />
+        </div>
+      </article>
+    </BaseLayout>
+  ) : (
+    <BaseLayout title="文章不存在" noindex>
+      <section class="not-found">
+        <div>
+          <h1>404</h1>
+          <p>这篇文章不存在，或者尚未公开。</p>
+          <a class="button primary" href="/archive/">返回归档</a>
+        </div>
+      </section>
+    </BaseLayout>
+  )
+}

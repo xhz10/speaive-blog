@@ -1,0 +1,16 @@
+---
+import { ArrowLeft } from "@lucide/astro";
+import EditorForm from "../../components/EditorForm.astro";
+import StudioLayout from "../../layouts/StudioLayout.astro";
+---
+
+<StudioLayout title="新建文章">
+  <header class="studio-editor-head">
+    <a class="editor-back" href="/studio/">
+      <ArrowLeft size={16} stroke-width={1.8} aria-hidden="true" />
+      所有文章
+    </a>
+    <span data-editor-context>新草稿</span>
+  </header>
+  <EditorForm />
+</StudioLayout>

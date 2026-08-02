@@ -1,0 +1,41 @@
+---
+import { ArrowUpRight } from "@lucide/astro";
+
+interface PostSummary {
+  slug: string;
+  title: string;
+  description: string;
+  publishedAt: Date | string;
+  tags: string[];
+}
+
+interface Props {
+  post: PostSummary;
+  heading?: "h2" | "h3";
+}
+
+const { post, heading = "h2" } = Astro.props;
+const Heading = heading;
+const dateValue = post.publishedAt instanceof Date ? post.publishedAt : new Date(post.publishedAt);
+const date = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit"
+}).format(dateValue);
+---
+
+<article class="post-row">
+  <time class="post-date" datetime={dateValue.toISOString()}>{date}</time>
+  <div class="post-row-main">
+    <Heading><a href={`/blog/${encodeURIComponent(post.slug)}/`}>{post.title}</a></Heading>
+    <p class="post-description">{post.description}</p>
+    {
+      post.tags.length > 0 && (
+        <ul class="tag-list" aria-label="文章标签">
+          {post.tags.map((tag) => <li class="tag">{tag}</li>)}
+        </ul>
+      )
+    }
+  </div>
+  <span class="row-arrow" aria-hidden="true"><ArrowUpRight size={16} stroke-width={1.8} /></span>
+</article>

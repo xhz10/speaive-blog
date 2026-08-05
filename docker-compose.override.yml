@@ -1,0 +1,15 @@
+# 本地部署端口定制（docker compose 会自动合并此文件，不修改原 docker-compose.yml）
+# 后端容器内服务端口：8080 → 9265（仅在 docker 内部网络可达，不对宿主机/公网暴露）
+services:
+  backend:
+    environment:
+      SPEAIVE_BACKEND_PORT: "9265"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:9265/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+  frontend:
+    environment:
+      SPEAIVE_BACKEND_URL: http://backend:9265

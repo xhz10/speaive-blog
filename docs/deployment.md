@@ -65,6 +65,42 @@ server {
 
 公网只开放 `80/443`。修改域名后要重新执行 `./scripts/docker-up.sh`，因为站点地址也参与 Astro 构建期配置。
 
+### 端口：默认 4321，本机已用 override 改为 9266
+
+仓库里的 `docker-compose.override.yml` 把前端发布到宿主机的 `127.0.0.1:9266`、后端容器内端口改为 `9265`（仅 docker 内网可达）。所以本机实际反代地址是 `127.0.0.1:9266`，不是 4321：
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:9266;   # 未用 override 时这里是 4321
+    ...
+}
+```
+
+### 域名备案未通过：临时走 IP 访问
+
+如果域名备案还没下来、必须用 IP 访问，再加一个 80 端口的 `default_server` 站点（Host 不匹配任何域名时命中），同样反代到前端：
+
+```nginx
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    client_max_body_size 9m;
+    location / {
+        proxy_pass http://127.0.0.1:9266;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+走 HTTP/IP 时必须临时把 `SPEAIVE_SECURE_COOKIES=false`，否则后台登录用的 cookie 带 `Secure` 标志、浏览器不会在 HTTP 下保存，登录会失效。备案通过、切回 HTTPS 域名后再改回 `true`。完整步骤见下文 [§7 运维注意事项](#7-运维注意事项踩坑记录)。
+
+> 生产环境的实际 nginx 配置（IP 入口 + 域名 HTTPS 两份）已脱敏收录在 [`deploy/nginx/`](../deploy/nginx/) 下，可作参考或灾难恢复用。
+
 ## 4. 更新
 
 ```bash
@@ -104,3 +140,49 @@ rsync -av --partial --ignore-existing \
 ## 6. 直接投递 Markdown
 
 将完成传输的 `.md` 原子移动到 `$SPEAIVE_DATA_DIR/inbox/`。后端会把它导入为草稿，不会直接公开。格式与安全传输方式见 [content-files.md](content-files.md)。
+
+## 7. 运维注意事项（踩坑记录）
+
+### 重建 backend 必须带上运行时 UID/GID
+
+`docker-up.sh` 会用 `SPEAIVE_RUNTIME_UID=$(id -u)` / `SPEAIVE_RUNTIME_GID=$(id -g)` 启动后端，数据目录的属主也与之匹配。如果像平时那样直接敲 `docker compose up -d backend`，shell 里没有这两个变量、`.env` 也没定义，compose 会回退到默认的 `1000:1000` —— 这时后端进程进不去属主是 root（或别的 UID）的数据目录，启动即崩：
+
+```
+java.nio.file.AccessDeniedException: /data/media
+```
+
+正确做法二选一：
+
+```bash
+# 方式 A：用项目脚本（自动 export UID/GID，但会 --build）
+./scripts/docker-up.sh backend
+
+# 方式 B：手动补上变量再 up（不 rebuild，最快）
+export SPEAIVE_RUNTIME_UID="$(id -u)"
+export SPEAIVE_RUNTIME_GID="$(id -g)"
+docker compose up -d backend
+```
+
+> 小结：凡是要重建 backend 容器，都先确认 `SPEAIVE_RUNTIME_UID/GID` 已在环境里；普通 `restart` 不会触发这个问题（它复用旧容器）。
+
+### SECURE_COOKIES：HTTP/IP 与 HTTPS 之间的切换
+
+`SPEAIVE_SECURE_COOKIES` 控制后台 session cookie 是否带 `Secure` 标志，是**后端运行时**读取的（改完 `.env` 重建 backend 即可，不用 rebuild 镜像）。
+
+- 走 HTTPS 域名（备案通过后）：保持 `true`。
+- 临时走 HTTP/IP（备案未通过、要登录后台）：设成 `false`，重建 backend。代价是登录 cookie 明文传输，个人博客临时期可接受。
+
+```bash
+# 切换后记得带上 UID/GID 重建 backend
+export SPEAIVE_RUNTIME_UID="$(id -u)" SPEAIVE_RUNTIME_GID="$(id -g)"
+docker compose up -d backend
+docker exec speaive-blog-backend-1 sh -c 'echo $SPEAIVE_SECURE_COOKIES'   # 核对生效
+```
+
+### Nginx 配置位置与回滚
+
+生产 nginx 站点配置在 `/etc/nginx/sites-available/`，通过 `/etc/nginx/sites-enabled/` 的软链启用。改完先 `nginx -t` 再 `systemctl reload nginx`；`nginx -t` 失败就不要 reload。改前 `cp` 一份 `.bak`，出问题恢复后 reload 即可。参考配置见 [`deploy/nginx/`](../deploy/nginx/)。
+
+### 公网端口
+
+只对公网开放 `80/443`。后端（8080/9265）和 PostgreSQL（5432）都只在 Compose 内网，不映射宿主机端口；前端只绑定 `127.0.0.1:9266`，由 nginx 反代出去。

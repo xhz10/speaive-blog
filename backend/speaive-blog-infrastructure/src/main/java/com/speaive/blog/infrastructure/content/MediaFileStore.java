@@ -29,12 +29,12 @@ final class MediaFileStore {
     private final Clock clock;
     private final BeforeFileCommit beforeFileCommit;
 
-    MediaFileStore(FileContentStoreSettings settings, Clock clock) {
+    MediaFileStore(ContentStorageSettings settings, Clock clock) {
         this(settings, clock, (source, target, replaceExisting) -> {
         });
     }
 
-    MediaFileStore(FileContentStoreSettings settings, Clock clock, BeforeFileCommit beforeFileCommit) {
+    MediaFileStore(ContentStorageSettings settings, Clock clock, BeforeFileCommit beforeFileCommit) {
         this.dataDirectory = settings.dataDirectory();
         this.mediaDirectory = dataDirectory.resolve("media");
         this.maxImageBytes = settings.maxImageBytes();

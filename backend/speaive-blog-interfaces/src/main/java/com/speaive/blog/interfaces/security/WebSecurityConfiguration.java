@@ -1,5 +1,6 @@
 package com.speaive.blog.interfaces.security;
 
+import com.speaive.blog.interfaces.http.ApiErrorCode;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -120,18 +121,19 @@ public class WebSecurityConfiguration {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, exception) ->
                                 writeSecurityError(response, HttpServletResponse.SC_UNAUTHORIZED,
-                                        "UNAUTHORIZED", "请先登录"))
+                                        ApiErrorCode.UNAUTHORIZED, "请先登录"))
                         .accessDeniedHandler((request, response, exception) ->
                                 writeSecurityError(response, HttpServletResponse.SC_FORBIDDEN,
-                                        "FORBIDDEN", "请求未通过安全校验")));
+                                        ApiErrorCode.FORBIDDEN, "请求未通过安全校验")));
         return http.build();
     }
 
-    private static void writeSecurityError(HttpServletResponse response, int status, String code, String message)
+    private static void writeSecurityError(
+            HttpServletResponse response, int status, ApiErrorCode code, String message)
             throws IOException {
         response.setStatus(status);
         response.setCharacterEncoding("UTF-8");
         response.setContentType("application/json");
-        response.getWriter().write("{\"code\":\"" + code + "\",\"message\":\"" + message + "\"}");
+        response.getWriter().write("{\"code\":\"" + code.name() + "\",\"message\":\"" + message + "\"}");
     }
 }

@@ -1,6 +1,7 @@
 package com.speaive.blog.interfaces.security;
 
 import com.speaive.blog.interfaces.http.ApiHttpException;
+import com.speaive.blog.interfaces.http.ApiErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -78,7 +79,7 @@ public class StudioAuthenticationController {
             loginAttemptLimiter.reset(clientAddress);
             return new SessionResponse(authentication.getName());
         } catch (AuthenticationException exception) {
-            throw new ApiHttpException("INVALID_CREDENTIALS", "用户名或密码错误", HttpStatus.UNAUTHORIZED);
+            throw new ApiHttpException(ApiErrorCode.INVALID_CREDENTIALS, "用户名或密码错误", HttpStatus.UNAUTHORIZED);
         }
     }
 

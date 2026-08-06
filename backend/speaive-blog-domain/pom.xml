@@ -13,4 +13,12 @@
 
     <artifactId>speaive-blog-domain</artifactId>
     <name>Speaive Blog Domain</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 </project>

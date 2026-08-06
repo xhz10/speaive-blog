@@ -1,36 +1,103 @@
 package com.speaive.blog;
 
 import com.speaive.blog.application.BlogApplicationService;
-import com.speaive.blog.application.ContentStorePort;
-import com.speaive.blog.infrastructure.content.BlogPersistenceMapper;
-import com.speaive.blog.infrastructure.content.FileContentStoreSettings;
-import com.speaive.blog.infrastructure.content.MarkdownInboxImporter;
-import com.speaive.blog.infrastructure.content.PostgresContentStore;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import com.speaive.blog.application.port.in.MarkdownInboxUseCase;
+import com.speaive.blog.application.port.out.AuthorRepository;
+import com.speaive.blog.application.port.out.MarkdownImportLedger;
+import com.speaive.blog.application.port.out.MarkdownPort;
+import com.speaive.blog.application.port.out.MediaStoragePort;
+import com.speaive.blog.application.port.out.PostRepository;
+import com.speaive.blog.application.port.out.TransactionRunner;
+import com.speaive.blog.infrastructure.content.BlogAuthorDatabaseMapper;
+import com.speaive.blog.infrastructure.content.BlogMediaDatabaseMapper;
+import com.speaive.blog.infrastructure.content.BlogPersistenceMapStructMapper;
+import com.speaive.blog.infrastructure.content.BlogPostDatabaseMapper;
+import com.speaive.blog.infrastructure.content.CommonMarkMarkdownAdapter;
+import com.speaive.blog.infrastructure.content.ContentStorageSettings;
+import com.speaive.blog.infrastructure.content.MarkdownImportDatabaseMapper;
+import com.speaive.blog.infrastructure.content.PostgresAuthorRepository;
+import com.speaive.blog.infrastructure.content.PostgresMarkdownImportLedger;
+import com.speaive.blog.infrastructure.content.PostgresMediaStorageAdapter;
+import com.speaive.blog.infrastructure.content.PostgresPostRepository;
+import com.speaive.blog.infrastructure.content.SpringTransactionRunner;
+import com.speaive.blog.interfaces.importing.MarkdownInboxImporter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.file.Path;
+import java.time.Clock;
 
 @Configuration(proxyBeanMethods = false)
 @EnableScheduling
 public class BlogBackendConfiguration {
 
     @Bean
-    ContentStorePort contentStore(
-            BlogPersistenceMapper mapper,
+    ContentStorageSettings contentStorageSettings(
             @Value("${speaive.content.data-directory}") Path dataDirectory,
             @Value("${speaive.content.max-markdown-bytes:1048576}") long maxMarkdownBytes,
             @Value("${speaive.content.max-image-bytes:8388608}") long maxImageBytes) {
-        return new PostgresContentStore(mapper, new FileContentStoreSettings(
-                dataDirectory,
-                maxMarkdownBytes,
-                maxImageBytes
-        ));
+        return new ContentStorageSettings(dataDirectory, maxMarkdownBytes, maxImageBytes);
+    }
+
+    @Bean
+    TransactionRunner transactionRunner(PlatformTransactionManager transactionManager) {
+        return new SpringTransactionRunner(transactionManager);
+    }
+
+    @Bean
+    PostRepository postRepository(
+            BlogPostDatabaseMapper posts,
+            BlogAuthorDatabaseMapper authors,
+            BlogPersistenceMapStructMapper mapping) {
+        return new PostgresPostRepository(posts, authors, mapping);
+    }
+
+    @Bean
+    AuthorRepository authorRepository(
+            BlogAuthorDatabaseMapper authors,
+            BlogPersistenceMapStructMapper mapping) {
+        return new PostgresAuthorRepository(authors, mapping);
+    }
+
+    @Bean
+    MarkdownPort markdownPort(ContentStorageSettings settings) {
+        return new CommonMarkMarkdownAdapter(settings);
+    }
+
+    @Bean
+    MarkdownImportLedger markdownImportLedger(MarkdownImportDatabaseMapper imports) {
+        return new PostgresMarkdownImportLedger(imports);
+    }
+
+    @Bean
+    MediaStoragePort mediaStoragePort(
+            BlogMediaDatabaseMapper media,
+            ContentStorageSettings settings,
+            TransactionRunner transactions) {
+        return new PostgresMediaStorageAdapter(media, settings, transactions);
+    }
+
+    @Bean
+    BlogApplicationService blogApplicationService(
+            PostRepository posts,
+            AuthorRepository authors,
+            MarkdownPort markdown,
+            MediaStoragePort media,
+            MarkdownImportLedger imports,
+            TransactionRunner transactions) {
+        return new BlogApplicationService(
+                posts,
+                authors,
+                markdown,
+                media,
+                imports,
+                transactions,
+                Clock.systemUTC()
+        );
     }
 
     @Bean
@@ -38,15 +105,7 @@ public class BlogBackendConfiguration {
     MarkdownInboxImporter markdownInboxImporter(
             @Value("${speaive.content.import-directory}") Path importDirectory,
             @Value("${speaive.content.max-markdown-bytes:1048576}") long maxMarkdownBytes,
-            ContentStorePort contentStore,
-            BlogPersistenceMapper mapper,
-            PlatformTransactionManager transactionManager) {
-        return new MarkdownInboxImporter(importDirectory, maxMarkdownBytes, contentStore, mapper,
-                new TransactionTemplate(transactionManager));
-    }
-
-    @Bean
-    BlogApplicationService blogApplicationService(ContentStorePort contentStore) {
-        return new BlogApplicationService(contentStore);
+            MarkdownInboxUseCase imports) {
+        return new MarkdownInboxImporter(importDirectory, maxMarkdownBytes, imports);
     }
 }

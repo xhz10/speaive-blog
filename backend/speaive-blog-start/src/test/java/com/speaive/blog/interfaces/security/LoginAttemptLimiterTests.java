@@ -1,6 +1,7 @@
 package com.speaive.blog.interfaces.security;
 
 import com.speaive.blog.interfaces.http.ApiHttpException;
+import com.speaive.blog.interfaces.http.ApiErrorCode;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -39,7 +40,7 @@ class LoginAttemptLimiterTests {
                         limiter.consume("203.0.113.8");
                         accepted.incrementAndGet();
                     } catch (ApiHttpException exception) {
-                        assertEquals("RATE_LIMITED", exception.code());
+                        assertEquals(ApiErrorCode.RATE_LIMITED, exception.code());
                         rejected.incrementAndGet();
                     }
                     return null;

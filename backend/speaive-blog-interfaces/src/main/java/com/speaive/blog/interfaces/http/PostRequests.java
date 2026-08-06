@@ -1,6 +1,5 @@
 package com.speaive.blog.interfaces.http;
 
-import com.speaive.blog.application.PostWriteCommand;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -21,9 +20,6 @@ final class PostRequests {
             String cover,
             @NotNull(message = "正文不能为空") String body
     ) {
-        PostWriteCommand toCommand() {
-            return new PostWriteCommand(slug, title, description, publishedAt, tags, emptyToNull(cover), body);
-        }
     }
 
     record UpdatePostRequest(
@@ -35,18 +31,11 @@ final class PostRequests {
             @NotNull(message = "正文不能为空") String body,
             @NotBlank(message = "version 不能为空") String version
     ) {
-        PostWriteCommand toCommand(String slug) {
-            return new PostWriteCommand(slug, title, description, publishedAt, tags, emptyToNull(cover), body);
-        }
     }
 
     record VersionRequest(@NotBlank(message = "version 不能为空") String version) {
     }
 
     record PreviewRequest(@NotNull(message = "正文不能为空") String body) {
-    }
-
-    private static String emptyToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 }

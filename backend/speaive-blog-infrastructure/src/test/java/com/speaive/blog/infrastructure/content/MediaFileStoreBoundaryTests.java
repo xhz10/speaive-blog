@@ -7,7 +7,6 @@ import com.speaive.blog.domain.StoredMedia;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -30,18 +29,6 @@ class MediaFileStoreBoundaryTests {
     Path temporaryDirectory;
 
     @Test
-    void postgresStoreInitializesOnlyTheMediaNamespace() {
-        Path data = temporaryDirectory.resolve("postgres-data");
-
-        new PostgresContentStore(unusedMapper(), settings(data), CLOCK);
-
-        assertTrue(Files.isDirectory(data.resolve("media")));
-        assertFalse(Files.exists(data.resolve("posts")));
-        assertFalse(Files.exists(data.resolve("drafts")));
-        assertFalse(Files.exists(data.resolve("archive")));
-    }
-
-    @Test
     void mediaStoreRoundTripDoesNotCreateLegacyContentDirectories() {
         Path data = temporaryDirectory.resolve("media-data");
         MediaFileStore store = new MediaFileStore(settings(data), CLOCK);
@@ -54,18 +41,6 @@ class MediaFileStoreBoundaryTests {
         assertFalse(Files.exists(data.resolve("posts")));
         assertFalse(Files.exists(data.resolve("drafts")));
         assertFalse(Files.exists(data.resolve("archive")));
-    }
-
-    @Test
-    void legacyFileStoreStillInitializesItsContentDirectories() {
-        Path data = temporaryDirectory.resolve("legacy-data");
-
-        new FileContentStore(settings(data), CLOCK);
-
-        assertTrue(Files.isDirectory(data.resolve("posts")));
-        assertTrue(Files.isDirectory(data.resolve("drafts")));
-        assertTrue(Files.isDirectory(data.resolve("media")));
-        assertTrue(Files.isDirectory(data.resolve("archive")));
     }
 
     @Test
@@ -83,16 +58,7 @@ class MediaFileStoreBoundaryTests {
         assertFalse(Files.exists(outside.resolve("2026")));
     }
 
-    private static FileContentStoreSettings settings(Path data) {
-        return new FileContentStoreSettings(data, 1_048_576, 8_388_608);
-    }
-
-    private static BlogPersistenceMapper unusedMapper() {
-        return (BlogPersistenceMapper) Proxy.newProxyInstance(
-                BlogPersistenceMapper.class.getClassLoader(),
-                new Class<?>[]{BlogPersistenceMapper.class},
-                (proxy, method, arguments) -> {
-                    throw new AssertionError("PostgresContentStore 构造期间不应访问数据库：" + method.getName());
-                });
+    private static ContentStorageSettings settings(Path data) {
+        return new ContentStorageSettings(data, 1_048_576, 8_388_608);
     }
 }

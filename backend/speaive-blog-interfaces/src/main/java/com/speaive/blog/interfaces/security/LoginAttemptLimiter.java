@@ -1,6 +1,7 @@
 package com.speaive.blog.interfaces.security;
 
 import com.speaive.blog.interfaces.http.ApiHttpException;
+import com.speaive.blog.interfaces.http.ApiErrorCode;
 import org.springframework.http.HttpStatus;
 
 import java.time.Clock;
@@ -84,7 +85,7 @@ public final class LoginAttemptLimiter {
     }
 
     private static ApiHttpException rateLimited() {
-        return new ApiHttpException("RATE_LIMITED", "登录尝试过于频繁，请稍后再试",
+        return new ApiHttpException(ApiErrorCode.RATE_LIMITED, "登录尝试过于频繁，请稍后再试",
                 HttpStatus.TOO_MANY_REQUESTS);
     }
 

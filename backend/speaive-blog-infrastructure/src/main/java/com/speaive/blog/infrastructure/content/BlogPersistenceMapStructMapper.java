@@ -1,0 +1,70 @@
+package com.speaive.blog.infrastructure.content;
+
+import com.speaive.blog.domain.Author;
+import com.speaive.blog.domain.AuthorStatus;
+import com.speaive.blog.domain.AuthorType;
+import com.speaive.blog.domain.PostContent;
+import com.speaive.blog.domain.PostRevisionEventType;
+import com.speaive.blog.domain.PostSlug;
+import com.speaive.blog.domain.PostSnapshot;
+import com.speaive.blog.domain.PostStatus;
+import com.speaive.blog.domain.PostSummary;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.MappingConstants;
+import org.mapstruct.ReportingPolicy;
+
+import java.util.List;
+
+@Mapper(
+        componentModel = MappingConstants.ComponentModel.SPRING,
+        unmappedTargetPolicy = ReportingPolicy.ERROR
+)
+public interface BlogPersistenceMapStructMapper {
+    @Mapping(target = "content", expression = "java(toContent(post, tags))")
+    @Mapping(target = "author", source = "author")
+    @Mapping(target = "id", source = "post.id")
+    @Mapping(target = "status", source = "post.status")
+    @Mapping(target = "archived", constant = "false")
+    PostSnapshot toSnapshot(BlogPostPo post, List<String> tags, BlogAuthorPo author);
+
+    @Mapping(target = "tags", source = "tags")
+    @Mapping(target = "author", source = "author")
+    @Mapping(target = "id", source = "post.id")
+    @Mapping(target = "status", source = "post.status")
+    PostSummary toSummary(BlogPostPo post, List<String> tags, BlogAuthorPo author);
+
+    @Mapping(target = "tags", source = "tags")
+    PostContent toContent(BlogPostPo post, List<String> tags);
+
+    Author toAuthor(BlogAuthorPo author);
+
+    BlogAuthorPo toAuthorPo(Author author);
+
+    @Mapping(target = "slug", source = "slug.value")
+    @Mapping(target = "title", source = "content.title")
+    @Mapping(target = "description", source = "content.description")
+    @Mapping(target = "publishedAt", source = "content.publishedAt")
+    @Mapping(target = "body", source = "content.body")
+    @Mapping(target = "cover", source = "content.cover")
+    @Mapping(target = "authorId", source = "author.id")
+    BlogPostPo toPostPo(PostSnapshot snapshot);
+
+    PostStatus toDomain(PostStatusPo status);
+
+    PostStatusPo toPo(PostStatus status);
+
+    AuthorType toDomain(AuthorTypePo type);
+
+    AuthorTypePo toPo(AuthorType type);
+
+    AuthorStatus toDomain(AuthorStatusPo status);
+
+    AuthorStatusPo toPo(AuthorStatus status);
+
+    RevisionEventTypePo toPo(PostRevisionEventType eventType);
+
+    default PostSlug toPostSlug(String value) {
+        return PostSlug.of(value);
+    }
+}

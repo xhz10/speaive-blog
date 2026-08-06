@@ -3,13 +3,13 @@ package com.speaive.blog;
 import com.jayway.jsonpath.JsonPath;
 import com.speaive.blog.application.BlogErrorCode;
 import com.speaive.blog.application.BlogException;
-import com.speaive.blog.application.ContentStorePort;
 import com.speaive.blog.application.PostWriteCommand;
+import com.speaive.blog.application.port.in.BlogUseCase;
+import com.speaive.blog.application.port.in.MarkdownInboxUseCase;
+import com.speaive.blog.application.result.MarkdownImportOutcome;
+import com.speaive.blog.application.result.PostDetailResult;
 import com.speaive.blog.domain.Author;
-import com.speaive.blog.domain.Post;
-import com.speaive.blog.domain.PostStatus;
-import com.speaive.blog.infrastructure.content.MarkdownInboxImporter;
-import com.speaive.blog.infrastructure.content.BlogPersistenceMapper;
+import com.speaive.blog.interfaces.importing.MarkdownInboxImporter;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,8 +26,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -71,6 +69,8 @@ class StudioApiIntegrationTests {
     private static final String PASSWORD = "speaive-test-password";
     private static final String PASSWORD_HASH = new BCryptPasswordEncoder().encode(PASSWORD);
     private static final Path DATA_DIRECTORY = createTempDirectory();
+    private static final byte[] VALID_PNG = Base64.getDecoder().decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
 
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("pgvector/pgvector:pg17")
@@ -94,24 +94,21 @@ class StudioApiIntegrationTests {
     private final MockMvc mockMvc;
     private final JdbcTemplate jdbc;
     private final MarkdownInboxImporter inboxImporter;
-    private final ContentStorePort contentStore;
-    private final BlogPersistenceMapper mapper;
-    private final PlatformTransactionManager transactionManager;
+    private final BlogUseCase blog;
+    private final MarkdownInboxUseCase inboxImports;
 
     @Autowired
     StudioApiIntegrationTests(
             MockMvc mockMvc,
             JdbcTemplate jdbc,
             MarkdownInboxImporter inboxImporter,
-            ContentStorePort contentStore,
-            BlogPersistenceMapper mapper,
-            PlatformTransactionManager transactionManager) {
+            BlogUseCase blog,
+            MarkdownInboxUseCase inboxImports) {
         this.mockMvc = mockMvc;
         this.jdbc = jdbc;
         this.inboxImporter = inboxImporter;
-        this.contentStore = contentStore;
-        this.mapper = mapper;
-        this.transactionManager = transactionManager;
+        this.blog = blog;
+        this.inboxImports = inboxImports;
     }
 
     @BeforeEach
@@ -170,16 +167,17 @@ class StudioApiIntegrationTests {
                 ) VALUES (?, 'quiet-critic', '安静的批评家', 'AGENT', 'DISABLED',
                     '/media/agents/quiet-critic.png', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """, agentId);
-        Post created = contentStore.createDraft(command("agent-authored", "Agent 原文"));
+        PostDetailResult created = blog.createDraft(command("agent-authored", "Agent 原文"));
         jdbc.update("UPDATE blog_post SET author_id = ? WHERE slug = ?", agentId, created.slug());
 
-        Post updated = contentStore.update(created.slug(), created.version(), command(created.slug(), "Agent 修改"));
-        Post published = contentStore.transition(updated.slug(), PostStatus.PUBLISHED, updated.version());
+        PostDetailResult updated = blog.update(
+                created.slug(), created.version(), command(created.slug(), "Agent 修改"));
+        PostDetailResult published = blog.publish(updated.slug(), updated.version());
 
         assertThat(published.author().id()).isEqualTo(agentId);
         assertThat(published.author().username()).isEqualTo("quiet-critic");
         assertThat(published.author().displayName()).isEqualTo("安静的批评家");
-        assertThat(published.author().type().name()).isEqualTo("AGENT");
+        assertThat(published.author().type()).isEqualTo("AGENT");
         assertThat(published.author().avatarUrl()).isEqualTo("/media/agents/quiet-critic.png");
         assertThat(jdbc.queryForList("""
                 SELECT author_id
@@ -445,11 +443,11 @@ class StudioApiIntegrationTests {
         Path retryInbox = DATA_DIRECTORY.resolve("retry-inbox");
         Files.createDirectories(retryInbox);
         Files.writeString(retryInbox.resolve("retry.md"), "# 稍后重试\n", StandardCharsets.UTF_8);
-        ContentStorePort failingStore = mock(ContentStorePort.class);
-        when(failingStore.importDraft(eq("retry.md"), any(byte[].class)))
+        MarkdownInboxUseCase failingImports = mock(MarkdownInboxUseCase.class);
+        when(failingImports.importOnce(eq("retry.md"), any(byte[].class)))
                 .thenThrow(new IllegalStateException("database temporarily unavailable"));
         MarkdownInboxImporter importer = new MarkdownInboxImporter(
-                retryInbox, 1_048_576, failingStore, mapper, new TransactionTemplate(transactionManager));
+                retryInbox, 1_048_576, failingImports);
 
         importer.scanNow();
 
@@ -457,6 +455,43 @@ class StudioApiIntegrationTests {
         try (var rejected = Files.list(retryInbox.resolve("rejected"))) {
             assertThat(rejected).isEmpty();
         }
+    }
+
+    @Test
+    void concurrentInboxImportsAreSerializedByContentHash() throws Exception {
+        byte[] markdown = "# 并发导入\n\n正文。\n".getBytes(StandardCharsets.UTF_8);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicInteger imported = new AtomicInteger();
+        AtomicInteger deduplicated = new AtomicInteger();
+
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var futures = List.of(0, 1).stream().map(index -> executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                MarkdownImportOutcome outcome = inboxImports.importOnce("concurrent-import.md", markdown);
+                if (outcome == MarkdownImportOutcome.IMPORTED) {
+                    imported.incrementAndGet();
+                } else if (outcome == MarkdownImportOutcome.ALREADY_IMPORTED) {
+                    deduplicated.incrementAndGet();
+                }
+                return null;
+            })).toList();
+            ready.await();
+            start.countDown();
+            for (Future<?> future : futures) {
+                future.get();
+            }
+        }
+
+        assertThat(imported).hasValue(1);
+        assertThat(deduplicated).hasValue(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM blog_post WHERE slug = ?", Integer.class, "concurrent-import"))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM blog_markdown_import", Integer.class))
+                .isEqualTo(1);
     }
 
     @Test
@@ -498,8 +533,7 @@ class StudioApiIntegrationTests {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_IMAGE"));
 
-        byte[] png = Base64.getDecoder().decode(
-                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+        byte[] png = VALID_PNG;
         MockMultipartFile wrongExtension = new MockMultipartFile("image", "photo.jpg", "image/jpeg", png);
         mockMvc.perform(multipart("/api/v1/studio/media").file(wrongExtension)
                         .session(client.session()).cookie(client.csrfCookie())
@@ -543,8 +577,42 @@ class StudioApiIntegrationTests {
     }
 
     @Test
+    void mediaUploadCompensatesTheFileWhenDatabaseInsertFails() throws Exception {
+        Client client = login();
+        jdbc.execute("""
+                CREATE OR REPLACE FUNCTION reject_blog_media_insert() RETURNS trigger AS $$
+                BEGIN
+                    RAISE EXCEPTION 'forced media insert failure';
+                END;
+                $$ LANGUAGE plpgsql
+                """);
+        jdbc.execute("""
+                CREATE TRIGGER reject_blog_media_insert_trigger
+                BEFORE INSERT ON blog_media
+                FOR EACH ROW EXECUTE FUNCTION reject_blog_media_insert()
+                """);
+        try {
+            MockMultipartFile image = new MockMultipartFile(
+                    "image", "rollback.png", "image/png", VALID_PNG);
+            mockMvc.perform(multipart("/api/v1/studio/media").file(image)
+                            .session(client.session()).cookie(client.csrfCookie())
+                            .header(client.csrfHeader(), client.csrfToken()))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.code").value("STORAGE_ERROR"));
+
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM blog_media", Integer.class)).isZero();
+            try (var files = Files.walk(DATA_DIRECTORY.resolve("media"))) {
+                assertThat(files.filter(Files::isRegularFile).count()).isZero();
+            }
+        } finally {
+            jdbc.execute("DROP TRIGGER IF EXISTS reject_blog_media_insert_trigger ON blog_media");
+            jdbc.execute("DROP FUNCTION IF EXISTS reject_blog_media_insert()");
+        }
+    }
+
+    @Test
     void concurrentUpdatesUseDatabaseRevisionCas() throws Exception {
-        String version = contentStore.createDraft(command("concurrent-post", "并发文章")).version();
+        String version = blog.createDraft(command("concurrent-post", "并发文章")).version();
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
         AtomicInteger updated = new AtomicInteger();
@@ -555,7 +623,7 @@ class StudioApiIntegrationTests {
                 ready.countDown();
                 start.await();
                 try {
-                    contentStore.update("concurrent-post", version,
+                    blog.update("concurrent-post", version,
                             command("concurrent-post", "并发修改 " + index));
                     updated.incrementAndGet();
                 } catch (BlogException exception) {
@@ -585,19 +653,18 @@ class StudioApiIntegrationTests {
 
     @Test
     void staleEditorCannotOverwriteRecreatedPostWithTheSameSlug() {
-        String oldVersion = contentStore.createDraft(command("reused-slug", "旧文章")).version();
-        contentStore.archive("reused-slug", oldVersion);
-        String newVersion = contentStore.createDraft(command("reused-slug", "新文章")).version();
+        String oldVersion = blog.createDraft(command("reused-slug", "旧文章")).version();
+        blog.archive("reused-slug", oldVersion);
+        String newVersion = blog.createDraft(command("reused-slug", "新文章")).version();
 
         assertThat(newVersion).isNotEqualTo(oldVersion).endsWith(":1");
-        assertThatThrownBy(() -> contentStore.update(
+        assertThatThrownBy(() -> blog.update(
                 "reused-slug", oldVersion, command("reused-slug", "旧页面误保存")))
                 .isInstanceOfSatisfying(BlogException.class,
                         exception -> assertThat(exception.code()).isEqualTo(BlogErrorCode.VERSION_CONFLICT));
-        assertThat(contentStore.find("reused-slug", true)).hasValueSatisfying(post -> {
-            assertThat(post.title()).isEqualTo("新文章");
-            assertThat(post.version()).isEqualTo(newVersion);
-        });
+        PostDetailResult recreated = blog.getStudioPost("reused-slug");
+        assertThat(recreated.title()).isEqualTo("新文章");
+        assertThat(recreated.version()).isEqualTo(newVersion);
     }
 
     @Test
@@ -612,7 +679,7 @@ class StudioApiIntegrationTests {
                 ready.countDown();
                 start.await();
                 try {
-                    contentStore.createDraft(command("same-slug", "并发创建 " + index));
+                    blog.createDraft(command("same-slug", "并发创建 " + index));
                     created.incrementAndGet();
                 } catch (BlogException exception) {
                     if (exception.code() != BlogErrorCode.SLUG_CONFLICT) {
@@ -641,7 +708,7 @@ class StudioApiIntegrationTests {
 
     @Test
     void archiveRollsBackSnapshotAndRevisionWhenDeleteFails() {
-        String version = contentStore.createDraft(command("rollback-archive", "归档事务")).version();
+        String version = blog.createDraft(command("rollback-archive", "归档事务")).version();
         jdbc.execute("""
                 CREATE OR REPLACE FUNCTION reject_blog_post_delete() RETURNS trigger AS $$
                 BEGIN
@@ -655,7 +722,7 @@ class StudioApiIntegrationTests {
                 FOR EACH ROW EXECUTE FUNCTION reject_blog_post_delete()
         """);
         try {
-            assertThatThrownBy(() -> contentStore.archive("rollback-archive", version))
+            assertThatThrownBy(() -> blog.archive("rollback-archive", version))
                     .isInstanceOf(RuntimeException.class);
             assertThat(jdbc.queryForObject(
                     "SELECT revision FROM blog_post WHERE slug = ?", Long.class, "rollback-archive"))

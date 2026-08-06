@@ -1,4 +1,4 @@
 /**
- * Outbound adapters such as file storage, Markdown rendering, and AI providers.
+ * Outbound adapters for persistence, files, Markdown rendering, transactions, and external providers.
  */
 package com.speaive.blog.infrastructure;

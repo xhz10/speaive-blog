@@ -26,7 +26,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ApiHttpException.class)
     ResponseEntity<ApiError> handleApiException(ApiHttpException exception) {
-        return response(exception.status(), exception.code(), exception.getMessage());
+        return response(exception.status(), exception.code().name(), exception.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -35,7 +35,7 @@ public class ApiExceptionHandler {
                 .map(error -> error.getDefaultMessage() == null ? "请求字段不合法" : error.getDefaultMessage())
                 .distinct()
                 .collect(Collectors.joining("；"));
-        return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST",
+        return response(HttpStatus.BAD_REQUEST, ApiErrorCode.INVALID_REQUEST.name(),
                 message.isBlank() ? "请求内容不合法" : message);
     }
 
@@ -43,12 +43,12 @@ public class ApiExceptionHandler {
             MissingServletRequestParameterException.class, MissingServletRequestPartException.class,
             HttpMessageNotReadableException.class})
     ResponseEntity<ApiError> handleBadRequest(Exception exception) {
-        return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "请求内容不合法");
+        return response(HttpStatus.BAD_REQUEST, ApiErrorCode.INVALID_REQUEST.name(), "请求内容不合法");
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     ResponseEntity<ApiError> handleMaxUpload(MaxUploadSizeExceededException exception) {
-        return response(HttpStatus.PAYLOAD_TOO_LARGE, "TOO_LARGE", "上传文件超过大小限制");
+        return response(HttpStatus.PAYLOAD_TOO_LARGE, ApiErrorCode.TOO_LARGE.name(), "上传文件超过大小限制");
     }
 
     private static HttpStatus statusFor(BlogErrorCode code) {

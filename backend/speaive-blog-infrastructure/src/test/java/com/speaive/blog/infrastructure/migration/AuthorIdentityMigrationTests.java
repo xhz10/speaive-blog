@@ -1,6 +1,8 @@
-package com.speaive.blog;
+package com.speaive.blog.infrastructure.migration;
 
 import com.speaive.blog.domain.Author;
+import com.speaive.blog.domain.AuthorStatus;
+import com.speaive.blog.domain.AuthorType;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
@@ -72,7 +74,8 @@ class AuthorIdentityMigrationTests {
         assertThat(Author.ADMIN_ID).isEqualTo(MIGRATION_ADMIN_ID);
         assertThat(Author.ADMIN.username()).isEqualTo(MIGRATION_ADMIN_USERNAME);
         assertThat(Author.ADMIN.displayName()).isEqualTo(MIGRATION_ADMIN_DISPLAY_NAME);
-        assertThat(Author.ADMIN.type().name()).isEqualTo("HUMAN");
+        assertThat(Author.ADMIN.type()).isEqualTo(AuthorType.HUMAN);
+        assertThat(Author.ADMIN.status()).isEqualTo(AuthorStatus.ACTIVE);
         assertThat(Author.ADMIN.avatarUrl()).isNull();
         assertThat(jdbc.queryForMap("SELECT * FROM blog_user WHERE id = ?", MIGRATION_ADMIN_ID))
                 .containsEntry("username", MIGRATION_ADMIN_USERNAME)

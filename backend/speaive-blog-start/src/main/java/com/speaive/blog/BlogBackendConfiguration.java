@@ -1,6 +1,6 @@
 package com.speaive.blog;
 
-import com.speaive.blog.application.BlogApplicationService;
+import com.speaive.blog.application.service.BlogApplicationService;
 import com.speaive.blog.application.port.in.MarkdownInboxUseCase;
 import com.speaive.blog.application.port.out.AuthorRepository;
 import com.speaive.blog.application.port.out.MarkdownImportLedger;

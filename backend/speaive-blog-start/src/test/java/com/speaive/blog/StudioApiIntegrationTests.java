@@ -8,7 +8,6 @@ import com.speaive.blog.application.port.in.BlogUseCase;
 import com.speaive.blog.application.port.in.MarkdownInboxUseCase;
 import com.speaive.blog.application.result.MarkdownImportOutcome;
 import com.speaive.blog.application.result.PostDetailResult;
-import com.speaive.blog.domain.Author;
 import com.speaive.blog.interfaces.importing.MarkdownInboxImporter;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterAll;
@@ -66,6 +65,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class StudioApiIntegrationTests {
+    private static final String ADMIN_ID = "00000000-0000-0000-0000-000000000001";
     private static final String PASSWORD = "speaive-test-password";
     private static final String PASSWORD_HASH = new BCryptPasswordEncoder().encode(PASSWORD);
     private static final Path DATA_DIRECTORY = createTempDirectory();
@@ -119,7 +119,7 @@ class StudioApiIntegrationTests {
         jdbc.update("DELETE FROM blog_media");
         jdbc.update("DELETE FROM blog_post_tag");
         jdbc.update("DELETE FROM blog_post");
-        jdbc.update("DELETE FROM blog_user WHERE id <> ?", Author.ADMIN_ID);
+        jdbc.update("DELETE FROM blog_user WHERE id <> ?", ADMIN_ID);
         clearDirectory(DATA_DIRECTORY);
         Files.createDirectories(DATA_DIRECTORY.resolve("inbox"));
     }
@@ -233,13 +233,13 @@ class StudioApiIntegrationTests {
                         .header(client.csrfHeader(), client.csrfToken())
                         .contentType(MediaType.APPLICATION_JSON).content(request))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.author.id").value(Author.ADMIN_ID))
+                .andExpect(jsonPath("$.author.id").value(ADMIN_ID))
                 .andExpect(jsonPath("$.author.username").value("admin"));
         assertThat(jdbc.queryForObject(
                 "SELECT author_id FROM blog_post WHERE slug = ?",
                 String.class,
                 "server-assigned-author"))
-                .isEqualTo(Author.ADMIN_ID);
+                .isEqualTo(ADMIN_ID);
     }
 
     @Test
@@ -252,7 +252,7 @@ class StudioApiIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON).content(createJson))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("DRAFT"))
-                .andExpect(jsonPath("$.author.id").value(Author.ADMIN_ID))
+                .andExpect(jsonPath("$.author.id").value(ADMIN_ID))
                 .andExpect(jsonPath("$.author.username").value("admin"))
                 .andExpect(jsonPath("$.author.displayName").value("Speaive"))
                 .andExpect(jsonPath("$.author.type").value("HUMAN"))
@@ -292,7 +292,7 @@ class StudioApiIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON).content(updateJson))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("第一篇随记（已保存）"))
-                .andExpect(jsonPath("$.author.id").value(Author.ADMIN_ID))
+                .andExpect(jsonPath("$.author.id").value(ADMIN_ID))
                 .andExpect(jsonPath("$.version", endsWith(":2")))
                 .andReturn();
         String updatedVersion = JsonPath.read(updated.getResponse().getContentAsString(), "$.version");
@@ -319,17 +319,17 @@ class StudioApiIntegrationTests {
         mockMvc.perform(get("/api/v1/public/posts/writing-flow"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("第一篇随记（已保存）"))
-                .andExpect(jsonPath("$.author.id").value(Author.ADMIN_ID));
+                .andExpect(jsonPath("$.author.id").value(ADMIN_ID));
 
         mockMvc.perform(get("/api/v1/public/posts"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].author.id").value(Author.ADMIN_ID))
+                .andExpect(jsonPath("$.items[0].author.id").value(ADMIN_ID))
                 .andExpect(jsonPath("$.items[0].author.username").value("admin"));
 
         mockMvc.perform(get("/api/v1/studio/posts").session(client.session()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items", hasSize(1)))
-                .andExpect(jsonPath("$.items[0].author.id").value(Author.ADMIN_ID))
+                .andExpect(jsonPath("$.items[0].author.id").value(ADMIN_ID))
                 .andExpect(jsonPath("$.errors", hasSize(0)));
 
         MvcResult unpublished = mockMvc.perform(post("/api/v1/studio/posts/writing-flow/unpublish")
@@ -367,7 +367,7 @@ class StudioApiIntegrationTests {
         assertThat(jdbc.queryForList(
                 "SELECT author_id FROM blog_post_revision WHERE slug = ? ORDER BY revision",
                 String.class, "writing-flow"))
-                .containsOnly(Author.ADMIN_ID);
+                .containsOnly(ADMIN_ID);
 
         mockMvc.perform(post("/api/v1/studio/posts")
                         .session(client.session()).cookie(client.csrfCookie())
@@ -417,7 +417,7 @@ class StudioApiIntegrationTests {
                 .andExpect(jsonPath("$.title").value("目录直投文章"))
                 .andExpect(jsonPath("$.body").value("这是一段正文。"))
                 .andExpect(jsonPath("$.status").value("DRAFT"))
-                .andExpect(jsonPath("$.author.id").value(Author.ADMIN_ID))
+                .andExpect(jsonPath("$.author.id").value(ADMIN_ID))
                 .andExpect(jsonPath("$.version", endsWith(":1")));
 
         assertThat(inbox.resolve("imported/direct-note.md")).isRegularFile();
@@ -521,7 +521,7 @@ class StudioApiIntegrationTests {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.slug").value("uploaded-note"))
                 .andExpect(jsonPath("$.status").value("DRAFT"))
-                .andExpect(jsonPath("$.author.id").value(Author.ADMIN_ID))
+                .andExpect(jsonPath("$.author.id").value(ADMIN_ID))
                 .andExpect(jsonPath("$.version", endsWith(":1")));
 
         byte[] signatureOnly = {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};

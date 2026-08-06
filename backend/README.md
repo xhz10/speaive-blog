@@ -13,34 +13,33 @@ Speaive Blog 的 Java 25 + Spring Boot 4.0.7 模块化单体后端，负责写�
 ## 模块
 
 ```text
-speaive-blog-domain
-        ^
-speaive-blog-application
-        ^
-        +-------------------------------+
-        |                               |
-speaive-blog-infrastructure   speaive-blog-interfaces
-        ^                               ^
-        +---------------+---------------+
-                        |
-              speaive-blog-start
+speaive-blog-start（Web 入站 / 启动入口 / 组合根）
+  |-- 直接依赖 --> speaive-blog-application -- 直接依赖 --> speaive-blog-domain
+  `-- 直接依赖 --> speaive-blog-infrastructure
+                      |-- 直接依赖 --> speaive-blog-application
+                      `-- 直接依赖 --> speaive-blog-domain
 ```
 
 - `domain`：聚合、实体、值对象和业务枚举，不依赖 Spring；
 - `application`：用例、input ports 和 output ports，依赖 `domain`；
-- `infrastructure`：output port 的 PostgreSQL/文件适配器，以及 Flyway、Markdown 和媒体能力；
-- `interfaces`：HTTP 与定时投递箱入站适配器、DTO、Session 登录、CSRF 和限流；
-- `start`：唯一启动与组合根，负责依赖装配并产出可运行 JAR。
+- `infrastructure`：分别直接依赖 `application` 和 `domain`，并实现 application output ports，包含 PostgreSQL/文件适配器，以及 PO、SQL、MyBatis-Plus、Flyway、数据库驱动、Markdown 和媒体能力；
+- `start`：HTTP 与定时投递箱入站适配器、DTO、Session 登录、Security、CSRF 和限流，也是唯一启动入口与组合根，负责依赖装配并产出可运行 JAR。入站源码保留在 `com.speaive.blog.interfaces` 包中，但 `interfaces` 不再是 Maven 模块。
 
 这是一个服务、一个进程、一个部署单元；Maven 模块只用于约束代码边界。
 
+父 POM 中的 `<modules>` 只是 Reactor 聚合清单，`<dependencyManagement>` 只管理版本，两者都不会把依赖加入子模块 classpath。Web 和数据库等实际依赖由职责所属的子 POM 显式声明。
+
 ## 分层与模型约束
 
-正常调用方向是 `interfaces -> application -> domain`；application 需要数据库、文件或外部服务时只调用 output port，由 infrastructure 提供实现。`start` 因承担组合根可以依赖所有模块，但不放业务逻辑。Controller 不直连 Mapper，application 不引用持久化对象，domain 不引用任何外层类型。
+正常业务调用方向是 `start/com.speaive.blog.interfaces -> application -> domain`；application 需要数据库、文件或外部服务时只调用 output port，由 infrastructure 提供实现，即 `application -> output port <- infrastructure`。
+
+`start` 必须分别直接依赖 `application` 契约和 `infrastructure` 实现，才能在组合根完成装配。这种双依赖属于进程组装，不代表 Controller 可以跨层访问 infrastructure；也不得依靠 `infrastructure -> application` 的 Maven 传递依赖，把关系伪造成 `start -> infrastructure -> application` 单链。Controller 只调用 application input port，application 不引用持久化对象，domain 不引用任何外层类型。
+
+同理，`infrastructure` 源码直接使用 application 契约和 domain 类型，因此必须分别声明这两条直接 Maven 依赖，不得通过 `application -> domain` 的传递依赖间接获得 domain。这个构建依赖不改变上述业务调用与端口倒置方向。
 
 新增和重构的业务采用富聚合：文章状态变化和业务不变量收敛到聚合根，application 只编排用例。业务枚举放在 domain，不用魔法字符串绕过类型约束。
 
-边界模型严格区分：PO 只属于 infrastructure，DO 只属于 domain，DTO 只属于 interfaces，application 使用自己的 Command/Query/Result。新增或重构的结构映射统一使用 MapStruct；当前手工映射按触碰范围渐进迁移，不使用 BeanUtils、反射复制或 JSON 往返。完整规则见 [`backend/AGENTS.md`](AGENTS.md)。
+边界模型严格区分：PO、SQL、Flyway 迁移和数据库驱动只属于 infrastructure，DO 只属于 domain，DTO、HTTP 和 Security 只属于 start 的入站适配器，application 使用自己的 Command/Query/Result。新增或重构的结构映射统一使用 MapStruct；当前手工映射按触碰范围渐进迁移，不使用 BeanUtils、反射复制或 JSON 往返。完整规则见 [`backend/AGENTS.md`](AGENTS.md)。
 
 ## 数据模型
 

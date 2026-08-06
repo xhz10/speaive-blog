@@ -23,7 +23,6 @@
         <module>speaive-blog-domain</module>
         <module>speaive-blog-application</module>
         <module>speaive-blog-infrastructure</module>
-        <module>speaive-blog-interfaces</module>
         <module>speaive-blog-start</module>
     </modules>
 
@@ -85,19 +84,6 @@
 
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>org.mapstruct</groupId>
-                            <artifactId>mapstruct-processor</artifactId>
-                            <version>${mapstruct.version}</version>
-                        </path>
-                    </annotationProcessorPaths>
-                </configuration>
-            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>

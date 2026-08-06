@@ -25,30 +25,30 @@ flowchart LR
 后端是一个部署单元，Maven 模块只约束代码边界：
 
 ```mermaid
-flowchart LR
-    Interfaces["interfaces<br/>HTTP / Session / DTO"] --> Input["application input ports"]
-    Input --> UseCase["application use cases"]
-    UseCase --> Domain["domain<br/>聚合 / 值对象 / 业务枚举"]
-    UseCase --> Output["application output ports"]
-    Infrastructure["infrastructure<br/>PostgreSQL / 文件 / 外部服务"] -. implements .-> Output
-    Start["start<br/>组合根"] -. wires .-> Interfaces
-    Start -. wires .-> UseCase
-    Start -. wires .-> Infrastructure
+flowchart TB
+    Start["start<br/>Web 入站 / 启动入口 / 组合根"] -->|直接依赖契约| Application["application<br/>用例 / input ports / output ports"]
+    Start -->|直接依赖实现| Infrastructure["infrastructure<br/>出站适配器 / 持久化 / 外部服务"]
+    Infrastructure -->|直接依赖并实现 output ports| Application
+    Infrastructure -->|直接依赖领域类型| Domain["domain<br/>聚合 / 值对象 / 业务枚举"]
+    Application -->|直接依赖| Domain
 ```
 
 - `domain`：聚合、实体、值对象、领域服务和业务枚举，不依赖框架；
 - `application`：创建、更新、发布、撤回、归档等用例及 input/output ports；
-- `infrastructure`：output port 的实现，以及 MyBatis-Plus、Flyway、Markdown 和媒体文件能力；
-- `interfaces`：input port 的 HTTP/定时投递箱入站适配器、DTO、Session 登录、CSRF 和登录限流；
-- `start`：唯一运行入口和组合根，只负责配置与依赖装配。
+- `infrastructure`：分别直接依赖 `application` 和 `domain`，并实现 application output ports，负责 PostgreSQL、MyBatis-Plus、PO、SQL、Flyway、数据库驱动、Markdown、媒体文件和第三方服务；
+- `start`：HTTP/定时投递箱入站适配器、DTO、Session、Security、CSRF 和登录限流，也是唯一运行入口与组合根。入站适配器继续使用 `com.speaive.blog.interfaces` 包名，但它只是 `start` 内的包，不是第五个 Maven 模块。
 
-正常调用只跨相邻边界：`interfaces -> application -> domain`，I/O 通过 `application -> output port <- infrastructure` 反转依赖。`start` 为完成组合根职责可以依赖全部模块，这是唯一例外；Controller 不得直连 Mapper，application 不得引用 PO 或具体适配器，domain 不得引用外层类型。
+上图表达的是 Maven 构建依赖，不是业务调用链。正常业务调用是 `start/com.speaive.blog.interfaces -> application -> domain`，I/O 通过 `application -> output port <- infrastructure` 反转依赖。`start` 同时直接依赖 `application` 契约和 `infrastructure` 实现，是组合根完成 Bean 装配所必需的双依赖，不是业务代码跨层；严禁删除 `start -> application` 后利用 Maven 传递依赖伪造 `start -> infrastructure -> application` 单链。
+
+`infrastructure` 源码直接使用 application 契约与 domain 类型，因此对两者都声明直接 Maven 依赖；不得依靠 `application -> domain` 的传递依赖编译。该依赖只反映源码类型引用，不改变正常业务调用与 output port 依赖倒置方向。
+
+`start` 中的 Controller、Security 和定时入口只能调用 application input port，不得直接调用 Mapper、Repository 实现或 output port。application 不得引用 PO 或具体适配器，domain 不得引用外层类型。
 
 ### 领域模型与映射
 
 新增和重构的业务以富聚合为目标。文章的状态变化和业务不变量应由聚合根维护，application 负责用例编排，适配器只负责协议和技术细节。业务枚举属于 domain；数据库和 HTTP 需要稳定字符串值时，在适配层显式映射，不用魔法字符串替代领域类型。
 
-模型按边界分开：PO 只描述 infrastructure 的持久化结构，DO 是 domain 的聚合、实体和值对象，DTO 只描述 interfaces 的外部协议，application 使用 Command/Query/Result。新增或重构的结构映射统一使用 MapStruct，业务决策不写入映射表达式。当前代码仍有手工映射，这是一条渐进实施规则，不表示现有映射已经全部迁移。
+模型按边界分开：PO、SQL、Flyway 迁移和数据库驱动只属于 infrastructure，DO 是 domain 的聚合、实体和值对象，DTO、HTTP 与 Security 只属于 start 的入站适配器，application 使用 Command/Query/Result。新增或重构的结构映射统一使用 MapStruct，业务决策不写入映射表达式。当前代码仍有手工映射，这是一条渐进实施规则，不表示现有映射已经全部迁移。
 
 每个对外用例由 application input port 表达；数据库、文件、时钟以及未来的 AI/向量服务由 output port 表达。HTTP、定时任务和后续消息消费者都属于入站适配器，只能调用 input port。
 

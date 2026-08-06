@@ -15,7 +15,8 @@ class BackendArchitectureTests {
     private static final String APPLICATION = "..application..";
     private static final String APPLICATION_INBOUND_PORT = "..application.port.in..";
     private static final String APPLICATION_OUTBOUND_PORT = "..application.port.out..";
-    private static final String INTERFACES = "..interfaces..";
+    private static final String APPLICATION_SERVICE = "..application.service..";
+    private static final String WEB = "..interfaces..";
     private static final String INFRASTRUCTURE = "..infrastructure..";
     private static final String START = "..start..";
 
@@ -29,7 +30,7 @@ class BackendArchitectureTests {
                 .should().resideInAnyPackage(
                         DOMAIN,
                         APPLICATION,
-                        INTERFACES,
+                        WEB,
                         INFRASTRUCTURE,
                         START,
                         "com.speaive.blog")
@@ -42,12 +43,12 @@ class BackendArchitectureTests {
                 .consideringOnlyDependenciesInLayers()
                 .layer("Domain").definedBy(DOMAIN)
                 .layer("Application").definedBy(APPLICATION)
-                .layer("Interfaces").definedBy(INTERFACES)
+                .layer("Web").definedBy(WEB)
                 .layer("Infrastructure").definedBy(INFRASTRUCTURE)
                 .layer("Start").definedBy("com.speaive.blog", START)
                 .whereLayer("Domain").mayOnlyBeAccessedByLayers("Application", "Infrastructure", "Start")
-                .whereLayer("Application").mayOnlyBeAccessedByLayers("Interfaces", "Infrastructure", "Start")
-                .whereLayer("Interfaces").mayOnlyBeAccessedByLayers("Start")
+                .whereLayer("Application").mayOnlyBeAccessedByLayers("Web", "Infrastructure", "Start")
+                .whereLayer("Web").mayOnlyBeAccessedByLayers("Start")
                 .whereLayer("Infrastructure").mayOnlyBeAccessedByLayers("Start")
                 .whereLayer("Start").mayNotBeAccessedByAnyLayer()
                 .check(PRODUCTION_CLASSES);
@@ -59,7 +60,7 @@ class BackendArchitectureTests {
                 .that().resideInAPackage(DOMAIN)
                 .should().dependOnClassesThat().resideInAnyPackage(
                         APPLICATION,
-                        INTERFACES,
+                        WEB,
                         INFRASTRUCTURE,
                         START,
                         "org.springframework..",
@@ -74,19 +75,47 @@ class BackendArchitectureTests {
     void applicationDoesNotDependOnAdaptersOrTheCompositionRoot() {
         noClasses()
                 .that().resideInAPackage(APPLICATION)
-                .should().dependOnClassesThat().resideInAnyPackage(INTERFACES, INFRASTRUCTURE, START)
+                .should().dependOnClassesThat().resideInAnyPackage(WEB, INFRASTRUCTURE, START)
                 .check(PRODUCTION_CLASSES);
     }
 
     @Test
-    void inboundInterfacesUseOnlyApplicationInboundContracts() {
+    void webInboundAdaptersUseOnlyApplicationInboundContracts() {
         noClasses()
-                .that().resideInAPackage(INTERFACES)
+                .that().resideInAPackage(WEB)
                 .should().dependOnClassesThat().resideInAnyPackage(
                         DOMAIN,
                         INFRASTRUCTURE,
                         APPLICATION_OUTBOUND_PORT,
+                        APPLICATION_SERVICE,
                         START)
+                .check(PRODUCTION_CLASSES);
+    }
+
+    @Test
+    void controllersStayInsideTheWebInboundPackage() {
+        classes()
+                .that().haveSimpleNameEndingWith("Controller")
+                .should().resideInAPackage(WEB)
+                .check(PRODUCTION_CLASSES);
+    }
+
+    @Test
+    void restControllersStayInsideTheWebInboundPackage() {
+        classes()
+                .that().areAnnotatedWith("org.springframework.web.bind.annotation.RestController")
+                .should().resideInAPackage(WEB)
+                .check(PRODUCTION_CLASSES);
+    }
+
+    @Test
+    void webFrameworksStayOutOfCoreAndOutboundAdapters() {
+        noClasses()
+                .that().resideInAnyPackage(DOMAIN, APPLICATION, INFRASTRUCTURE)
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.springframework.web..",
+                        "org.springframework.security..",
+                        "jakarta.servlet..")
                 .check(PRODUCTION_CLASSES);
     }
 
@@ -95,8 +124,9 @@ class BackendArchitectureTests {
         noClasses()
                 .that().resideInAPackage(INFRASTRUCTURE)
                 .should().dependOnClassesThat().resideInAnyPackage(
-                        INTERFACES,
+                        WEB,
                         APPLICATION_INBOUND_PORT,
+                        APPLICATION_SERVICE,
                         START)
                 .check(PRODUCTION_CLASSES);
     }

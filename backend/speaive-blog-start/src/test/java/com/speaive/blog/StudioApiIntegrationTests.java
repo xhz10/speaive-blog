@@ -5,6 +5,8 @@ import com.speaive.blog.application.BlogErrorCode;
 import com.speaive.blog.application.BlogException;
 import com.speaive.blog.application.ContentStorePort;
 import com.speaive.blog.application.PostWriteCommand;
+import com.speaive.blog.domain.Author;
+import com.speaive.blog.domain.Post;
 import com.speaive.blog.domain.PostStatus;
 import com.speaive.blog.infrastructure.content.MarkdownInboxImporter;
 import com.speaive.blog.infrastructure.content.BlogPersistenceMapper;
@@ -48,6 +50,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -119,6 +122,7 @@ class StudioApiIntegrationTests {
         jdbc.update("DELETE FROM blog_media");
         jdbc.update("DELETE FROM blog_post_tag");
         jdbc.update("DELETE FROM blog_post");
+        jdbc.update("DELETE FROM blog_user WHERE id <> ?", Author.ADMIN_ID);
         clearDirectory(DATA_DIRECTORY);
         Files.createDirectories(DATA_DIRECTORY.resolve("inbox"));
     }
@@ -158,6 +162,89 @@ class StudioApiIntegrationTests {
     }
 
     @Test
+    void updatesPreserveAgentAuthorsAndDisabledAuthorsRemainVisible() throws Exception {
+        String agentId = "33333333-3333-3333-3333-333333333333";
+        jdbc.update("""
+                INSERT INTO blog_user (
+                    id, username, display_name, type, status, avatar_url, created_at, updated_at
+                ) VALUES (?, 'quiet-critic', '安静的批评家', 'AGENT', 'DISABLED',
+                    '/media/agents/quiet-critic.png', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, agentId);
+        Post created = contentStore.createDraft(command("agent-authored", "Agent 原文"));
+        jdbc.update("UPDATE blog_post SET author_id = ? WHERE slug = ?", agentId, created.slug());
+
+        Post updated = contentStore.update(created.slug(), created.version(), command(created.slug(), "Agent 修改"));
+        Post published = contentStore.transition(updated.slug(), PostStatus.PUBLISHED, updated.version());
+
+        assertThat(published.author().id()).isEqualTo(agentId);
+        assertThat(published.author().username()).isEqualTo("quiet-critic");
+        assertThat(published.author().displayName()).isEqualTo("安静的批评家");
+        assertThat(published.author().type().name()).isEqualTo("AGENT");
+        assertThat(published.author().avatarUrl()).isEqualTo("/media/agents/quiet-critic.png");
+        assertThat(jdbc.queryForList("""
+                SELECT author_id
+                FROM blog_post_revision
+                WHERE slug = ? AND revision > 1
+                ORDER BY revision
+                """, String.class, created.slug())).containsExactly(agentId, agentId);
+
+        mockMvc.perform(get("/api/v1/public/posts/agent-authored"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.author.id").value(agentId))
+                .andExpect(jsonPath("$.author.username").value("quiet-critic"))
+                .andExpect(jsonPath("$.author.displayName").value("安静的批评家"))
+                .andExpect(jsonPath("$.author.type").value("AGENT"))
+                .andExpect(jsonPath("$.author.avatarUrl").value("/media/agents/quiet-critic.png"));
+        mockMvc.perform(get("/api/v1/public/posts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].author.id").value(agentId));
+    }
+
+    @Test
+    void clientSuppliedAuthorFieldsCannotOverrideServerAssignedAdmin() throws Exception {
+        String agentId = "44444444-4444-4444-4444-444444444444";
+        jdbc.update("""
+                INSERT INTO blog_user (
+                    id, username, display_name, type, status, avatar_url, created_at, updated_at
+                ) VALUES (?, 'spoofed-agent', '伪造作者', 'AGENT', 'ACTIVE', NULL,
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, agentId);
+        Client client = login();
+        String request = """
+                {
+                  "slug": "server-assigned-author",
+                  "title": "服务端指定作者",
+                  "description": "",
+                  "publishedAt": "2026-08-02T08:00:00Z",
+                  "tags": [],
+                  "cover": null,
+                  "body": "正文",
+                  "authorId": "%s",
+                  "author": {
+                    "id": "%s",
+                    "username": "spoofed-agent",
+                    "displayName": "伪造作者",
+                    "type": "AGENT",
+                    "avatarUrl": null
+                  }
+                }
+                """.formatted(agentId, agentId);
+
+        mockMvc.perform(post("/api/v1/studio/posts")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.author.id").value(Author.ADMIN_ID))
+                .andExpect(jsonPath("$.author.username").value("admin"));
+        assertThat(jdbc.queryForObject(
+                "SELECT author_id FROM blog_post WHERE slug = ?",
+                String.class,
+                "server-assigned-author"))
+                .isEqualTo(Author.ADMIN_ID);
+    }
+
+    @Test
     void everyWriteAdvancesRevisionAndArchiveKeepsHistoryWhileReleasingSlug() throws Exception {
         Client client = login();
         String createJson = createJson("writing-flow", "第一篇随记");
@@ -167,6 +254,11 @@ class StudioApiIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON).content(createJson))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.author.id").value(Author.ADMIN_ID))
+                .andExpect(jsonPath("$.author.username").value("admin"))
+                .andExpect(jsonPath("$.author.displayName").value("Speaive"))
+                .andExpect(jsonPath("$.author.type").value("HUMAN"))
+                .andExpect(jsonPath("$.author.avatarUrl").value(nullValue()))
                 .andExpect(jsonPath("$.version", endsWith(":1")))
                 .andExpect(jsonPath("$.html", not(containsString("<script"))))
                 .andReturn();
@@ -202,6 +294,7 @@ class StudioApiIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON).content(updateJson))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("第一篇随记（已保存）"))
+                .andExpect(jsonPath("$.author.id").value(Author.ADMIN_ID))
                 .andExpect(jsonPath("$.version", endsWith(":2")))
                 .andReturn();
         String updatedVersion = JsonPath.read(updated.getResponse().getContentAsString(), "$.version");
@@ -227,11 +320,18 @@ class StudioApiIntegrationTests {
 
         mockMvc.perform(get("/api/v1/public/posts/writing-flow"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.title").value("第一篇随记（已保存）"));
+                .andExpect(jsonPath("$.title").value("第一篇随记（已保存）"))
+                .andExpect(jsonPath("$.author.id").value(Author.ADMIN_ID));
+
+        mockMvc.perform(get("/api/v1/public/posts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].author.id").value(Author.ADMIN_ID))
+                .andExpect(jsonPath("$.items[0].author.username").value("admin"));
 
         mockMvc.perform(get("/api/v1/studio/posts").session(client.session()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].author.id").value(Author.ADMIN_ID))
                 .andExpect(jsonPath("$.errors", hasSize(0)));
 
         MvcResult unpublished = mockMvc.perform(post("/api/v1/studio/posts/writing-flow/unpublish")
@@ -266,6 +366,10 @@ class StudioApiIntegrationTests {
                 "SELECT event_type FROM blog_post_revision WHERE slug = ? ORDER BY revision",
                 String.class, "writing-flow"))
                 .containsExactly("CREATE", "UPDATE", "PUBLISH", "UNPUBLISH", "ARCHIVE");
+        assertThat(jdbc.queryForList(
+                "SELECT author_id FROM blog_post_revision WHERE slug = ? ORDER BY revision",
+                String.class, "writing-flow"))
+                .containsOnly(Author.ADMIN_ID);
 
         mockMvc.perform(post("/api/v1/studio/posts")
                         .session(client.session()).cookie(client.csrfCookie())
@@ -315,6 +419,7 @@ class StudioApiIntegrationTests {
                 .andExpect(jsonPath("$.title").value("目录直投文章"))
                 .andExpect(jsonPath("$.body").value("这是一段正文。"))
                 .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.author.id").value(Author.ADMIN_ID))
                 .andExpect(jsonPath("$.version", endsWith(":1")));
 
         assertThat(inbox.resolve("imported/direct-note.md")).isRegularFile();
@@ -381,6 +486,7 @@ class StudioApiIntegrationTests {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.slug").value("uploaded-note"))
                 .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.author.id").value(Author.ADMIN_ID))
                 .andExpect(jsonPath("$.version", endsWith(":1")));
 
         byte[] signatureOnly = {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};

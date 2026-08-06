@@ -331,9 +331,24 @@ main:focus {
   background: var(--page);
 }
 
-.post-date {
+.post-row-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
   padding-top: 6px;
+}
+
+.post-date {
   color: var(--muted);
+}
+
+.post-author {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .post-row-main {
@@ -538,6 +553,14 @@ main:focus {
   padding-top: 18px;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.article-author {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--ink);
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .article-cover {
@@ -950,8 +973,8 @@ main:focus {
 .studio-list-heading,
 .studio-post-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 100px 110px 154px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 130px 92px 105px 154px;
+  gap: 16px;
   align-items: center;
 }
 
@@ -1012,6 +1035,29 @@ main:focus {
 
 .studio-post-copy p {
   margin: 4px 0 0;
+}
+
+.studio-post-author {
+  min-width: 0;
+}
+
+.studio-post-author span,
+.studio-post-author small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-post-author span {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.studio-post-author small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.69rem;
 }
 
 .studio-post-item time {
@@ -1634,6 +1680,12 @@ main:focus {
     height: auto;
     min-height: 520px;
   }
+
+  .studio-list-heading,
+  .studio-post-item {
+    grid-template-columns: minmax(0, 1fr) 105px 88px 92px 154px;
+    gap: 12px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1694,7 +1746,7 @@ main:focus {
     padding: 25px 4px;
   }
 
-  .post-date {
+  .post-row-meta {
     grid-column: 1 / -1;
     padding-top: 0;
   }
@@ -1799,20 +1851,34 @@ main:focus {
     grid-column: 1;
   }
 
-  .studio-post-item > div:nth-child(2) {
+  .studio-post-status {
     grid-column: 2;
     grid-row: 1;
     align-self: start;
   }
 
-  .studio-post-item time {
+  .studio-post-author {
+    display: flex;
     grid-column: 1;
     grid-row: 2;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .studio-post-author small {
+    margin-top: 0;
+  }
+
+  .studio-post-item time {
+    grid-column: 1;
+    grid-row: 3;
   }
 
   .studio-row-actions {
     grid-column: 2;
-    grid-row: 2;
+    grid-row: 2 / span 2;
+    align-self: end;
   }
 
   .studio-editor-head {

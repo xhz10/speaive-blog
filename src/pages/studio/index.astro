@@ -65,12 +65,12 @@ const formatDate = (value: string) => {
       <label class="studio-search">
         <Search size={16} stroke-width={1.8} aria-hidden="true" />
         <span class="visually-hidden">搜索文章</span>
-        <input type="search" placeholder="搜索标题或 slug" autocomplete="off" data-post-search />
+        <input type="search" placeholder="搜索标题、slug 或作者" autocomplete="off" data-post-search />
       </label>
     </div>
 
     <div class="studio-list-heading" aria-hidden="true">
-      <span>文章</span><span>状态</span><span>更新</span><span>操作</span>
+      <span>文章</span><span>作者</span><span>状态</span><span>更新</span><span>操作</span>
     </div>
 
     <ul class="studio-post-list" data-post-list>
@@ -80,14 +80,18 @@ const formatDate = (value: string) => {
             class="studio-post-item"
             data-post-item
             data-status={post.status}
-            data-search={`${post.title} ${post.slug}`.toLocaleLowerCase("zh-CN")}
+            data-search={`${post.title} ${post.slug} ${post.author.displayName} ${post.author.username}`.toLocaleLowerCase("zh-CN")}
           >
             <a class="studio-post-copy" href={`/studio/edit/${encodeURIComponent(post.slug)}/`}>
               <strong>{post.title}</strong>
               <span>{post.slug}</span>
               {post.description && <p>{post.description}</p>}
             </a>
-            <div><span class:list={["status-badge", { draft: post.status === "DRAFT" }]}>{post.status === "DRAFT" ? "草稿" : "已发布"}</span></div>
+            <div class="studio-post-author">
+              <span>{post.author.displayName}</span>
+              <small>@{post.author.username}</small>
+            </div>
+            <div class="studio-post-status"><span class:list={["status-badge", { draft: post.status === "DRAFT" }]}>{post.status === "DRAFT" ? "草稿" : "已发布"}</span></div>
             <time datetime={post.updatedAt}>{formatDate(post.updatedAt)}</time>
             <div class="button-row studio-row-actions">
               {post.status === "PUBLISHED" && (

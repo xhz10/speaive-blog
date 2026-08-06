@@ -1,12 +1,15 @@
 ---
 import { ArrowUpRight } from "@lucide/astro";
 
+import type { PostAuthor } from "../lib/post-author";
+
 interface PostSummary {
   slug: string;
   title: string;
   description: string;
   publishedAt: Date | string;
   tags: string[];
+  author: PostAuthor;
 }
 
 interface Props {
@@ -25,7 +28,10 @@ const date = new Intl.DateTimeFormat("zh-CN", {
 ---
 
 <article class="post-row">
-  <time class="post-date" datetime={dateValue.toISOString()}>{date}</time>
+  <div class="post-row-meta">
+    <time class="post-date" datetime={dateValue.toISOString()}>{date}</time>
+    <span class="post-author">作者 {post.author.displayName}</span>
+  </div>
   <div class="post-row-main">
     <Heading><a href={`/blog/${encodeURIComponent(post.slug)}/`}>{post.title}</a></Heading>
     <p class="post-description">{post.description}</p>

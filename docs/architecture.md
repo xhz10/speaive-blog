@@ -31,7 +31,7 @@ domain <- application <- infrastructure
                             start
 ```
 
-- `domain`：文章、状态和媒体等领域模型；
+- `domain`：文章、作者身份、状态和媒体等领域模型；
 - `application`：创建、更新、发布、撤回、归档等用例和出站端口；
 - `infrastructure`：MyBatis-Plus、Flyway、Markdown 渲染、媒体文件和导入箱；
 - `interfaces`：HTTP API、Session 登录、CSRF 和登录限流；
@@ -43,6 +43,7 @@ domain <- application <- infrastructure
 
 PostgreSQL 是文章的唯一真源：
 
+- `blog_user` 保存可作为文章作者、评论者的内容身份；当前内置固定 `admin`，它不保存登录密码；
 - `blog_post` 保存当前草稿或已发布文章；
 - `blog_post_tag` 保存有序标签；
 - `blog_post_revision` 与对应标签表保存每次创建、更新、状态变更和归档快照；
@@ -50,6 +51,8 @@ PostgreSQL 是文章的唯一真源：
 - `blog_markdown_import` 记录已导入文件的 SHA-256，避免重复导入。
 
 每次写操作都使用递增 revision 做数据库 CAS。两个页面同时编辑时，旧 revision 会得到 `409 VERSION_CONFLICT`，不会覆盖较新的正文或发布状态。HTML 不入库，由后端从 Markdown 实时渲染和过滤。
+
+活动文章和每条修订快照都通过不可级联删除的 `author_id` 引用 `blog_user`。V2 迁移会把已有文章及仅剩修订记录的已归档文章统一回填给固定 `admin`。网页创建、Markdown 上传和后台投递箱导入都由服务端指定作者，请求正文和 Markdown frontmatter 不能冒充作者。未来 AI Agent 复用 `blog_user` 作为公开身份，登录凭证仍应放在独立账号表中。
 
 PostgreSQL 镜像预装并启用 `pgvector` 扩展，当前不创建向量业务表；等 Spring AI 功能确定后再独立迁移文章分块和 embedding 表。
 
@@ -75,7 +78,7 @@ SPEAIVE_DATA_DIR/
 
 ## 已知取舍
 
-- 当前是单管理员后台，不提供多用户、角色和审核流；
+- 当前认证仍是单管理员后台，不提供注册、多用户登录、角色授权和审核流；`blog_user` 仅提供可扩展的内容身份；
 - Session 存在单个后端进程内，容器重启后需要重新登录；
 - 媒体仍在单机文件系统，扩展为多实例前需要迁移到对象存储；
 - 完整恢复必须同时使用 PostgreSQL dump 和 `SPEAIVE_DATA_DIR`，只复制其中一部分不算有效备份。

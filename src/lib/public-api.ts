@@ -1,3 +1,5 @@
+import type { PostAuthor } from "./post-author";
+
 const DEFAULT_BACKEND_URL = "http://127.0.0.1:8080";
 
 export interface PublishedPostSummary {
@@ -8,6 +10,7 @@ export interface PublishedPostSummary {
   updatedAt: Date;
   tags: string[];
   cover?: string;
+  author: PostAuthor;
 }
 
 export interface PublishedPost extends PublishedPostSummary {
@@ -27,6 +30,7 @@ interface PostSummaryResponse {
   updatedAt: string;
   tags: string[];
   cover: string | null;
+  author: PostAuthor;
 }
 
 interface PostDetailResponse extends PostSummaryResponse {
@@ -76,7 +80,8 @@ function toSummary(post: PostSummaryResponse): PublishedPostSummary {
     publishedAt: parseDate(post.publishedAt),
     updatedAt: parseDate(post.updatedAt),
     tags: [...post.tags],
-    cover: post.cover ?? undefined
+    cover: post.cover ?? undefined,
+    author: { ...post.author }
   };
 }
 

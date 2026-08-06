@@ -19,11 +19,12 @@ export const GET: APIRoute = async ({ site: astroSite, url }) => {
       <link>${xml(new URL(`/blog/${encodeURIComponent(post.slug)}/`, base).href)}</link>
       <guid isPermaLink="true">${xml(new URL(`/blog/${encodeURIComponent(post.slug)}/`, base).href)}</guid>
       <description>${xml(post.description)}</description>
+      <dc:creator>${xml(post.author.displayName)}</dc:creator>
       <pubDate>${post.publishedAt.toUTCString()}</pubDate>
     </item>`).join("");
 
   return new Response(`<?xml version="1.0" encoding="UTF-8" ?>
-<rss version="2.0">
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
     <title>${xml(site.name)}</title>
     <link>${xml(new URL("/", base).href)}</link>

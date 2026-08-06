@@ -3,6 +3,7 @@ package com.speaive.blog.infrastructure.content;
 import com.speaive.blog.application.BlogErrorCode;
 import com.speaive.blog.application.BlogException;
 import com.speaive.blog.application.PostWriteCommand;
+import com.speaive.blog.domain.Author;
 import com.speaive.blog.domain.Post;
 import com.speaive.blog.domain.PostStatus;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,20 @@ class FileContentStoreSafetyTests {
 
     @TempDir
     Path temporaryDirectory;
+
+    @Test
+    void fileBackedPostsUseAndPreserveTheFixedAdminAuthor() {
+        FileContentStore store = store(temporaryDirectory.resolve("data"), (source, target, replaceExisting) -> {
+        });
+
+        Post created = store.createDraft(command("admin-authored", "初始正文"));
+        Post updated = store.update(created.slug(), created.version(), command(created.slug(), "更新正文"));
+        Post imported = store.importDraft("imported.md", spoofedAuthorMarkdown("imported", "导入正文"));
+
+        assertEquals(Author.ADMIN, created.author());
+        assertEquals(Author.ADMIN, updated.author());
+        assertEquals(Author.ADMIN, imported.author());
+    }
 
     @Test
     void noReplaceCommitNeverOverwritesTargetCreatedInTheCommitWindow() throws Exception {
@@ -144,6 +159,14 @@ class FileContentStoreSafetyTests {
     private static byte[] directMarkdown(String slug, String body) {
         return ("---\ntitle: 外部文章\nslug: " + slug
                 + "\npublishedAt: 2026-08-02T08:00:00Z\n---\n\n" + body + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static byte[] spoofedAuthorMarkdown(String slug, String body) {
+        return ("---\ntitle: 外部文章\nslug: " + slug
+                + "\npublishedAt: 2026-08-02T08:00:00Z"
+                + "\nauthorId: 99999999-9999-9999-9999-999999999999"
+                + "\nauthor:\n  username: spoofed-agent\n  type: AGENT\n---\n\n" + body + "\n")
                 .getBytes(StandardCharsets.UTF_8);
     }
 

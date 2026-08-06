@@ -19,6 +19,13 @@ describe("public blog API", () => {
         updatedAt: "2026-08-02T09:00:00Z",
         tags: ["随记"],
         cover: null,
+        author: {
+          id: "00000000-0000-0000-0000-000000000001",
+          username: "admin",
+          displayName: "Speaive",
+          type: "HUMAN",
+          avatarUrl: null
+        },
         status: "PUBLISHED",
         version: "2"
       }],
@@ -35,7 +42,14 @@ describe("public blog API", () => {
     expect(posts).toEqual([expect.objectContaining({
       slug: "first-note",
       publishedAt: new Date("2026-08-02T08:00:00Z"),
-      updatedAt: new Date("2026-08-02T09:00:00Z")
+      updatedAt: new Date("2026-08-02T09:00:00Z"),
+      author: {
+        id: "00000000-0000-0000-0000-000000000001",
+        username: "admin",
+        displayName: "Speaive",
+        type: "HUMAN",
+        avatarUrl: null
+      }
     })]);
   });
 

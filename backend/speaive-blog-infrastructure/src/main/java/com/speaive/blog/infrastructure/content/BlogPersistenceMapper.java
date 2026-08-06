@@ -15,44 +15,59 @@ import java.util.List;
 public interface BlogPersistenceMapper extends BaseMapper<BlogPostEntity> {
 
     @Select("""
-            SELECT id, slug, title, description, published_at, updated_at, status,
-                   body, cover, revision, created_at
-            FROM blog_post
-            WHERE slug = #{slug}
+            SELECT p.id, p.slug, p.title, p.description, p.published_at, p.updated_at, p.status,
+                   p.body, p.cover, p.author_id AS "authorId", p.revision, p.created_at,
+                   u.username AS "authorUsername", u.display_name AS "authorDisplayName",
+                   u.type AS "authorType", u.avatar_url AS "authorAvatarUrl"
+            FROM blog_post p
+            JOIN blog_user u ON u.id = p.author_id
+            WHERE p.slug = #{slug}
             """)
     BlogPostEntity selectBySlug(@Param("slug") String slug);
 
     @Select("""
-            SELECT id, slug, title, description, published_at, updated_at, status,
-                   body, cover, revision, created_at
-            FROM blog_post
-            WHERE slug = #{slug} AND status = 'PUBLISHED'
+            SELECT p.id, p.slug, p.title, p.description, p.published_at, p.updated_at, p.status,
+                   p.body, p.cover, p.author_id AS "authorId", p.revision, p.created_at,
+                   u.username AS "authorUsername", u.display_name AS "authorDisplayName",
+                   u.type AS "authorType", u.avatar_url AS "authorAvatarUrl"
+            FROM blog_post p
+            JOIN blog_user u ON u.id = p.author_id
+            WHERE p.slug = #{slug} AND p.status = 'PUBLISHED'
             """)
     BlogPostEntity selectPublishedBySlug(@Param("slug") String slug);
 
     @Select("""
-            SELECT id, slug, title, description, published_at, updated_at, status,
-                   cover, revision, created_at
-            FROM blog_post
-            ORDER BY published_at DESC, slug
+            SELECT p.id, p.slug, p.title, p.description, p.published_at, p.updated_at, p.status,
+                   p.cover, p.author_id AS "authorId", p.revision, p.created_at,
+                   u.username AS "authorUsername", u.display_name AS "authorDisplayName",
+                   u.type AS "authorType", u.avatar_url AS "authorAvatarUrl"
+            FROM blog_post p
+            JOIN blog_user u ON u.id = p.author_id
+            ORDER BY p.published_at DESC, p.slug
             """)
     List<BlogPostEntity> selectAllSummaries();
 
     @Select("""
-            SELECT id, slug, title, description, published_at, updated_at, status,
-                   cover, revision, created_at
-            FROM blog_post
-            WHERE status = 'PUBLISHED'
-            ORDER BY published_at DESC, slug
+            SELECT p.id, p.slug, p.title, p.description, p.published_at, p.updated_at, p.status,
+                   p.cover, p.author_id AS "authorId", p.revision, p.created_at,
+                   u.username AS "authorUsername", u.display_name AS "authorDisplayName",
+                   u.type AS "authorType", u.avatar_url AS "authorAvatarUrl"
+            FROM blog_post p
+            JOIN blog_user u ON u.id = p.author_id
+            WHERE p.status = 'PUBLISHED'
+            ORDER BY p.published_at DESC, p.slug
             """)
     List<BlogPostEntity> selectPublishedSummaries();
 
     @Select("""
-            SELECT id, slug, title, description, published_at, updated_at, status,
-                   body, cover, revision, created_at
-            FROM blog_post
-            WHERE slug = #{slug}
-            FOR UPDATE
+            SELECT p.id, p.slug, p.title, p.description, p.published_at, p.updated_at, p.status,
+                   p.body, p.cover, p.author_id AS "authorId", p.revision, p.created_at,
+                   u.username AS "authorUsername", u.display_name AS "authorDisplayName",
+                   u.type AS "authorType", u.avatar_url AS "authorAvatarUrl"
+            FROM blog_post p
+            JOIN blog_user u ON u.id = p.author_id
+            WHERE p.slug = #{slug}
+            FOR UPDATE OF p
             """)
     BlogPostEntity lockBySlug(@Param("slug") String slug);
 
@@ -95,10 +110,10 @@ public interface BlogPersistenceMapper extends BaseMapper<BlogPostEntity> {
     @Insert("""
             INSERT INTO blog_post_revision (
                 post_id, revision, slug, title, description, published_at, updated_at,
-                status, body, cover, post_created_at, event_type, recorded_at
+                status, body, cover, author_id, post_created_at, event_type, recorded_at
             )
             SELECT id, revision, slug, title, description, published_at, updated_at,
-                   status, body, cover, created_at, #{eventType}, #{recordedAt}
+                   status, body, cover, author_id, created_at, #{eventType}, #{recordedAt}
             FROM blog_post
             WHERE id = #{postId}
             """)

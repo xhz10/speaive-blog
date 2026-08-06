@@ -6,7 +6,7 @@
 
 - Astro SSR：公开博客、写作台界面和同源 API 转发；
 - Java 25 + Spring Boot 4.0.7：登录、内容管理、上传和 Markdown 预览；
-- PostgreSQL 17 + pgvector：文章、修订记录和媒体元数据；当前只启用 `vector` 扩展，向量表和嵌入模型等到引入 Spring AI 时再设计；
+- PostgreSQL 17 + pgvector：内容用户、文章、修订记录和媒体元数据；当前只启用 `vector` 扩展，向量表和嵌入模型等到引入 Spring AI 时再设计；
 - 独立宿主机数据目录：正文图片、封面原文件和 Markdown 投递箱；
 - 单管理员 Session 登录、BCrypt 密码、CSRF 防护和登录限流；
 - Spring Boot 仍是一个部署单元，Maven 模块只用于约束代码边界。
@@ -58,7 +58,7 @@ docker compose down
 
 内容分成两部分保存：
 
-- `postgres_data` 命名卷：文章、修订记录和媒体元数据；
+- `postgres_data` 命名卷：内容用户、文章、修订记录和媒体元数据；
 - `SPEAIVE_DATA_DIR` 宿主机目录：上传图片和 Markdown 投递箱。本地默认是已被 Git 忽略的 `.data`，服务器建议设置为 `/srv/speaive-blog/data`。
 
 `git pull`、重新构建镜像或替换容器不会把这些内容带入 Git，也不会覆盖已有内容。数据目录结构如下：

@@ -26,7 +26,7 @@ speaive-blog-infrastructure   speaive-blog-interfaces
               speaive-blog-start
 ```
 
-- `domain`：文章、状态和媒体领域模型，不依赖 Spring；
+- `domain`：文章、作者身份、状态和媒体领域模型，不依赖 Spring；
 - `application`：用例编排和存储端口，依赖 `domain`；
 - `infrastructure`：MyBatis-Plus、Flyway、Markdown、媒体文件和导入箱；
 - `interfaces`：HTTP 请求模型、Session 登录、CSRF 和限流；
@@ -36,7 +36,7 @@ speaive-blog-infrastructure   speaive-blog-interfaces
 
 ## 数据模型
 
-`blog_post` 保存活动文章，`blog_post_revision` 保存创建、更新、发布、撤回和归档快照。每次写操作都在事务中递增 revision，并通过 `WHERE slug + revision` 做 CAS；旧客户端写入会得到 `409 VERSION_CONFLICT`。归档在同一事务中写快照并删除活动行，因此历史保留且 slug 可以重新使用。
+`blog_user` 保存内容身份，当前内置固定 `admin`；它与环境变量提供的登录凭证相互独立，不保存密码。`blog_post` 保存活动文章，`blog_post_revision` 保存创建、更新、发布、撤回和归档快照，两者都通过 `author_id` 引用作者。每次写操作都在事务中递增 revision，并通过 `WHERE slug + revision` 做 CAS；旧客户端写入会得到 `409 VERSION_CONFLICT`。归档在同一事务中写快照并删除活动行，因此历史保留且 slug 可以重新使用。
 
 文章正文保存 Markdown，不持久化 HTML。列表查询不读取正文，详情和预览由后端实时渲染并过滤危险 HTML。
 
@@ -50,7 +50,7 @@ speaive-blog-infrastructure   speaive-blog-interfaces
 JAVA_HOME=/opt/homebrew/opt/openjdk ./mvnw clean verify
 ```
 
-Flyway 会在测试容器的空数据库执行完整迁移。不要使用 H2 代替 PostgreSQL 验证锁、事务或 SQL 方言。
+Flyway 会在测试容器的空数据库执行完整迁移，并通过独立测试验证带活动文章和仅归档修订的 V1 数据升级到 V2。不要使用 H2 代替 PostgreSQL 验证锁、事务或 SQL 方言。
 
 ## 独立启动
 

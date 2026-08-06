@@ -27,6 +27,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat("zh-CN", {
       type="article"
       publishedAt={post.publishedAt}
       updatedAt={post.updatedAt}
+      author={post.author}
     >
       <article class="article-page">
         <header class="article-header">
@@ -39,6 +40,7 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat("zh-CN", {
             <h1>{post.title}</h1>
             {post.description && <p class="article-deck">{post.description}</p>}
             <div class="article-meta">
+              <span class="article-author">作者 {post.author.displayName}</span>
               <time datetime={post.publishedAt.toISOString()}>{formatDate(post.publishedAt)}</time>
               {post.updatedAt && <span>更新于 {formatDate(post.updatedAt)}</span>}
               {post.tags.length > 0 && <span>{post.tags.join(" · ")}</span>}

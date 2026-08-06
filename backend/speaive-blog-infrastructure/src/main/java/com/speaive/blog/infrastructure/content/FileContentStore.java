@@ -5,6 +5,7 @@ import com.speaive.blog.application.BlogException;
 import com.speaive.blog.application.ContentStorePort;
 import com.speaive.blog.application.PostWriteCommand;
 import com.speaive.blog.domain.ArchivedPost;
+import com.speaive.blog.domain.Author;
 import com.speaive.blog.domain.ContentError;
 import com.speaive.blog.domain.MediaContent;
 import com.speaive.blog.domain.Post;
@@ -267,7 +268,7 @@ public final class FileContentStore implements ContentStorePort {
                         attributes.lastModifiedTime().toInstant()));
         Instant updatedAt = parsed.updatedAt() == null ? attributes.lastModifiedTime().toInstant() : parsed.updatedAt();
         Post post = new Post(parsed.slug(), parsed.title(), parsed.description(), parsed.publishedAt(), updatedAt,
-                parsed.tags(), parsed.cover(), status, parsed.body(), parsed.html(), sha256(bytes));
+                parsed.tags(), parsed.cover(), Author.ADMIN, status, parsed.body(), parsed.html(), sha256(bytes));
         return new StoredPost(path, post);
     }
 

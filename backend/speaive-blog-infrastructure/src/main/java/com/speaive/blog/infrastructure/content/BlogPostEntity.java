@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.speaive.blog.domain.AuthorType;
 import com.speaive.blog.domain.PostStatus;
 
 import java.time.Instant;
@@ -22,6 +23,16 @@ public class BlogPostEntity {
     private PostStatus status;
     private String body;
     private String cover;
+    @TableField("author_id")
+    private String authorId;
+    @TableField(exist = false)
+    private String authorUsername;
+    @TableField(exist = false)
+    private String authorDisplayName;
+    @TableField(exist = false)
+    private AuthorType authorType;
+    @TableField(exist = false)
+    private String authorAvatarUrl;
     private long revision;
     @TableField("created_at")
     private Instant createdAt;
@@ -99,6 +110,46 @@ public class BlogPostEntity {
 
     public void setCover(String cover) {
         this.cover = cover;
+    }
+
+    public String getAuthorId() {
+        return authorId;
+    }
+
+    public void setAuthorId(String authorId) {
+        this.authorId = authorId;
+    }
+
+    public String getAuthorUsername() {
+        return authorUsername;
+    }
+
+    public void setAuthorUsername(String authorUsername) {
+        this.authorUsername = authorUsername;
+    }
+
+    public String getAuthorDisplayName() {
+        return authorDisplayName;
+    }
+
+    public void setAuthorDisplayName(String authorDisplayName) {
+        this.authorDisplayName = authorDisplayName;
+    }
+
+    public AuthorType getAuthorType() {
+        return authorType;
+    }
+
+    public void setAuthorType(AuthorType authorType) {
+        this.authorType = authorType;
+    }
+
+    public String getAuthorAvatarUrl() {
+        return authorAvatarUrl;
+    }
+
+    public void setAuthorAvatarUrl(String authorAvatarUrl) {
+        this.authorAvatarUrl = authorAvatarUrl;
     }
 
     public long getRevision() {

@@ -11,6 +11,7 @@ public record Post(
         Instant updatedAt,
         List<String> tags,
         String cover,
+        Author author,
         PostStatus status,
         String body,
         String html,
@@ -18,5 +19,6 @@ public record Post(
 ) {
     public Post {
         tags = List.copyOf(tags);
+        author = java.util.Objects.requireNonNull(author, "author");
     }
 }

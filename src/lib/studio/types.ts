@@ -1,3 +1,5 @@
+import type { PostAuthor } from "../post-author";
+
 export type PostStatus = "DRAFT" | "PUBLISHED";
 
 export interface StudioPostSummary {
@@ -10,6 +12,7 @@ export interface StudioPostSummary {
   cover: string | null;
   status: PostStatus;
   version: string;
+  author: PostAuthor;
 }
 
 export interface StudioPostDetail extends StudioPostSummary {

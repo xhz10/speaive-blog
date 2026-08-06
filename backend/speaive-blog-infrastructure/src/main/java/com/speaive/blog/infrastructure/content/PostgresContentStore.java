@@ -5,6 +5,7 @@ import com.speaive.blog.application.BlogException;
 import com.speaive.blog.application.ContentStorePort;
 import com.speaive.blog.application.PostWriteCommand;
 import com.speaive.blog.domain.ArchivedPost;
+import com.speaive.blog.domain.Author;
 import com.speaive.blog.domain.MediaContent;
 import com.speaive.blog.domain.Post;
 import com.speaive.blog.domain.PostCollection;
@@ -228,6 +229,7 @@ public class PostgresContentStore implements ContentStorePort {
         BlogPostEntity entity = new BlogPostEntity();
         entity.setId(UUID.randomUUID().toString());
         entity.setSlug(slug);
+        applyAuthor(entity, Author.ADMIN);
         entity.setStatus(PostStatus.DRAFT);
         entity.setRevision(1);
         entity.setCreatedAt(now);
@@ -294,15 +296,28 @@ public class PostgresContentStore implements ContentStorePort {
 
     private Post toSummary(BlogPostEntity entity) {
         return new Post(entity.getSlug(), entity.getTitle(), entity.getDescription(), entity.getPublishedAt(),
-                entity.getUpdatedAt(), mapper.selectTags(entity.getId()), entity.getCover(), entity.getStatus(),
-                "", "", versionOf(entity));
+                entity.getUpdatedAt(), mapper.selectTags(entity.getId()), entity.getCover(), toAuthor(entity),
+                entity.getStatus(), "", "", versionOf(entity));
     }
 
     private Post toDetail(BlogPostEntity entity) {
         String body = Objects.requireNonNullElse(entity.getBody(), "");
         return new Post(entity.getSlug(), entity.getTitle(), entity.getDescription(), entity.getPublishedAt(),
-                entity.getUpdatedAt(), mapper.selectTags(entity.getId()), entity.getCover(), entity.getStatus(),
-                body, markdown.render(body), versionOf(entity));
+                entity.getUpdatedAt(), mapper.selectTags(entity.getId()), entity.getCover(), toAuthor(entity),
+                entity.getStatus(), body, markdown.render(body), versionOf(entity));
+    }
+
+    private static Author toAuthor(BlogPostEntity entity) {
+        return new Author(entity.getAuthorId(), entity.getAuthorUsername(), entity.getAuthorDisplayName(),
+                entity.getAuthorType(), entity.getAuthorAvatarUrl());
+    }
+
+    private static void applyAuthor(BlogPostEntity entity, Author author) {
+        entity.setAuthorId(author.id());
+        entity.setAuthorUsername(author.username());
+        entity.setAuthorDisplayName(author.displayName());
+        entity.setAuthorType(author.type());
+        entity.setAuthorAvatarUrl(author.avatarUrl());
     }
 
     private static void apply(BlogPostEntity entity, NormalizedPost normalized) {
@@ -324,6 +339,11 @@ public class PostgresContentStore implements ContentStorePort {
         copy.setStatus(source.getStatus());
         copy.setBody(source.getBody());
         copy.setCover(source.getCover());
+        copy.setAuthorId(source.getAuthorId());
+        copy.setAuthorUsername(source.getAuthorUsername());
+        copy.setAuthorDisplayName(source.getAuthorDisplayName());
+        copy.setAuthorType(source.getAuthorType());
+        copy.setAuthorAvatarUrl(source.getAuthorAvatarUrl());
         copy.setRevision(source.getRevision());
         copy.setCreatedAt(source.getCreatedAt());
         return copy;

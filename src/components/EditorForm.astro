@@ -153,6 +153,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
 
 <script>
   import { StudioClientError, studioRequest } from "../lib/studio/client";
+  import { createDraftTabId } from "../lib/studio/draft-id";
   import type {
     CreatePostPayload,
     PostWritePayload,
@@ -712,12 +713,12 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
     try {
       let tabId = sessionStorage.getItem(NEW_DRAFT_TAB_KEY);
       if (!tabId) {
-        tabId = crypto.randomUUID();
+        tabId = createDraftTabId();
         sessionStorage.setItem(NEW_DRAFT_TAB_KEY, tabId);
       }
       return `${NEW_DRAFT_KEY_PREFIX}${tabId}`;
     } catch {
-      return `${NEW_DRAFT_KEY_PREFIX}${crypto.randomUUID()}`;
+      return `${NEW_DRAFT_KEY_PREFIX}${createDraftTabId()}`;
     }
   }
 </script>

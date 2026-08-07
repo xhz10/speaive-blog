@@ -9,6 +9,7 @@ import {
   TriangleAlert,
   Undo2
 } from "@lucide/astro";
+import { formatDateTimeInput } from "../lib/date-time";
 import type { StudioPostDetail } from "../lib/studio/types";
 
 interface Props {
@@ -17,7 +18,7 @@ interface Props {
 
 const { post } = Astro.props;
 const initialState = JSON.stringify(post ?? null).replace(/</g, "\\u003c");
-const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+const publishedAt = formatDateTimeInput(post ? new Date(post.publishedAt) : new Date());
 ---
 
 <form id="post-form" class="studio-editor-form" novalidate data-dirty="false">
@@ -87,8 +88,8 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
         <div class="slug-input-wrap"><span>/blog/</span><input type="text" name="slug" value={post?.slug ?? ""} maxlength="100" pattern="[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*" required readonly={Boolean(post)} data-slug /></div>
       </label>
       <label class="field">
-        <span class="field-label">发布日期</span>
-        <input class="input" type="date" name="publishedAt" value={publishedAt} required data-published-at />
+        <span class="field-label">发布时间（北京时间）</span>
+        <input class="input" type="datetime-local" name="publishedAt" value={publishedAt} step="1" required data-published-at />
       </label>
       <label class="field">
         <span class="field-label">标签</span>
@@ -152,6 +153,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
 <script is:inline id="editor-initial-state" type="application/json" set:html={initialState}></script>
 
 <script>
+  import { formatDateTimeInput, normalizeInstant, parseDateTimeInput } from "../lib/date-time";
   import { StudioClientError, studioRequest } from "../lib/studio/client";
   import { createDraftTabId } from "../lib/studio/draft-id";
   import type {
@@ -204,7 +206,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
     const dropZone = editorForm.querySelector<HTMLElement>("[data-drop-zone]")!;
     const dropOverlay = editorForm.querySelector<HTMLElement>("[data-drop-overlay]")!;
 
-    if (!initialPost) publishedAtInput.value = localDateValue(new Date());
+    if (!initialPost) publishedAtInput.value = formatDateTimeInput(new Date());
 
     let post = initialPost;
     let status = initialPost?.status ?? "DRAFT";
@@ -311,7 +313,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
     }
 
     function snapshot(): string {
-      return JSON.stringify({ slug: slugInput.value.trim(), ...collectWritePayload() });
+      return writeSnapshot(slugInput.value.trim(), collectWritePayload());
     }
 
     function markDirty() {
@@ -353,7 +355,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
       setSaveState("saving", "正在保存");
       try {
         const writePayload = collectWritePayload();
-        const requestSnapshot = JSON.stringify({ slug: slugInput.value.trim(), ...writePayload });
+        const requestSnapshot = writeSnapshot(slugInput.value.trim(), writePayload);
         const saved = post
           ? await request<StudioPostDetail>(`/studio/posts/${encodeURIComponent(post.slug)}`, {
               method: "PUT",
@@ -421,7 +423,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
       const localSnapshot = snapshot();
       applyServerPost(draft, !hadLocalChanges);
       if (hadLocalChanges) {
-        savedSnapshot = JSON.stringify({ slug: draft.slug, ...toWritePayload(draft) });
+        savedSnapshot = writeSnapshot(draft.slug, toWritePayload(draft));
         dirty = localSnapshot !== savedSnapshot;
         const saved = await saveDraft(true);
         if (!saved) return;
@@ -541,7 +543,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
       if (updateFields) {
         titleInput.value = next.title;
         descriptionInput.value = next.description;
-        publishedAtInput.value = next.publishedAt.slice(0, 10);
+        publishedAtInput.value = formatDateTimeInput(new Date(next.publishedAt));
         tagsInput.value = next.tags.join(", ");
         coverInput.value = next.cover ?? "";
         bodyInput.value = next.body;
@@ -651,7 +653,15 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
         titleInput.value = draft.title ?? "";
         descriptionInput.value = draft.description ?? "";
         slugInput.value = draft.slug ?? "";
-        publishedAtInput.value = draft.publishedAt?.slice(0, 10) ?? publishedAtInput.value;
+        if (Object.hasOwn(draft, "publishedAt")) {
+          publishedAtInput.value = "";
+          if (draft.publishedAt) {
+            const draftPublishedAt = new Date(draft.publishedAt);
+            if (!Number.isNaN(draftPublishedAt.valueOf())) {
+              publishedAtInput.value = formatDateTimeInput(draftPublishedAt);
+            }
+          }
+        }
         tagsInput.value = draft.tags?.join(", ") ?? "";
         coverInput.value = draft.cover ?? "";
         bodyInput.value = draft.body ?? "";
@@ -666,10 +676,14 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
     }
 
     function resolvePublishedAt(): string {
-      const selectedDate = publishedAtInput.value;
-      if (post?.publishedAt?.slice(0, 10) === selectedDate) return post.publishedAt;
-      if (post?.publishedAt?.includes("T")) return `${selectedDate}${post.publishedAt.slice(10)}`;
-      return `${selectedDate}T12:00:00Z`;
+      const selectedDateTime = publishedAtInput.value;
+      if (!selectedDateTime) return "";
+      const selectedInstant = parseDateTimeInput(selectedDateTime);
+      if (post?.publishedAt
+        && formatDateTimeInput(new Date(post.publishedAt)) === formatDateTimeInput(selectedInstant)) {
+        return post.publishedAt;
+      }
+      return selectedInstant.toISOString();
     }
 
     function syncDirtyFlag() {
@@ -694,19 +708,19 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
     };
   }
 
+  function writeSnapshot(slug: string, payload: PostWritePayload): string {
+    const publishedAt = payload.publishedAt
+      ? normalizeInstant(payload.publishedAt)
+      : payload.publishedAt;
+    return JSON.stringify({ slug, ...payload, publishedAt });
+  }
+
   function escapeImageAlt(value: string): string {
     return value.replace(/\.[^.]+$/, "").replace(/[\[\]]/g, "");
   }
 
   function hasImage(dataTransfer: DataTransfer | null): boolean {
     return Array.from(dataTransfer?.items ?? []).some((item) => item.type.startsWith("image/"));
-  }
-
-  function localDateValue(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
   }
 
   function resolveLocalDraftKey(): string {

@@ -8,6 +8,7 @@ import org.commonmark.ext.gfm.tables.TablesExtension;
 import org.commonmark.node.Node;
 import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
+import org.owasp.html.Encoding;
 import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.PolicyFactory;
 import org.yaml.snakeyaml.DumperOptions;
@@ -255,11 +256,10 @@ final class MarkdownCodec {
     }
 
     private String extractDescription(String markdown, int maxLength) {
-        String plain = render(markdown)
-                .replaceAll("<[^>]+>", " ")
-                .replace("&amp;", "&")
-                .replace("&lt;", "<")
-                .replace("&gt;", ">")
+        String plain = Encoding.decodeHtml(
+                        render(markdown).replaceAll("<[^>]+>", " "),
+                        false
+                )
                 .replaceAll("\\s+", " ")
                 .trim();
         if (plain.isEmpty()) {

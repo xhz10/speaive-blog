@@ -1,6 +1,7 @@
 ---
 import { ArrowLeft } from "@lucide/astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { formatDateTime } from "../../lib/date-time";
 import { getPublishedPost } from "../../lib/public-api";
 
 const slug = Astro.params.slug ?? "";
@@ -9,12 +10,6 @@ const post = await getPublishedPost(slug);
 if (!post) {
   Astro.response.status = 404;
 }
-
-const formatDate = (date: Date) => new Intl.DateTimeFormat("zh-CN", {
-  year: "numeric",
-  month: "long",
-  day: "numeric"
-}).format(date);
 ---
 
 {
@@ -41,8 +36,12 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat("zh-CN", {
             {post.description && <p class="article-deck">{post.description}</p>}
             <div class="article-meta">
               <span class="article-author">作者 {post.author.displayName}</span>
-              <time datetime={post.publishedAt.toISOString()}>{formatDate(post.publishedAt)}</time>
-              {post.updatedAt && <span>更新于 {formatDate(post.updatedAt)}</span>}
+              <time datetime={post.publishedAt.toISOString()}>{formatDateTime(post.publishedAt)}</time>
+              {
+                post.updatedAt && (
+                  <span>更新于 <time datetime={post.updatedAt.toISOString()}>{formatDateTime(post.updatedAt)}</time></span>
+                )
+              }
               {post.tags.length > 0 && <span>{post.tags.join(" · ")}</span>}
             </div>
           </div>

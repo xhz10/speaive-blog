@@ -1,6 +1,7 @@
 ---
 import { ArrowUpRight } from "@lucide/astro";
 
+import { formatDateTime } from "../lib/date-time";
 import type { PostAuthor } from "../lib/post-author";
 
 interface PostSummary {
@@ -20,11 +21,7 @@ interface Props {
 const { post, heading = "h2" } = Astro.props;
 const Heading = heading;
 const dateValue = post.publishedAt instanceof Date ? post.publishedAt : new Date(post.publishedAt);
-const date = new Intl.DateTimeFormat("zh-CN", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit"
-}).format(dateValue);
+const date = formatDateTime(dateValue);
 ---
 
 <article class="post-row">

@@ -1,8 +1,8 @@
 package com.speaive.blog.infrastructure.migration;
 
-import com.speaive.blog.domain.Author;
-import com.speaive.blog.domain.AuthorStatus;
-import com.speaive.blog.domain.AuthorType;
+import com.speaive.blog.domain.author.Author;
+import com.speaive.blog.domain.author.AuthorStatus;
+import com.speaive.blog.domain.author.AuthorType;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;

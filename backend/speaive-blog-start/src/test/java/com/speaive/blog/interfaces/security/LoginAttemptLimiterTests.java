@@ -1,7 +1,7 @@
 package com.speaive.blog.interfaces.security;
 
-import com.speaive.blog.interfaces.http.ApiHttpException;
-import com.speaive.blog.interfaces.http.ApiErrorCode;
+import com.speaive.blog.interfaces.http.error.ApiErrorCode;
+import com.speaive.blog.interfaces.http.error.ApiHttpException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;

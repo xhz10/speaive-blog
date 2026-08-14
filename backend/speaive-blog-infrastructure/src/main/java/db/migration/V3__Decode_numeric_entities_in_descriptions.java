@@ -1,6 +1,6 @@
 package db.migration;
 
-import com.speaive.blog.domain.PostRevisionEventType;
+import com.speaive.blog.domain.post.PostRevisionEventType;
 import org.commonmark.Extension;
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension;
 import org.commonmark.ext.gfm.tables.TablesExtension;

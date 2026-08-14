@@ -1,9 +1,9 @@
 package com.speaive.blog.interfaces.importing;
 
-import com.speaive.blog.application.BlogErrorCode;
-import com.speaive.blog.application.BlogException;
-import com.speaive.blog.application.port.in.MarkdownInboxUseCase;
-import com.speaive.blog.application.result.MarkdownImportOutcome;
+import com.speaive.blog.application.error.BlogErrorCode;
+import com.speaive.blog.application.error.BlogException;
+import com.speaive.blog.application.port.in.importing.MarkdownInboxUseCase;
+import com.speaive.blog.application.result.importing.MarkdownImportOutcome;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;

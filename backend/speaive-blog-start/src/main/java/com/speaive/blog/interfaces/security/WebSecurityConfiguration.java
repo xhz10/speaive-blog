@@ -1,6 +1,6 @@
 package com.speaive.blog.interfaces.security;
 
-import com.speaive.blog.interfaces.http.ApiErrorCode;
+import com.speaive.blog.interfaces.http.error.ApiErrorCode;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

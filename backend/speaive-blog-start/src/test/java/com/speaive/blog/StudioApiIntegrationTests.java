@@ -1,13 +1,13 @@
 package com.speaive.blog;
 
 import com.jayway.jsonpath.JsonPath;
-import com.speaive.blog.application.BlogErrorCode;
-import com.speaive.blog.application.BlogException;
-import com.speaive.blog.application.PostWriteCommand;
-import com.speaive.blog.application.port.in.BlogUseCase;
-import com.speaive.blog.application.port.in.MarkdownInboxUseCase;
-import com.speaive.blog.application.result.MarkdownImportOutcome;
-import com.speaive.blog.application.result.PostDetailResult;
+import com.speaive.blog.application.command.post.PostWriteCommand;
+import com.speaive.blog.application.error.BlogErrorCode;
+import com.speaive.blog.application.error.BlogException;
+import com.speaive.blog.application.port.in.importing.MarkdownInboxUseCase;
+import com.speaive.blog.application.port.in.post.PostUseCase;
+import com.speaive.blog.application.result.importing.MarkdownImportOutcome;
+import com.speaive.blog.application.result.post.PostDetailResult;
 import com.speaive.blog.interfaces.importing.MarkdownInboxImporter;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterAll;
@@ -94,7 +94,7 @@ class StudioApiIntegrationTests {
     private final MockMvc mockMvc;
     private final JdbcTemplate jdbc;
     private final MarkdownInboxImporter inboxImporter;
-    private final BlogUseCase blog;
+    private final PostUseCase posts;
     private final MarkdownInboxUseCase inboxImports;
 
     @Autowired
@@ -102,12 +102,12 @@ class StudioApiIntegrationTests {
             MockMvc mockMvc,
             JdbcTemplate jdbc,
             MarkdownInboxImporter inboxImporter,
-            BlogUseCase blog,
+            PostUseCase posts,
             MarkdownInboxUseCase inboxImports) {
         this.mockMvc = mockMvc;
         this.jdbc = jdbc;
         this.inboxImporter = inboxImporter;
-        this.blog = blog;
+        this.posts = posts;
         this.inboxImports = inboxImports;
     }
 
@@ -167,12 +167,12 @@ class StudioApiIntegrationTests {
                 ) VALUES (?, 'quiet-critic', '安静的批评家', 'AGENT', 'DISABLED',
                     '/media/agents/quiet-critic.png', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """, agentId);
-        PostDetailResult created = blog.createDraft(command("agent-authored", "Agent 原文"));
+        PostDetailResult created = posts.createDraft(command("agent-authored", "Agent 原文"));
         jdbc.update("UPDATE blog_post SET author_id = ? WHERE slug = ?", agentId, created.slug());
 
-        PostDetailResult updated = blog.update(
+        PostDetailResult updated = posts.update(
                 created.slug(), created.version(), command(created.slug(), "Agent 修改"));
-        PostDetailResult published = blog.publish(updated.slug(), updated.version());
+        PostDetailResult published = posts.publish(updated.slug(), updated.version());
 
         assertThat(published.author().id()).isEqualTo(agentId);
         assertThat(published.author().username()).isEqualTo("quiet-critic");
@@ -398,6 +398,82 @@ class StudioApiIntegrationTests {
     }
 
     @Test
+    void markdownEndpointsRequireAuthenticationAndCsrf() throws Exception {
+        MvcResult csrf = mockMvc.perform(get("/api/v1/studio/csrf"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String csrfJson = csrf.getResponse().getContentAsString();
+        Cookie csrfCookie = csrf.getResponse().getCookie("XSRF-TOKEN");
+        String csrfHeader = JsonPath.read(csrfJson, "$.headerName");
+        String csrfToken = JsonPath.read(csrfJson, "$.token");
+
+        mockMvc.perform(post("/api/v1/studio/preview")
+                        .cookie(csrfCookie)
+                        .header(csrfHeader, csrfToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"preview\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+
+        MockMultipartFile anonymousMarkdown = new MockMultipartFile(
+                "markdown", "anonymous.md", "text/markdown", "# Anonymous".getBytes(StandardCharsets.UTF_8));
+        mockMvc.perform(multipart("/api/v1/studio/import")
+                        .file(anonymousMarkdown)
+                        .cookie(csrfCookie)
+                        .header(csrfHeader, csrfToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+
+        Client client = login();
+        mockMvc.perform(post("/api/v1/studio/preview")
+                        .session(client.session())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"preview\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        MockMultipartFile csrfMarkdown = new MockMultipartFile(
+                "markdown", "csrf.md", "text/markdown", "# CSRF".getBytes(StandardCharsets.UTF_8));
+        mockMvc.perform(multipart("/api/v1/studio/import")
+                        .file(csrfMarkdown)
+                        .session(client.session()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void markdownEndpointsPreserveValidationAndFileNamePrecedence() throws Exception {
+        Client client = login();
+
+        mockMvc.perform(post("/api/v1/studio/preview")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":null}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("正文不能为空"));
+
+        mockMvc.perform(post("/api/v1/studio/preview")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.html").value(""));
+
+        MockMultipartFile unnamedOversized = new MockMultipartFile(
+                "markdown", "", "text/markdown", new byte[1_048_577]);
+        mockMvc.perform(multipart("/api/v1/studio/import")
+                        .file(unnamedOversized)
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("上传文件缺少文件名"));
+    }
+
+    @Test
     void inboxImportsMarkdownRejectsSymlinksAndDeduplicatesBySha256() throws Exception {
         Path inbox = DATA_DIRECTORY.resolve("inbox");
         byte[] markdown = "# 目录直投文章\n\n这是一段正文。\n".getBytes(StandardCharsets.UTF_8);
@@ -522,6 +598,8 @@ class StudioApiIntegrationTests {
                 .andExpect(jsonPath("$.slug").value("uploaded-note"))
                 .andExpect(jsonPath("$.status").value("DRAFT"))
                 .andExpect(jsonPath("$.author.id").value(ADMIN_ID))
+                .andExpect(jsonPath("$.body").value("上传正文。"))
+                .andExpect(jsonPath("$.html", containsString("<p>上传正文。</p>")))
                 .andExpect(jsonPath("$.version", endsWith(":1")));
 
         byte[] signatureOnly = {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
@@ -612,7 +690,7 @@ class StudioApiIntegrationTests {
 
     @Test
     void concurrentUpdatesUseDatabaseRevisionCas() throws Exception {
-        String version = blog.createDraft(command("concurrent-post", "并发文章")).version();
+        String version = posts.createDraft(command("concurrent-post", "并发文章")).version();
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
         AtomicInteger updated = new AtomicInteger();
@@ -623,7 +701,7 @@ class StudioApiIntegrationTests {
                 ready.countDown();
                 start.await();
                 try {
-                    blog.update("concurrent-post", version,
+                    posts.update("concurrent-post", version,
                             command("concurrent-post", "并发修改 " + index));
                     updated.incrementAndGet();
                 } catch (BlogException exception) {
@@ -653,16 +731,16 @@ class StudioApiIntegrationTests {
 
     @Test
     void staleEditorCannotOverwriteRecreatedPostWithTheSameSlug() {
-        String oldVersion = blog.createDraft(command("reused-slug", "旧文章")).version();
-        blog.archive("reused-slug", oldVersion);
-        String newVersion = blog.createDraft(command("reused-slug", "新文章")).version();
+        String oldVersion = posts.createDraft(command("reused-slug", "旧文章")).version();
+        posts.archive("reused-slug", oldVersion);
+        String newVersion = posts.createDraft(command("reused-slug", "新文章")).version();
 
         assertThat(newVersion).isNotEqualTo(oldVersion).endsWith(":1");
-        assertThatThrownBy(() -> blog.update(
+        assertThatThrownBy(() -> posts.update(
                 "reused-slug", oldVersion, command("reused-slug", "旧页面误保存")))
                 .isInstanceOfSatisfying(BlogException.class,
                         exception -> assertThat(exception.code()).isEqualTo(BlogErrorCode.VERSION_CONFLICT));
-        PostDetailResult recreated = blog.getStudioPost("reused-slug");
+        PostDetailResult recreated = posts.getStudioPost("reused-slug");
         assertThat(recreated.title()).isEqualTo("新文章");
         assertThat(recreated.version()).isEqualTo(newVersion);
     }
@@ -679,7 +757,7 @@ class StudioApiIntegrationTests {
                 ready.countDown();
                 start.await();
                 try {
-                    blog.createDraft(command("same-slug", "并发创建 " + index));
+                    posts.createDraft(command("same-slug", "并发创建 " + index));
                     created.incrementAndGet();
                 } catch (BlogException exception) {
                     if (exception.code() != BlogErrorCode.SLUG_CONFLICT) {
@@ -708,7 +786,7 @@ class StudioApiIntegrationTests {
 
     @Test
     void archiveRollsBackSnapshotAndRevisionWhenDeleteFails() {
-        String version = blog.createDraft(command("rollback-archive", "归档事务")).version();
+        String version = posts.createDraft(command("rollback-archive", "归档事务")).version();
         jdbc.execute("""
                 CREATE OR REPLACE FUNCTION reject_blog_post_delete() RETURNS trigger AS $$
                 BEGIN
@@ -722,7 +800,7 @@ class StudioApiIntegrationTests {
                 FOR EACH ROW EXECUTE FUNCTION reject_blog_post_delete()
         """);
         try {
-            assertThatThrownBy(() -> blog.archive("rollback-archive", version))
+            assertThatThrownBy(() -> posts.archive("rollback-archive", version))
                     .isInstanceOf(RuntimeException.class);
             assertThat(jdbc.queryForObject(
                     "SELECT revision FROM blog_post WHERE slug = ?", Long.class, "rollback-archive"))

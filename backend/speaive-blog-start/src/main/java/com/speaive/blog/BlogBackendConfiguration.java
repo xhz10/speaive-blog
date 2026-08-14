@@ -1,25 +1,27 @@
 package com.speaive.blog;
 
-import com.speaive.blog.application.service.BlogApplicationService;
-import com.speaive.blog.application.port.in.MarkdownInboxUseCase;
-import com.speaive.blog.application.port.out.AuthorRepository;
-import com.speaive.blog.application.port.out.MarkdownImportLedger;
-import com.speaive.blog.application.port.out.MarkdownPort;
-import com.speaive.blog.application.port.out.MediaStoragePort;
-import com.speaive.blog.application.port.out.PostRepository;
-import com.speaive.blog.application.port.out.TransactionRunner;
-import com.speaive.blog.infrastructure.content.BlogAuthorDatabaseMapper;
-import com.speaive.blog.infrastructure.content.BlogMediaDatabaseMapper;
-import com.speaive.blog.infrastructure.content.BlogPersistenceMapStructMapper;
-import com.speaive.blog.infrastructure.content.BlogPostDatabaseMapper;
-import com.speaive.blog.infrastructure.content.CommonMarkMarkdownAdapter;
-import com.speaive.blog.infrastructure.content.ContentStorageSettings;
-import com.speaive.blog.infrastructure.content.MarkdownImportDatabaseMapper;
-import com.speaive.blog.infrastructure.content.PostgresAuthorRepository;
-import com.speaive.blog.infrastructure.content.PostgresMarkdownImportLedger;
-import com.speaive.blog.infrastructure.content.PostgresMediaStorageAdapter;
-import com.speaive.blog.infrastructure.content.PostgresPostRepository;
-import com.speaive.blog.infrastructure.content.SpringTransactionRunner;
+import com.speaive.blog.application.port.in.importing.MarkdownInboxUseCase;
+import com.speaive.blog.application.port.out.importing.MarkdownImportLedger;
+import com.speaive.blog.application.port.out.markdown.MarkdownPort;
+import com.speaive.blog.application.port.out.media.MediaStoragePort;
+import com.speaive.blog.application.port.out.persistence.AuthorRepository;
+import com.speaive.blog.application.port.out.persistence.PostRepository;
+import com.speaive.blog.application.port.out.transaction.TransactionRunner;
+import com.speaive.blog.application.service.MarkdownApplicationService;
+import com.speaive.blog.application.service.MediaApplicationService;
+import com.speaive.blog.application.service.PostApplicationService;
+import com.speaive.blog.infrastructure.content.config.ContentStorageSettings;
+import com.speaive.blog.infrastructure.content.markdown.CommonMarkMarkdownAdapter;
+import com.speaive.blog.infrastructure.content.media.PostgresMediaStorageAdapter;
+import com.speaive.blog.infrastructure.content.persistence.ledger.PostgresMarkdownImportLedger;
+import com.speaive.blog.infrastructure.content.persistence.mapper.BlogAuthorDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapper.BlogMediaDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapper.BlogPostDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapper.MarkdownImportDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapping.BlogPersistenceMapStructMapper;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAuthorRepository;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresPostRepository;
+import com.speaive.blog.infrastructure.transaction.SpringTransactionRunner;
 import com.speaive.blog.interfaces.importing.MarkdownInboxImporter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -82,22 +84,40 @@ public class BlogBackendConfiguration {
     }
 
     @Bean
-    BlogApplicationService blogApplicationService(
+    PostApplicationService postApplicationService(
             PostRepository posts,
             AuthorRepository authors,
             MarkdownPort markdown,
-            MediaStoragePort media,
-            MarkdownImportLedger imports,
             TransactionRunner transactions) {
-        return new BlogApplicationService(
+        return new PostApplicationService(
                 posts,
                 authors,
                 markdown,
-                media,
+                transactions,
+                Clock.systemUTC()
+        );
+    }
+
+    @Bean
+    MarkdownApplicationService markdownApplicationService(
+            PostRepository posts,
+            AuthorRepository authors,
+            MarkdownPort markdown,
+            MarkdownImportLedger imports,
+            TransactionRunner transactions) {
+        return new MarkdownApplicationService(
+                posts,
+                authors,
+                markdown,
                 imports,
                 transactions,
                 Clock.systemUTC()
         );
+    }
+
+    @Bean
+    MediaApplicationService mediaApplicationService(MediaStoragePort media) {
+        return new MediaApplicationService(media);
     }
 
     @Bean

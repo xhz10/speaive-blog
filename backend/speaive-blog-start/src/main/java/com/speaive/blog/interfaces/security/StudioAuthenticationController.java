@@ -1,7 +1,7 @@
 package com.speaive.blog.interfaces.security;
 
-import com.speaive.blog.interfaces.http.ApiHttpException;
-import com.speaive.blog.interfaces.http.ApiErrorCode;
+import com.speaive.blog.interfaces.http.error.ApiErrorCode;
+import com.speaive.blog.interfaces.http.error.ApiHttpException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;

@@ -4,6 +4,7 @@ import com.speaive.blog.domain.ContentError;
 import com.speaive.blog.domain.Post;
 import com.speaive.blog.domain.PostCollection;
 import com.speaive.blog.domain.PostStatus;
+import com.speaive.blog.domain.PostVisibility;
 
 import java.time.Instant;
 import java.util.List;
@@ -14,7 +15,17 @@ final class PostResponses {
 
     static PostDetail detail(Post post) {
         return new PostDetail(post.slug(), post.title(), post.description(), post.publishedAt(), post.updatedAt(),
-                post.tags(), post.cover(), post.status(), post.body(), post.html(), post.version());
+                post.tags(), post.cover(), post.visibility(), post.status(), post.body(), post.html(), post.version());
+    }
+
+    static PostDetail studioDetail(Post post) {
+        return new PostDetail(post.slug(), post.title(), post.description(), post.publishedAt(), post.updatedAt(),
+                post.tags(), post.cover(), post.visibility(), post.status(), post.body(),
+                studioHtml(post.html()), post.version());
+    }
+
+    static String studioHtml(String html) {
+        return html.replace("\"/media/", "\"/api/v1/studio/media/");
     }
 
     static PostList list(PostCollection collection) {
@@ -25,7 +36,7 @@ final class PostResponses {
 
     private static PostSummary summary(Post post) {
         return new PostSummary(post.slug(), post.title(), post.description(), post.publishedAt(), post.updatedAt(),
-                post.tags(), post.cover(), post.status(), post.version());
+                post.tags(), post.cover(), post.visibility(), post.status(), post.version());
     }
 
     private static ContentScanError error(ContentError error) {
@@ -40,6 +51,7 @@ final class PostResponses {
             Instant updatedAt,
             List<String> tags,
             String cover,
+            PostVisibility visibility,
             PostStatus status,
             String body,
             String html,
@@ -55,6 +67,7 @@ final class PostResponses {
             Instant updatedAt,
             List<String> tags,
             String cover,
+            PostVisibility visibility,
             PostStatus status,
             String version
     ) {

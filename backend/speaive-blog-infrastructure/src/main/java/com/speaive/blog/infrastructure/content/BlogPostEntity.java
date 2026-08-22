@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.speaive.blog.domain.PostStatus;
+import com.speaive.blog.domain.PostVisibility;
 
 import java.time.Instant;
 
@@ -20,6 +21,7 @@ public class BlogPostEntity {
     @TableField("updated_at")
     private Instant updatedAt;
     private PostStatus status;
+    private PostVisibility visibility;
     private String body;
     private String cover;
     private long revision;
@@ -83,6 +85,14 @@ public class BlogPostEntity {
 
     public void setStatus(PostStatus status) {
         this.status = status;
+    }
+
+    public PostVisibility getVisibility() {
+        return visibility;
+    }
+
+    public void setVisibility(PostVisibility visibility) {
+        this.visibility = visibility;
     }
 
     public String getBody() {

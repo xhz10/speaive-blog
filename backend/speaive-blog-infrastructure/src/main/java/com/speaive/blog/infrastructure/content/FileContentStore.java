@@ -10,6 +10,7 @@ import com.speaive.blog.domain.MediaContent;
 import com.speaive.blog.domain.Post;
 import com.speaive.blog.domain.PostCollection;
 import com.speaive.blog.domain.PostStatus;
+import com.speaive.blog.domain.PostVisibility;
 import com.speaive.blog.domain.StoredMedia;
 import com.speaive.blog.infrastructure.content.MarkdownCodec.ParseOptions;
 import com.speaive.blog.infrastructure.content.MarkdownCodec.ParsedMarkdown;
@@ -92,7 +93,10 @@ public final class FileContentStore implements ContentStorePort {
         List<ContentError> errors = new ArrayList<>();
         errors.addAll(published.errors());
         errors.addAll(drafts.errors());
-        for (Post post : concat(published.posts(), drafts.posts())) {
+        List<Post> visiblePublished = includeDrafts
+                ? published.posts()
+                : published.posts().stream().filter(post -> post.visibility() == PostVisibility.PUBLIC).toList();
+        for (Post post : concat(visiblePublished, drafts.posts())) {
             if (bySlug.putIfAbsent(post.slug(), post) != null) {
                 errors.add(new ContentError(post.slug() + ".md", post.status(),
                         "posts 和 drafts 中存在重复 slug：" + post.slug()));
@@ -108,7 +112,8 @@ public final class FileContentStore implements ContentStorePort {
         String normalizedSlug = MarkdownCodec.validateSlug(slug);
         initializeDirectories();
         Optional<StoredPost> published = readIfExists(postsDirectory, normalizedSlug, PostStatus.PUBLISHED);
-        if (published.isPresent()) {
+        if (published.isPresent()
+                && (includeDrafts || published.get().post().visibility() == PostVisibility.PUBLIC)) {
             return Optional.of(published.get().post());
         }
         return includeDrafts
@@ -198,9 +203,10 @@ public final class FileContentStore implements ContentStorePort {
         assertMarkdownSize(markdownBytes.length);
         String slug = MarkdownCodec.validateSlug(fileName.substring(0, fileName.length() - 3));
         ParsedMarkdown parsed = markdown.parse(markdownBytes,
-                new ParseOptions(null, slug, slug.replace('-', ' '), clock.instant()));
+                new ParseOptions(null, slug, slug.replace('-', ' '), clock.instant(),
+                        PostVisibility.ADMIN_ONLY));
         return createDraft(new PostWriteCommand(parsed.slug(), parsed.title(), parsed.description(),
-                parsed.publishedAt(), parsed.tags(), parsed.cover(), parsed.body()));
+                parsed.publishedAt(), parsed.tags(), parsed.cover(), parsed.visibility(), parsed.body()));
     }
 
     @Override
@@ -211,6 +217,15 @@ public final class FileContentStore implements ContentStorePort {
     @Override
     public MediaContent readMedia(String relativePath) {
         return mediaFiles.read(relativePath);
+    }
+
+    @Override
+    public boolean isMediaPublic(String relativePath) {
+        String normalized = relativePath != null && relativePath.startsWith("/media/")
+                ? relativePath.substring("/media/".length())
+                : relativePath;
+        return scan(false).items().stream().anyMatch(post ->
+                MarkdownCodec.referencedMediaPaths(post.body(), post.cover()).contains(normalized));
     }
 
     @Override
@@ -264,10 +279,11 @@ public final class FileContentStore implements ContentStorePort {
         byte[] bytes = readBytes(path, maxMarkdownBytes);
         ParsedMarkdown parsed = markdown.parse(bytes,
                 new ParseOptions(expectedSlug, expectedSlug, expectedSlug.replace('-', ' '),
-                        attributes.lastModifiedTime().toInstant()));
+                        attributes.lastModifiedTime().toInstant(),
+                        status == PostStatus.PUBLISHED ? PostVisibility.PUBLIC : PostVisibility.ADMIN_ONLY));
         Instant updatedAt = parsed.updatedAt() == null ? attributes.lastModifiedTime().toInstant() : parsed.updatedAt();
         Post post = new Post(parsed.slug(), parsed.title(), parsed.description(), parsed.publishedAt(), updatedAt,
-                parsed.tags(), parsed.cover(), status, parsed.body(), parsed.html(), sha256(bytes));
+                parsed.tags(), parsed.cover(), parsed.visibility(), status, parsed.body(), parsed.html(), sha256(bytes));
         return new StoredPost(path, post);
     }
 
@@ -288,7 +304,7 @@ public final class FileContentStore implements ContentStorePort {
             throw new BlogException(BlogErrorCode.INVALID_REQUEST, "文章 slug 不能修改");
         }
         return new PostDocument(slug, command.title(), command.description(), publishedAt, updatedAt,
-                command.tags(), command.cover(), command.body());
+                command.tags(), command.cover(), command.visibility(), command.body());
     }
 
     private byte[] serializeWithinLimit(PostDocument document) {

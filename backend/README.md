@@ -40,7 +40,7 @@ speaive-blog-infrastructure   speaive-blog-interfaces
 
 文章正文保存 Markdown，不持久化 HTML。列表查询不读取正文，详情和预览由后端实时渲染并过滤危险 HTML。
 
-图片原文件位于 `SPEAIVE_DATA_DIR/media`，`blog_media` 保存路径、MIME、大小和 SHA-256。Markdown 导入箱位于 `SPEAIVE_IMPORT_DIR`，默认是 `$SPEAIVE_DATA_DIR/inbox`。
+图片原文件位于 `SPEAIVE_DATA_DIR/media`，`blog_media` 保存路径、MIME、大小和 SHA-256，`blog_post_media` 记录文章引用。只有被公开且已发布文章引用的媒体可以匿名读取，其余媒体需要管理员 Session。Markdown 导入箱位于 `SPEAIVE_IMPORT_DIR`，默认是 `$SPEAIVE_DATA_DIR/inbox`。
 
 ## 构建与测试
 
@@ -76,6 +76,7 @@ SPEAIVE_ADMIN_PASSWORD_HASH='$2y$12$替换为完整 BCrypt 哈希' \
 - `/api/v1/studio/posts`：草稿创建、列表、详情和带 revision 更新；
 - `/api/v1/studio/posts/{slug}/publish|unpublish|archive`：状态操作；
 - `POST /api/v1/studio/import|media|preview`：Markdown 导入、图片上传和预览；
-- `GET /api/v1/public/posts`、`GET /api/v1/public/posts/{slug}`、`GET /media/**`：公开读取。
+- `GET /api/v1/public/posts`、`GET /api/v1/public/posts/{slug}`、`GET /media/**`：只读取公开且已发布的文章及其媒体；
+- `GET /api/v1/studio/media/**`：管理员读取尚未公开或仅管理员文章的媒体。
 
 默认 Markdown 上限 1 MiB，图片上限 8 MiB，请求上限 9 MiB。

@@ -47,9 +47,12 @@ PostgreSQL 是文章的唯一真源：
 - `blog_post_tag` 保存有序标签；
 - `blog_post_revision` 与对应标签表保存每次创建、更新、状态变更和归档快照；
 - `blog_media` 保存媒体路径、类型、大小和校验值；
+- `blog_post_media` 保存文章与已上传媒体的引用，用于同时保护私密文章图片；
 - `blog_markdown_import` 记录已导入文件的 SHA-256，避免重复导入。
 
 每次写操作都使用递增 revision 做数据库 CAS。两个页面同时编辑时，旧 revision 会得到 `409 VERSION_CONFLICT`，不会覆盖较新的正文或发布状态。HTML 不入库，由后端从 Markdown 实时渲染和过滤。
+
+文章的 `status`（草稿/已发布）和 `visibility`（公开/仅管理员）相互独立。所有公开文章查询都要求 `status = PUBLISHED AND visibility = PUBLIC`；Studio 查询需要管理员 Session。匿名媒体读取也必须能追溯到至少一篇公开且已发布的引用文章。
 
 PostgreSQL 镜像预装并启用 `pgvector` 扩展，当前不创建向量业务表；等 Spring AI 功能确定后再独立迁移文章分块和 embedding 表。
 

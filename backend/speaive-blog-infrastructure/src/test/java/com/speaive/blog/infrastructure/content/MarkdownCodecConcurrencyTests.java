@@ -1,5 +1,6 @@
 package com.speaive.blog.infrastructure.content;
 
+import com.speaive.blog.domain.PostVisibility;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -17,7 +18,8 @@ class MarkdownCodecConcurrencyTests {
         MarkdownCodec codec = new MarkdownCodec();
         MarkdownCodec.PostDocument document = new MarkdownCodec.PostDocument(
                 "parallel-note", "并发文章", "并发摘要", Instant.parse("2026-08-02T08:00:00Z"),
-                Instant.parse("2026-08-02T09:00:00Z"), List.of("随记", "测试"), null, "正文");
+                Instant.parse("2026-08-02T09:00:00Z"), List.of("随记", "测试"), null,
+                PostVisibility.ADMIN_ONLY, "正文");
         CountDownLatch ready = new CountDownLatch(20);
         CountDownLatch start = new CountDownLatch(1);
 
@@ -30,7 +32,7 @@ class MarkdownCodecConcurrencyTests {
                         for (int iteration = 0; iteration < 50; iteration++) {
                             parsed = codec.parse(codec.serialize(document),
                                     new MarkdownCodec.ParseOptions("parallel-note", "parallel-note",
-                                            "并发文章", document.publishedAt()));
+                                            "并发文章", document.publishedAt(), PostVisibility.ADMIN_ONLY));
                         }
                         return parsed;
                     }))
@@ -43,6 +45,7 @@ class MarkdownCodecConcurrencyTests {
                 assertEquals("parallel-note", parsed.slug());
                 assertEquals("并发文章", parsed.title());
                 assertEquals(List.of("随记", "测试"), parsed.tags());
+                assertEquals(PostVisibility.ADMIN_ONLY, parsed.visibility());
                 assertEquals("正文", parsed.body());
             }
         }

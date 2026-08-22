@@ -1,6 +1,6 @@
 # Speaive Blog
 
-一个面向个人、低频写作的博客。公开站点负责阅读，`/studio` 提供登录、在线写作、Markdown 导入和图片上传；文章与程序代码分开保存，不进入 GitHub。
+一个面向个人、低频写作的博客。公开站点负责阅读，`/studio` 提供登录、在线写作、Markdown 导入、图片上传和文章可见性设置；文章与程序代码分开保存，不进入 GitHub。
 
 ## 当前架构
 
@@ -9,6 +9,7 @@
 - PostgreSQL 17 + pgvector：文章、修订记录和媒体元数据；当前只启用 `vector` 扩展，向量表和嵌入模型等到引入 Spring AI 时再设计；
 - 独立宿主机数据目录：正文图片、封面原文件和 Markdown 投递箱；
 - 单管理员 Session 登录、BCrypt 密码、CSRF 防护和登录限流；
+- 公开或仅管理员两档文章权限，私密正文和图片都不通过匿名接口暴露；
 - Spring Boot 仍是一个部署单元，Maven 模块只用于约束代码边界。
 
 浏览器只访问 Astro。Astro 在容器网络内访问 Spring Boot，Spring Boot 再访问 PostgreSQL；因此不需要给浏览器配置跨域，也不需要把数据库或后端端口暴露到公网。
@@ -72,6 +73,8 @@ SPEAIVE_DATA_DIR/
 ```
 
 直接投递时先上传为隐藏的 `.uploading` 临时文件，完成后原子改名成 `.md`。后端会自动导入 PostgreSQL，并将源文件移动到 `imported/` 或 `rejected/`；完整格式和命令见 [docs/content-files.md](docs/content-files.md)。
+
+文章状态与阅读权限彼此独立：已发布文章也可以设置为“仅管理员”，此时不会进入首页、归档、RSS 或 Sitemap，只能登录后从写作台阅读。新文章默认仅管理员，历史文章升级后保持公开。设计、安全边界与使用说明见 [docs/content-visibility.md](docs/content-visibility.md)。
 
 备份时两部分必须一起保存，且备份期间不要发布或上传文章。项目脚本会同时生成 PostgreSQL 自包含 dump 和数据目录归档：
 

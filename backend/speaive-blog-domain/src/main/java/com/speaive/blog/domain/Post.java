@@ -11,6 +11,7 @@ public record Post(
         Instant updatedAt,
         List<String> tags,
         String cover,
+        PostVisibility visibility,
         PostStatus status,
         String body,
         String html,

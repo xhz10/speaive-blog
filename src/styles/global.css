@@ -950,7 +950,7 @@ main:focus {
 .studio-list-heading,
 .studio-post-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 100px 110px 154px;
+  grid-template-columns: minmax(0, 1fr) 92px 112px 100px 170px;
   gap: 18px;
   align-items: center;
 }
@@ -1056,6 +1056,25 @@ main:focus {
 .status-badge.draft {
   background: var(--warning-soft);
   color: var(--warning);
+}
+
+.visibility-badge {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  gap: 5px;
+  border-radius: 3px;
+  padding: 3px 7px;
+  background: #e8eef5;
+  color: #315a7d;
+  font-size: 0.72rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.visibility-badge.private {
+  background: #eee9f6;
+  color: #654889;
 }
 
 .field,
@@ -1267,9 +1286,37 @@ main:focus {
 
 .editor-metadata-grid {
   display: grid;
-  grid-template-columns: minmax(230px, 1.2fr) minmax(150px, 0.55fr) minmax(180px, 0.8fr) minmax(240px, 1fr);
+  grid-template-columns: minmax(220px, 1.2fr) minmax(140px, 0.55fr) minmax(170px, 0.7fr) minmax(170px, 0.75fr) minmax(220px, 1fr);
   gap: 14px;
   margin-top: 24px;
+}
+
+.studio-reading-banner {
+  border-bottom: 1px solid #d8cde8;
+  background: #f4f0fa;
+  color: #5d417f;
+}
+
+.studio-reading-banner:not(.private) {
+  border-bottom-color: var(--line);
+  background: var(--soft);
+  color: var(--muted);
+}
+
+.studio-reading-banner-inner {
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.studio-reading-banner-inner > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.84rem;
+  font-weight: 750;
 }
 
 .slug-input-wrap {
@@ -1805,14 +1852,27 @@ main:focus {
     align-self: start;
   }
 
+  .studio-post-item > div:nth-child(3) {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+  }
+
   .studio-post-item time {
     grid-column: 1;
     grid-row: 2;
   }
 
   .studio-row-actions {
-    grid-column: 2;
-    grid-row: 2;
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-content: flex-end;
+  }
+
+  .studio-reading-banner-inner {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-block: 14px;
   }
 
   .studio-editor-head {

@@ -2,6 +2,7 @@ package com.speaive.blog.infrastructure.content;
 
 import com.speaive.blog.application.BlogErrorCode;
 import com.speaive.blog.application.BlogException;
+import com.speaive.blog.domain.PostVisibility;
 import org.commonmark.Extension;
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension;
 import org.commonmark.ext.gfm.tables.TablesExtension;
@@ -39,6 +40,10 @@ final class MarkdownCodec {
     private static final Pattern LEADING_HEADING = Pattern.compile("^#\\s+(.+?)\\s*(?:\\R|$)");
     private static final Pattern COVER_PATTERN = Pattern.compile(
             "^/media/[A-Za-z0-9/_-]+\\.(?:avif|gif|jpe?g|png|webp)$",
+            Pattern.CASE_INSENSITIVE
+    );
+    private static final Pattern MEDIA_REFERENCE_PATTERN = Pattern.compile(
+            "/media/([A-Za-z0-9/_-]+\\.(?:avif|gif|jpe?g|png|webp))",
             Pattern.CASE_INSENSITIVE
     );
     private static final List<Extension> EXTENSIONS = List.of(
@@ -112,13 +117,14 @@ final class MarkdownCodec {
         Instant updatedAt = parseOptionalInstant(metadata.get("updatedAt"), "更新时间");
         List<String> tags = parseTags(metadata.get("tags"));
         String cover = validateCover(optionalString(metadata.get("cover")));
+        PostVisibility visibility = parseVisibility(metadata.get("visibility"), options.fallbackVisibility());
         String body = removeLeadingTitleHeading(frontMatter.body(), title);
         if (description == null || description.isBlank()) {
             description = extractDescription(body, 180);
         }
         description = requireOptionalText(description, "摘要过长", 500);
 
-        return new ParsedMarkdown(slug, title, description, publishedAt, updatedAt, tags, cover, body,
+        return new ParsedMarkdown(slug, title, description, publishedAt, updatedAt, tags, cover, visibility, body,
                 render(body));
     }
 
@@ -131,6 +137,7 @@ final class MarkdownCodec {
         }
         List<String> tags = validateTags(document.tags());
         String cover = validateCover(document.cover());
+        PostVisibility visibility = Objects.requireNonNullElse(document.visibility(), PostVisibility.ADMIN_ONLY);
         String body = Objects.requireNonNullElse(document.body(), "").trim();
         if (body.indexOf('\0') >= 0) {
             throw invalidMarkdown("正文包含非法字符");
@@ -143,6 +150,7 @@ final class MarkdownCodec {
         metadata.put("publishedAt", document.publishedAt().toString());
         metadata.put("updatedAt", Objects.requireNonNull(document.updatedAt(), "更新时间不能为空").toString());
         metadata.put("tags", tags);
+        metadata.put("visibility", visibility.name());
         if (cover != null) {
             metadata.put("cover", cover);
         }
@@ -172,6 +180,21 @@ final class MarkdownCodec {
                     "slug 只允许文字、数字和单个连字符，且不能超过 100 个字符");
         }
         return slug;
+    }
+
+    static Set<String> referencedMediaPaths(String body, String cover) {
+        Set<String> paths = new LinkedHashSet<>();
+        if (cover != null && COVER_PATTERN.matcher(cover).matches()) {
+            paths.add(cover.substring("/media/".length()));
+        }
+        Matcher matcher = MEDIA_REFERENCE_PATTERN.matcher(Objects.requireNonNullElse(body, ""));
+        while (matcher.find()) {
+            String path = matcher.group(1);
+            if (!path.contains("..") && !path.contains("//")) {
+                paths.add(path);
+            }
+        }
+        return Set.copyOf(paths);
     }
 
     private Map<String, Object> parseMetadata(String yaml) {
@@ -321,6 +344,18 @@ final class MarkdownCodec {
         return validateTags(tags);
     }
 
+    private static PostVisibility parseVisibility(Object value, PostVisibility fallback) {
+        if (value == null) {
+            return Objects.requireNonNullElse(fallback, PostVisibility.ADMIN_ONLY);
+        }
+        String normalized = String.valueOf(value).trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_');
+        try {
+            return PostVisibility.valueOf(normalized);
+        } catch (IllegalArgumentException exception) {
+            throw invalidMarkdown("visibility 只允许 PUBLIC 或 ADMIN_ONLY");
+        }
+    }
+
     private static List<String> validateTags(List<String> values) {
         List<String> tags = values == null ? List.of() : values;
         if (tags.size() > 20) {
@@ -370,7 +405,12 @@ final class MarkdownCodec {
         return new BlogException(BlogErrorCode.INVALID_MARKDOWN, message);
     }
 
-    record ParseOptions(String expectedSlug, String fallbackSlug, String fallbackTitle, Instant fallbackPublishedAt) {
+    record ParseOptions(
+            String expectedSlug,
+            String fallbackSlug,
+            String fallbackTitle,
+            Instant fallbackPublishedAt,
+            PostVisibility fallbackVisibility) {
     }
 
     record ParsedMarkdown(
@@ -381,6 +421,7 @@ final class MarkdownCodec {
             Instant updatedAt,
             List<String> tags,
             String cover,
+            PostVisibility visibility,
             String body,
             String html
     ) {
@@ -394,6 +435,7 @@ final class MarkdownCodec {
             Instant updatedAt,
             List<String> tags,
             String cover,
+            PostVisibility visibility,
             String body
     ) {
     }

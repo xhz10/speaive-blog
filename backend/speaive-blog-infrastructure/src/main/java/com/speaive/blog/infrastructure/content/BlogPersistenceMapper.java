@@ -15,7 +15,7 @@ import java.util.List;
 public interface BlogPersistenceMapper extends BaseMapper<BlogPostEntity> {
 
     @Select("""
-            SELECT id, slug, title, description, published_at, updated_at, status,
+            SELECT id, slug, title, description, published_at, updated_at, status, visibility,
                    body, cover, revision, created_at
             FROM blog_post
             WHERE slug = #{slug}
@@ -23,15 +23,15 @@ public interface BlogPersistenceMapper extends BaseMapper<BlogPostEntity> {
     BlogPostEntity selectBySlug(@Param("slug") String slug);
 
     @Select("""
-            SELECT id, slug, title, description, published_at, updated_at, status,
+            SELECT id, slug, title, description, published_at, updated_at, status, visibility,
                    body, cover, revision, created_at
             FROM blog_post
-            WHERE slug = #{slug} AND status = 'PUBLISHED'
+            WHERE slug = #{slug} AND status = 'PUBLISHED' AND visibility = 'PUBLIC'
             """)
     BlogPostEntity selectPublishedBySlug(@Param("slug") String slug);
 
     @Select("""
-            SELECT id, slug, title, description, published_at, updated_at, status,
+            SELECT id, slug, title, description, published_at, updated_at, status, visibility,
                    cover, revision, created_at
             FROM blog_post
             ORDER BY published_at DESC, slug
@@ -39,16 +39,16 @@ public interface BlogPersistenceMapper extends BaseMapper<BlogPostEntity> {
     List<BlogPostEntity> selectAllSummaries();
 
     @Select("""
-            SELECT id, slug, title, description, published_at, updated_at, status,
+            SELECT id, slug, title, description, published_at, updated_at, status, visibility,
                    cover, revision, created_at
             FROM blog_post
-            WHERE status = 'PUBLISHED'
+            WHERE status = 'PUBLISHED' AND visibility = 'PUBLIC'
             ORDER BY published_at DESC, slug
             """)
     List<BlogPostEntity> selectPublishedSummaries();
 
     @Select("""
-            SELECT id, slug, title, description, published_at, updated_at, status,
+            SELECT id, slug, title, description, published_at, updated_at, status, visibility,
                    body, cover, revision, created_at
             FROM blog_post
             WHERE slug = #{slug}
@@ -63,6 +63,7 @@ public interface BlogPersistenceMapper extends BaseMapper<BlogPostEntity> {
                 published_at = #{post.publishedAt},
                 updated_at = #{post.updatedAt},
                 status = #{post.status},
+                visibility = #{post.visibility},
                 body = #{post.body},
                 cover = #{post.cover},
                 revision = #{post.revision}
@@ -95,10 +96,10 @@ public interface BlogPersistenceMapper extends BaseMapper<BlogPostEntity> {
     @Insert("""
             INSERT INTO blog_post_revision (
                 post_id, revision, slug, title, description, published_at, updated_at,
-                status, body, cover, post_created_at, event_type, recorded_at
+                status, visibility, body, cover, post_created_at, event_type, recorded_at
             )
             SELECT id, revision, slug, title, description, published_at, updated_at,
-                   status, body, cover, created_at, #{eventType}, #{recordedAt}
+                   status, visibility, body, cover, created_at, #{eventType}, #{recordedAt}
             FROM blog_post
             WHERE id = #{postId}
             """)
@@ -131,6 +132,43 @@ public interface BlogPersistenceMapper extends BaseMapper<BlogPostEntity> {
             WHERE relative_path = #{relativePath}
             """)
     BlogMediaEntity selectMedia(@Param("relativePath") String relativePath);
+
+    @Select("""
+            SELECT EXISTS (
+                SELECT 1
+                FROM blog_post_media post_media
+                JOIN blog_post post ON post.id = post_media.post_id
+                WHERE post_media.relative_path = #{relativePath}
+                  AND post.status = 'PUBLISHED'
+                  AND post.visibility = 'PUBLIC'
+            )
+            """)
+    boolean isMediaPublic(@Param("relativePath") String relativePath);
+
+    @Select("""
+            <script>
+            SELECT relative_path
+            FROM blog_media
+            WHERE relative_path IN
+            <foreach collection="paths" item="path" open="(" separator="," close=")">
+                #{path}
+            </foreach>
+            </script>
+            """)
+    List<String> selectRegisteredMediaPaths(@Param("paths") List<String> paths);
+
+    @Delete("DELETE FROM blog_post_media WHERE post_id = #{postId}")
+    int deletePostMedia(@Param("postId") String postId);
+
+    @Insert("""
+            <script>
+            INSERT INTO blog_post_media (post_id, relative_path) VALUES
+            <foreach collection="paths" item="path" separator=",">
+                (#{postId}, #{path})
+            </foreach>
+            </script>
+            """)
+    int insertPostMedia(@Param("postId") String postId, @Param("paths") List<String> paths);
 
     @Select("SELECT COUNT(*) FROM blog_markdown_import WHERE sha256 = #{sha256}")
     int countImport(@Param("sha256") String sha256);

@@ -64,6 +64,13 @@ public final class BlogApplicationService {
         return contentStore.readMedia(path);
     }
 
+    public MediaContent readPublicMedia(String path) {
+        if (!contentStore.isMediaPublic(path)) {
+            throw new BlogException(BlogErrorCode.NOT_FOUND, "图片不存在");
+        }
+        return contentStore.readMedia(path);
+    }
+
     public String preview(String markdown) {
         return contentStore.renderMarkdown(markdown);
     }

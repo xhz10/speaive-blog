@@ -5,6 +5,7 @@ import com.speaive.blog.application.BlogException;
 import com.speaive.blog.application.PostWriteCommand;
 import com.speaive.blog.domain.Post;
 import com.speaive.blog.domain.PostStatus;
+import com.speaive.blog.domain.PostVisibility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -138,7 +139,7 @@ class FileContentStoreSafetyTests {
 
     private static PostWriteCommand command(String slug, String body) {
         return new PostWriteCommand(slug, "标题", "", Instant.parse("2026-08-02T08:00:00Z"),
-                List.of(), null, body);
+                List.of(), null, PostVisibility.ADMIN_ONLY, body);
     }
 
     private static byte[] directMarkdown(String slug, String body) {

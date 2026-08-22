@@ -28,5 +28,7 @@ public interface ContentStorePort {
 
     MediaContent readMedia(String relativePath);
 
+    boolean isMediaPublic(String relativePath);
+
     String renderMarkdown(String markdown);
 }

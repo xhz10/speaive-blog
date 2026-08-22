@@ -9,6 +9,7 @@ import com.speaive.blog.domain.MediaContent;
 import com.speaive.blog.domain.Post;
 import com.speaive.blog.domain.PostCollection;
 import com.speaive.blog.domain.PostStatus;
+import com.speaive.blog.domain.PostVisibility;
 import com.speaive.blog.domain.StoredMedia;
 import com.speaive.blog.infrastructure.content.MarkdownCodec.ParseOptions;
 import com.speaive.blog.infrastructure.content.MarkdownCodec.ParsedMarkdown;
@@ -27,8 +28,10 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 public class PostgresContentStore implements ContentStorePort {
@@ -94,6 +97,7 @@ public class PostgresContentStore implements ContentStorePort {
 
         updateWithRevisionCheck(next, expected.revision());
         replaceTags(next.getId(), normalized.tags());
+        replaceMediaReferences(next.getId(), normalized.body(), normalized.cover());
         writeRevision(next, "UPDATE", now);
         return toDetail(next);
     }
@@ -144,9 +148,10 @@ public class PostgresContentStore implements ContentStorePort {
         assertMarkdownSize(markdownBytes.length);
         String fallbackSlug = MarkdownCodec.validateSlug(fileName.substring(0, fileName.length() - 3));
         ParsedMarkdown parsed = markdown.parse(markdownBytes,
-                new ParseOptions(null, fallbackSlug, fallbackSlug.replace('-', ' '), clock.instant()));
+                new ParseOptions(null, fallbackSlug, fallbackSlug.replace('-', ' '), clock.instant(),
+                        PostVisibility.ADMIN_ONLY));
         return createDraft(new PostWriteCommand(parsed.slug(), parsed.title(), parsed.description(),
-                parsed.publishedAt(), parsed.tags(), parsed.cover(), parsed.body()), "IMPORT");
+                parsed.publishedAt(), parsed.tags(), parsed.cover(), parsed.visibility(), parsed.body()), "IMPORT");
     }
 
     @Override
@@ -211,6 +216,12 @@ public class PostgresContentStore implements ContentStorePort {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public boolean isMediaPublic(String relativePath) {
+        return mapper.isMediaPublic(relativePath);
+    }
+
+    @Override
     public String renderMarkdown(String source) {
         byte[] bytes = Objects.requireNonNullElse(source, "").getBytes(java.nio.charset.StandardCharsets.UTF_8);
         assertMarkdownSize(bytes.length);
@@ -229,6 +240,7 @@ public class PostgresContentStore implements ContentStorePort {
         entity.setId(UUID.randomUUID().toString());
         entity.setSlug(slug);
         entity.setStatus(PostStatus.DRAFT);
+        entity.setVisibility(normalized.visibility());
         entity.setRevision(1);
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
@@ -236,6 +248,7 @@ public class PostgresContentStore implements ContentStorePort {
         try {
             mapper.insert(entity);
             insertTags(entity.getId(), normalized.tags());
+            replaceMediaReferences(entity.getId(), normalized.body(), normalized.cover());
             writeRevision(entity, eventType, now);
         } catch (DataIntegrityViolationException exception) {
             throw new BlogException(BlogErrorCode.SLUG_CONFLICT, "slug 已存在：" + slug, exception);
@@ -249,13 +262,13 @@ public class PostgresContentStore implements ContentStorePort {
             throw new BlogException(BlogErrorCode.INVALID_REQUEST, "文章内容不能为空");
         }
         PostDocument document = new PostDocument(slug, command.title(), command.description(), publishedAt,
-                updatedAt, command.tags(), command.cover(), command.body());
+                updatedAt, command.tags(), command.cover(), command.visibility(), command.body());
         byte[] serialized = markdown.serialize(document);
         assertMarkdownSize(serialized.length);
         ParsedMarkdown parsed = markdown.parse(serialized,
-                new ParseOptions(slug, slug, slug.replace('-', ' '), publishedAt));
+                new ParseOptions(slug, slug, slug.replace('-', ' '), publishedAt, command.visibility()));
         return new NormalizedPost(parsed.title(), parsed.description(), parsed.publishedAt(), parsed.tags(),
-                parsed.cover(), parsed.body());
+                parsed.cover(), parsed.visibility(), parsed.body());
     }
 
     private BlogPostEntity lockRequired(String slug) {
@@ -283,6 +296,22 @@ public class PostgresContentStore implements ContentStorePort {
         }
     }
 
+    private void replaceMediaReferences(String postId, String body, String cover) {
+        Set<String> referenced = MarkdownCodec.referencedMediaPaths(body, cover);
+        mapper.deletePostMedia(postId);
+        if (referenced.isEmpty()) {
+            return;
+        }
+
+        List<String> paths = List.copyOf(referenced);
+        Set<String> registered = new LinkedHashSet<>(mapper.selectRegisteredMediaPaths(paths));
+        if (registered.size() != referenced.size()) {
+            String missing = referenced.stream().filter(path -> !registered.contains(path)).findFirst().orElse("未知图片");
+            throw new BlogException(BlogErrorCode.INVALID_REQUEST, "文章引用了未上传的图片：/media/" + missing);
+        }
+        mapper.insertPostMedia(postId, paths);
+    }
+
     private void writeRevision(BlogPostEntity post, String eventType, Instant recordedAt) {
         if (mapper.insertRevisionSnapshot(post.getId(), eventType, recordedAt) != 1) {
             throw new BlogException(BlogErrorCode.STORAGE_ERROR, "写入文章修订记录失败");
@@ -294,15 +323,15 @@ public class PostgresContentStore implements ContentStorePort {
 
     private Post toSummary(BlogPostEntity entity) {
         return new Post(entity.getSlug(), entity.getTitle(), entity.getDescription(), entity.getPublishedAt(),
-                entity.getUpdatedAt(), mapper.selectTags(entity.getId()), entity.getCover(), entity.getStatus(),
-                "", "", versionOf(entity));
+                entity.getUpdatedAt(), mapper.selectTags(entity.getId()), entity.getCover(), entity.getVisibility(),
+                entity.getStatus(), "", "", versionOf(entity));
     }
 
     private Post toDetail(BlogPostEntity entity) {
         String body = Objects.requireNonNullElse(entity.getBody(), "");
         return new Post(entity.getSlug(), entity.getTitle(), entity.getDescription(), entity.getPublishedAt(),
-                entity.getUpdatedAt(), mapper.selectTags(entity.getId()), entity.getCover(), entity.getStatus(),
-                body, markdown.render(body), versionOf(entity));
+                entity.getUpdatedAt(), mapper.selectTags(entity.getId()), entity.getCover(), entity.getVisibility(),
+                entity.getStatus(), body, markdown.render(body), versionOf(entity));
     }
 
     private static void apply(BlogPostEntity entity, NormalizedPost normalized) {
@@ -311,6 +340,7 @@ public class PostgresContentStore implements ContentStorePort {
         entity.setPublishedAt(normalized.publishedAt());
         entity.setBody(normalized.body());
         entity.setCover(normalized.cover());
+        entity.setVisibility(normalized.visibility());
     }
 
     private static BlogPostEntity copy(BlogPostEntity source) {
@@ -322,6 +352,7 @@ public class PostgresContentStore implements ContentStorePort {
         copy.setPublishedAt(source.getPublishedAt());
         copy.setUpdatedAt(source.getUpdatedAt());
         copy.setStatus(source.getStatus());
+        copy.setVisibility(source.getVisibility());
         copy.setBody(source.getBody());
         copy.setCover(source.getCover());
         copy.setRevision(source.getRevision());
@@ -399,6 +430,7 @@ public class PostgresContentStore implements ContentStorePort {
             Instant publishedAt,
             List<String> tags,
             String cover,
+            PostVisibility visibility,
             String body) {
     }
 

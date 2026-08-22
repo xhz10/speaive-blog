@@ -4,6 +4,7 @@ import {
   Check,
   Eye,
   ImagePlus,
+  LockKeyhole,
   Save,
   Send,
   TriangleAlert,
@@ -25,6 +26,10 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
     <div class="editor-state-line">
       <span class:list={["status-badge", { draft: !post || post.status === "DRAFT" }]} data-post-status>
         {post?.status === "PUBLISHED" ? "已发布" : "草稿"}
+      </span>
+      <span class:list={["visibility-badge", { private: !post || post.visibility === "ADMIN_ONLY" }]} data-post-visibility>
+        <LockKeyhole size={13} stroke-width={1.9} aria-hidden="true" />
+        <span data-post-visibility-label>{post?.visibility === "PUBLIC" ? "公开" : "仅自己"}</span>
       </span>
       <span class="save-indicator" data-save-indicator data-state={post ? "saved" : "dirty"} aria-live="polite">
         <span class="save-indicator-dot" aria-hidden="true"></span>
@@ -91,6 +96,13 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
         <input class="input" type="date" name="publishedAt" value={publishedAt} required data-published-at />
       </label>
       <label class="field">
+        <span class="field-label">谁可以看</span>
+        <select class="input" name="visibility" data-visibility>
+          <option value="ADMIN_ONLY" selected={!post || post.visibility === "ADMIN_ONLY"}>仅自己（管理员）</option>
+          <option value="PUBLIC" selected={post?.visibility === "PUBLIC"}>所有访客</option>
+        </select>
+      </label>
+      <label class="field">
         <span class="field-label">标签</span>
         <input class="input" type="text" name="tags" value={post?.tags.join(", ") ?? ""} placeholder="阅读, 随记" data-tags />
       </label>
@@ -155,6 +167,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
   import { StudioClientError, studioRequest } from "../lib/studio/client";
   import type {
     CreatePostPayload,
+    PostVisibility,
     PostWritePayload,
     SavedMedia,
     StudioPostDetail,
@@ -176,6 +189,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
     const descriptionInput = editorForm.querySelector<HTMLTextAreaElement>("[data-description]")!;
     const slugInput = editorForm.querySelector<HTMLInputElement>("[data-slug]")!;
     const publishedAtInput = editorForm.querySelector<HTMLInputElement>("[data-published-at]")!;
+    const visibilityInput = editorForm.querySelector<HTMLSelectElement>("[data-visibility]")!;
     const tagsInput = editorForm.querySelector<HTMLInputElement>("[data-tags]")!;
     const coverInput = editorForm.querySelector<HTMLInputElement>("[data-cover]")!;
     const bodyInput = editorForm.querySelector<HTMLTextAreaElement>("[data-body]")!;
@@ -185,6 +199,8 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
     const unpublishButton = editorForm.querySelector<HTMLButtonElement>("[data-unpublish]")!;
     const archiveButton = editorForm.querySelector<HTMLButtonElement>("[data-archive]")!;
     const statusBadge = editorForm.querySelector<HTMLElement>("[data-post-status]")!;
+    const visibilityBadge = editorForm.querySelector<HTMLElement>("[data-post-visibility]")!;
+    const visibilityLabel = editorForm.querySelector<HTMLElement>("[data-post-visibility-label]")!;
     const saveIndicator = editorForm.querySelector<HTMLElement>("[data-save-indicator]")!;
     const saveLabel = editorForm.querySelector<HTMLElement>("[data-save-label]")!;
     const errorBox = editorForm.querySelector<HTMLElement>("[data-editor-error]")!;
@@ -305,6 +321,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
         publishedAt: resolvePublishedAt(),
         tags: tagsInput.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean),
         cover: coverInput.value.trim() || null,
+        visibility: visibilityInput.value as PostVisibility,
         body: bodyInput.value
       };
     }
@@ -314,6 +331,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
     }
 
     function markDirty() {
+      syncVisibilityBadge();
       const nextSnapshot = snapshot();
       dirty = nextSnapshot !== savedSnapshot;
       syncDirtyFlag();
@@ -382,16 +400,20 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
       if (!validateDocument(true)) return;
 
       if (status === "PUBLISHED") {
-        if (dirty && !window.confirm("确定将本次修改更新到公开文章吗？")) return;
+        const scope = visibilityInput.value === "PUBLIC" ? "所有访客" : "仅你自己";
+        if (dirty && !window.confirm(`确定更新文章吗？保存后将${scope}可见。`)) return;
         if (dirty) {
           const updated = await saveDraft(true);
           if (!updated) return;
         }
-        if (!conflicted) setSaveState("saved", "已发布");
+        if (!conflicted) setSaveState("saved", visibilityInput.value === "PUBLIC" ? "已公开" : "仅自己可见");
         return;
       }
 
-      if (!window.confirm("发布后文章会立即出现在公开博客，确定继续吗？")) return;
+      const publishMessage = visibilityInput.value === "PUBLIC"
+        ? "发布后文章会立即出现在公开博客，确定继续吗？"
+        : "发布后文章仍然只有登录后的管理员可以阅读，确定继续吗？";
+      if (!window.confirm(publishMessage)) return;
 
       const saved = await saveDraft(true);
       if (!saved || conflicted) return;
@@ -405,7 +427,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
         body: JSON.stringify({ version })
       });
       applyServerPost(published, false, savedSnapshot);
-      setSaveState("saved", "已发布");
+      setSaveState("saved", visibilityInput.value === "PUBLIC" ? "已公开" : "仅自己可见");
     }
 
     async function unpublish() {
@@ -543,6 +565,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
         publishedAtInput.value = next.publishedAt.slice(0, 10);
         tagsInput.value = next.tags.join(", ");
         coverInput.value = next.cover ?? "";
+        visibilityInput.value = next.visibility;
         bodyInput.value = next.body;
         previewPane.innerHTML = next.html;
       }
@@ -571,11 +594,18 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
       const published = status === "PUBLISHED";
       statusBadge.textContent = published ? "已发布" : "草稿";
       statusBadge.classList.toggle("draft", !published);
+      syncVisibilityBadge();
       saveButton.hidden = published;
       unpublishButton.hidden = !published;
       archiveButton.hidden = !post;
       publishLabel.textContent = published ? "更新发布" : "发布";
       syncDisabledState();
+    }
+
+    function syncVisibilityBadge() {
+      const privatePost = visibilityInput.value === "ADMIN_ONLY";
+      visibilityBadge.classList.toggle("private", privatePost);
+      visibilityLabel.textContent = privatePost ? "仅自己" : "公开";
     }
 
     function syncDisabledState() {
@@ -653,6 +683,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
         publishedAtInput.value = draft.publishedAt?.slice(0, 10) ?? publishedAtInput.value;
         tagsInput.value = draft.tags?.join(", ") ?? "";
         coverInput.value = draft.cover ?? "";
+        visibilityInput.value = draft.visibility ?? "ADMIN_ONLY";
         bodyInput.value = draft.body ?? "";
         slugTouched = Boolean(slugInput.value);
         dirty = true;
@@ -689,6 +720,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
       publishedAt: post.publishedAt,
       tags: post.tags,
       cover: post.cover,
+      visibility: post.visibility,
       body: post.body
     };
   }

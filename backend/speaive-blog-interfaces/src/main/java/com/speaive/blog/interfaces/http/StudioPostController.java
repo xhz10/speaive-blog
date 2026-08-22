@@ -39,28 +39,28 @@ public class StudioPostController {
 
     @GetMapping("/posts/{slug}")
     PostDetail get(@PathVariable String slug) {
-        return PostResponses.detail(blog.getStudioPost(slug));
+        return PostResponses.studioDetail(blog.getStudioPost(slug));
     }
 
     @PostMapping("/posts")
     @ResponseStatus(HttpStatus.CREATED)
     PostDetail create(@Valid @RequestBody CreatePostRequest request) {
-        return PostResponses.detail(blog.createDraft(request.toCommand()));
+        return PostResponses.studioDetail(blog.createDraft(request.toCommand()));
     }
 
     @PutMapping("/posts/{slug}")
     PostDetail update(@PathVariable String slug, @Valid @RequestBody UpdatePostRequest request) {
-        return PostResponses.detail(blog.update(slug, request.version(), request.toCommand(slug)));
+        return PostResponses.studioDetail(blog.update(slug, request.version(), request.toCommand(slug)));
     }
 
     @PostMapping("/posts/{slug}/publish")
     PostDetail publish(@PathVariable String slug, @Valid @RequestBody VersionRequest request) {
-        return PostResponses.detail(blog.publish(slug, request.version()));
+        return PostResponses.studioDetail(blog.publish(slug, request.version()));
     }
 
     @PostMapping("/posts/{slug}/unpublish")
     PostDetail unpublish(@PathVariable String slug, @Valid @RequestBody VersionRequest request) {
-        return PostResponses.detail(blog.unpublish(slug, request.version()));
+        return PostResponses.studioDetail(blog.unpublish(slug, request.version()));
     }
 
     @PostMapping("/posts/{slug}/archive")
@@ -72,7 +72,7 @@ public class StudioPostController {
     @PostMapping(path = "/import", consumes = "multipart/form-data")
     @ResponseStatus(HttpStatus.CREATED)
     PostDetail importMarkdown(@RequestPart("markdown") MultipartFile markdown) {
-        return PostResponses.detail(blog.importDraft(originalFileName(markdown), bytes(markdown)));
+        return PostResponses.studioDetail(blog.importDraft(originalFileName(markdown), bytes(markdown)));
     }
 
     @PostMapping(path = "/media", consumes = "multipart/form-data")
@@ -83,7 +83,7 @@ public class StudioPostController {
 
     @PostMapping("/preview")
     PreviewResponse preview(@Valid @RequestBody PreviewRequest request) {
-        return new PreviewResponse(blog.preview(request.body()));
+        return new PreviewResponse(PostResponses.studioHtml(blog.preview(request.body())));
     }
 
     private static byte[] bytes(MultipartFile file) {

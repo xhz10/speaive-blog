@@ -10,6 +10,7 @@ import com.speaive.blog.infrastructure.content.config.ContentStorageSettings;
 import com.speaive.blog.infrastructure.content.markdown.MarkdownCodec.ParseOptions;
 import com.speaive.blog.infrastructure.content.markdown.MarkdownCodec.ParsedMarkdown;
 import com.speaive.blog.infrastructure.content.markdown.MarkdownCodec.PostDocument;
+import com.speaive.blog.domain.post.PostVisibility;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -37,7 +38,8 @@ public final class CommonMarkMarkdownAdapter implements MarkdownPort {
                 null,
                 fallbackSlug,
                 fallbackSlug.replace('-', ' '),
-                request.fallbackPublishedAt()
+                request.fallbackPublishedAt(),
+                PostVisibility.ADMIN_ONLY
         ));
         return toDocument(parsed);
     }
@@ -53,11 +55,13 @@ public final class CommonMarkMarkdownAdapter implements MarkdownPort {
                 publishedAt,
                 command.tags(),
                 command.cover(),
+                visibility(command.visibility()),
                 command.body()
         );
         byte[] serialized = codec.serialize(document);
         assertMarkdownSize(serialized.length);
-        ParsedMarkdown parsed = codec.parse(serialized, new ParseOptions(slug, slug, slug.replace('-', ' '), publishedAt));
+        ParsedMarkdown parsed = codec.parse(serialized,
+                new ParseOptions(slug, slug, slug.replace('-', ' '), publishedAt, visibility(command.visibility())));
         return toDocument(parsed);
     }
 
@@ -68,6 +72,11 @@ public final class CommonMarkMarkdownAdapter implements MarkdownPort {
         return codec.render(markdown);
     }
 
+    @Override
+    public java.util.Set<String> referencedMediaPaths(String body, String cover) {
+        return MarkdownCodec.referencedMediaPaths(body, cover);
+    }
+
     private static ParsedPostDocument toDocument(ParsedMarkdown parsed) {
         return new ParsedPostDocument(
                 parsed.slug(),
@@ -76,8 +85,18 @@ public final class CommonMarkMarkdownAdapter implements MarkdownPort {
                 parsed.publishedAt(),
                 parsed.tags(),
                 parsed.cover(),
+                parsed.visibility(),
                 parsed.body()
         );
+    }
+
+    private static PostVisibility visibility(String value) {
+        try {
+            return PostVisibility.valueOf(value);
+        } catch (IllegalArgumentException | NullPointerException exception) {
+            throw new BlogException(BlogErrorCode.INVALID_REQUEST,
+                    "visibility 只允许 PUBLIC 或 ADMIN_ONLY", exception);
+        }
     }
 
     private void assertMarkdownSize(long size) {

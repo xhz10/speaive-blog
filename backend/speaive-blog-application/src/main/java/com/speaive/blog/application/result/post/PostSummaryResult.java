@@ -13,6 +13,7 @@ public record PostSummaryResult(
         String cover,
         AuthorResult author,
         String status,
+        String visibility,
         String version
 ) {
     public PostSummaryResult {

@@ -60,9 +60,11 @@ PostgreSQL 是文章的唯一真源：
 
 - `blog_user` 保存可作为文章作者、评论者的内容身份；当前内置固定 `admin`，它不保存登录密码；
 - `blog_post` 保存当前草稿或已发布文章；
+- `blog_post.visibility` 将“内容状态”和“谁可读取”分离，新文章默认仅管理员；
 - `blog_post_tag` 保存有序标签；
 - `blog_post_revision` 与对应标签表保存每次创建、更新、状态变更和归档快照；
 - `blog_media` 保存媒体路径、类型、大小和校验值；
+- `blog_post_media` 保存文章实际引用的媒体，用于阻止私密正文图片从匿名地址泄露；
 - `blog_markdown_import` 记录已导入文件的 SHA-256，避免重复导入。
 
 每次写操作都使用递增 revision 和 `id + slug + revision` 条件做数据库 CAS。创建、更新、发布、撤回和归档各推进一次 revision；两个页面同时编辑或归档后重用 slug 时，旧 version 会得到 `409 VERSION_CONFLICT`，不会覆盖新的正文或发布状态。HTML 不入库，由后端从 Markdown 实时渲染和过滤。
@@ -91,6 +93,7 @@ SPEAIVE_DATA_DIR/
 - 公网只经过 Nginx/Caddy 的 HTTPS 入口；
 - Astro BFF 限制请求体为 9 MiB、流式转发，并清洗后重建可信客户端 IP；
 - 写作台使用单管理员 Session、BCrypt、CSRF 和登录失败限流；
+- 公开文章查询必须同时满足 `PUBLISHED + PUBLIC`；私密文章和媒体只能从已认证的 Studio 接口读取；
 - 数据库结构只由 Flyway 迁移，MyBatis-Plus 不负责自动建表。
 
 Flyway 迁移只追加、不修改已发布版本；每次迁移同时验证空库安装和带真实旧数据升级。CAS、事务、迁移和 SQL 方言统一使用 PostgreSQL 17 Testcontainers 测试，不以 H2 替代。后端测试命令是：
@@ -102,7 +105,7 @@ env -u JAVA_HOME sh -c '. ../scripts/java-25.sh && use_java_25 && ./mvnw test'
 
 ## 已知取舍
 
-- 当前认证仍是单管理员后台，不提供注册、多用户登录、角色授权和审核流；`blog_user` 仅提供可扩展的内容身份；
+- 当前需求只有“公开”和“仅自己”，因此认证仍是单管理员后台，不提供注册、多用户登录、邀请码和审核流；`blog_user` 仅提供可扩展的内容身份；若以后增加指定读者，再引入由管理员发放邀请码的注册流程；
 - Session 存在单个后端进程内，容器重启后需要重新登录；
 - 媒体仍在单机文件系统，扩展为多实例前需要迁移到对象存储；
 - 完整恢复必须同时使用 PostgreSQL dump 和 `SPEAIVE_DATA_DIR`，只复制其中一部分不算有效备份。

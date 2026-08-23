@@ -6,5 +6,7 @@ import com.speaive.blog.application.result.media.StoredMediaResult;
 public interface MediaUseCase {
     StoredMediaResult storeMedia(String fileName, String mimeType, byte[] bytes);
 
-    MediaContentResult readMedia(String path);
+    MediaContentResult readPublicMedia(String path);
+
+    MediaContentResult readStudioMedia(String path);
 }

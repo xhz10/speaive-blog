@@ -1616,6 +1616,298 @@ main:focus {
   display: none;
 }
 
+.tag a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tag:hover,
+.tag:focus-within {
+  border-color: #d9b4aa;
+  background: #fff8f5;
+  color: var(--accent-dark);
+}
+
+.archive-tag-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding: 22px 0;
+}
+
+.archive-tag-option {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 11px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.archive-tag-option span {
+  color: #99958c;
+  font-size: 0.68rem;
+}
+
+.archive-tag-option:hover,
+.archive-tag-option.active {
+  border-color: #d9b4aa;
+  background: #fff8f5;
+  color: var(--accent-dark);
+}
+
+.archive-tag-option.active span {
+  color: var(--accent);
+}
+
+.article-tag-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.article-tag-list a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.article-tag-list a:hover {
+  color: var(--accent);
+}
+
+.visibility-badge {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  gap: 5px;
+  border-radius: 3px;
+  padding: 3px 7px;
+  background: #e8eef5;
+  color: #315a7d;
+  font-size: 0.72rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.visibility-badge.private {
+  background: #eee9f6;
+  color: #654889;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.tag-input-shell {
+  display: flex;
+  min-height: 44px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 5px 8px;
+  cursor: text;
+}
+
+.tag-input-shell:focus-within {
+  border-color: var(--accent);
+  outline: 3px solid rgba(200, 62, 44, 0.12);
+}
+
+.tag-chip-list {
+  display: contents;
+}
+
+.tag-chip {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #ddd4c9;
+  border-radius: 999px;
+  background: #f7f3ed;
+  padding: 2px 5px 2px 9px;
+  color: #5c5145;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.tag-chip button {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #8b7e71;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.tag-chip button:hover,
+.tag-chip button:focus-visible {
+  background: #eadfd4;
+  color: var(--accent-dark);
+  outline: 0;
+}
+
+.tag-input-shell input {
+  min-width: 130px;
+  min-height: 30px;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.studio-list-heading,
+.studio-post-item {
+  grid-template-columns: minmax(0, 1fr) 120px 92px 112px 100px 170px;
+  gap: 14px;
+}
+
+.editor-metadata-grid {
+  grid-template-columns: minmax(220px, 1.2fr) minmax(180px, 0.65fr) minmax(170px, 0.7fr) minmax(190px, 0.8fr) minmax(220px, 1fr);
+}
+
+.studio-reading-banner {
+  border-bottom: 1px solid #d8cde8;
+  background: #f4f0fa;
+  color: #5d417f;
+}
+
+.studio-reading-banner:not(.private) {
+  border-bottom-color: var(--line);
+  background: var(--soft);
+  color: var(--muted);
+}
+
+.studio-reading-banner-inner {
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.studio-reading-banner-inner > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.markdown-toolbar {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 3px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  padding: 5px 10px;
+  scrollbar-width: thin;
+}
+
+.markdown-toolbar button {
+  display: grid;
+  width: 31px;
+  min-width: 31px;
+  height: 31px;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.markdown-toolbar button:hover,
+.markdown-toolbar button:focus-visible {
+  background: var(--soft);
+  color: var(--accent-dark);
+  outline: 0;
+}
+
+.markdown-toolbar-hint {
+  margin-left: auto;
+  padding-inline: 8px 4px;
+  color: var(--muted);
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
+.markdown-editor-host {
+  display: none;
+}
+
+.editor-pane[data-editor-enhanced="true"] .editor-textarea {
+  display: none;
+}
+
+.editor-pane[data-editor-enhanced="true"] .markdown-editor-host {
+  display: block;
+}
+
+.markdown-editor-host .cm-editor {
+  height: 596px;
+}
+
+.markdown-editor-host .cm-scroller {
+  overflow: auto;
+}
+
+.markdown-editor-host .cm-panels {
+  border-bottom: 1px solid var(--line);
+  background: #fbfbf8;
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.markdown-editor-host .cm-panels input,
+.markdown-editor-host .cm-panels button {
+  font: inherit;
+}
+
+.markdown-editor-status {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding: 5px 13px;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-pane {
+  min-height: 722px;
+}
+
+.preview-content {
+  height: 668px;
+}
+
 @keyframes studio-spin {
   to { transform: rotate(360deg); }
 }
@@ -1687,8 +1979,8 @@ main:focus {
 
   .studio-list-heading,
   .studio-post-item {
-    grid-template-columns: minmax(0, 1fr) 105px 88px 92px 154px;
-    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) 100px 86px 106px 90px 154px;
+    gap: 10px;
   }
 }
 
@@ -1861,6 +2153,12 @@ main:focus {
     align-self: start;
   }
 
+  .studio-post-item > div:nth-child(4) {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+  }
+
   .studio-post-author {
     display: flex;
     grid-column: 1;
@@ -1881,8 +2179,14 @@ main:focus {
 
   .studio-row-actions {
     grid-column: 2;
-    grid-row: 2 / span 2;
+    grid-row: 3;
     align-self: end;
+  }
+
+  .studio-reading-banner-inner {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-block: 14px;
   }
 
   .studio-editor-head {
@@ -1977,6 +2281,10 @@ main:focus {
   .editor-textarea {
     min-height: 470px;
     padding: 17px;
+  }
+
+  .markdown-editor-host .cm-editor {
+    height: 470px;
   }
 
   .preview-content {

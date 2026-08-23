@@ -81,7 +81,7 @@ public final class PostApplicationService implements PostUseCase {
             PostSlug slug = PostSlug.of(command.slug());
             ParsedPostDocument normalized = markdown.normalize(command, slug.value(), publishedAt);
             Post post = PostApplicationSupport.newDraft(normalized, slug, requiredContentAuthor(), now);
-            posts.add(post, PostRevisionEventType.CREATE);
+            posts.add(post, PostRevisionEventType.CREATE, mediaPaths(post));
             return detail(post);
         }));
     }
@@ -93,8 +93,9 @@ public final class PostApplicationService implements PostUseCase {
             current.assertVersion(version);
             Instant publishedAt = command.publishedAt() == null ? current.publishedAt() : command.publishedAt();
             ParsedPostDocument normalized = markdown.normalize(command, current.slug(), publishedAt);
-            PostChange change = current.update(PostApplicationSupport.content(normalized), version, clock.instant());
-            posts.save(change);
+            PostChange change = current.update(PostApplicationSupport.content(normalized), normalized.visibility(),
+                    version, clock.instant());
+            posts.save(change, mediaPaths(change.current()));
             return detail(change.current());
         }));
     }
@@ -136,7 +137,7 @@ public final class PostApplicationService implements PostUseCase {
                 case PUBLISH -> current.publish(version, clock.instant());
                 case UNPUBLISH -> current.unpublish(version, clock.instant());
             };
-            posts.save(change);
+            posts.save(change, mediaPaths(change.current()));
             return detail(change.current());
         }));
     }
@@ -162,6 +163,10 @@ public final class PostApplicationService implements PostUseCase {
 
     private PostDetailResult detail(Post post) {
         return PostApplicationSupport.detail(post, markdown.render(post.body()));
+    }
+
+    private java.util.Set<String> mediaPaths(Post post) {
+        return markdown.referencedMediaPaths(post.body(), post.cover());
     }
 
     private enum Transition {

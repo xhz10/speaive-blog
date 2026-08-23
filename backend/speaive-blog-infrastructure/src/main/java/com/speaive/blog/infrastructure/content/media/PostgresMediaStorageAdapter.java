@@ -3,6 +3,7 @@ package com.speaive.blog.infrastructure.content.media;
 import com.speaive.blog.application.error.BlogErrorCode;
 import com.speaive.blog.application.error.BlogException;
 import com.speaive.blog.application.port.out.media.MediaContent;
+import com.speaive.blog.application.port.out.media.MediaReadScope;
 import com.speaive.blog.application.port.out.media.MediaStoragePort;
 import com.speaive.blog.application.port.out.media.StoredMedia;
 import com.speaive.blog.application.port.out.transaction.TransactionRunner;
@@ -55,9 +56,13 @@ public final class PostgresMediaStorageAdapter implements MediaStoragePort {
     }
 
     @Override
-    public MediaContent read(String relativePath) {
+    public MediaContent read(String relativePath, MediaReadScope scope) {
         BlogMediaPo registered = database.selectByPath(relativePath);
         if (registered == null) {
+            throw new BlogException(BlogErrorCode.NOT_FOUND, "图片不存在");
+        }
+        if (Objects.requireNonNull(scope, "scope") == MediaReadScope.PUBLIC
+                && !database.isPublic(relativePath)) {
             throw new BlogException(BlogErrorCode.NOT_FOUND, "图片不存在");
         }
 

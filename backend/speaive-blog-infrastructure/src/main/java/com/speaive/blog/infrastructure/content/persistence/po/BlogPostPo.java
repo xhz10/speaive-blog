@@ -18,6 +18,7 @@ public class BlogPostPo {
     @TableField("updated_at")
     private Instant updatedAt;
     private PostStatusPo status;
+    private PostVisibilityPo visibility;
     private String body;
     private String cover;
     @TableField("author_id")
@@ -83,6 +84,14 @@ public class BlogPostPo {
 
     public void setStatus(PostStatusPo status) {
         this.status = status;
+    }
+
+    public PostVisibilityPo getVisibility() {
+        return visibility;
+    }
+
+    public void setVisibility(PostVisibilityPo visibility) {
+        this.visibility = visibility;
     }
 
     public String getBody() {

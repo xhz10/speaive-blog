@@ -282,6 +282,7 @@ class StudioApiIntegrationTests {
                   "publishedAt":"2026-08-02T08:00:00Z",
                   "tags":["随记"],
                   "cover":null,
+                  "visibility":"PUBLIC",
                   "body":"更新后的正文",
                   "version":"%s"
                 }
@@ -597,6 +598,7 @@ class StudioApiIntegrationTests {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.slug").value("uploaded-note"))
                 .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.visibility").value("ADMIN_ONLY"))
                 .andExpect(jsonPath("$.author.id").value(ADMIN_ID))
                 .andExpect(jsonPath("$.body").value("上传正文。"))
                 .andExpect(jsonPath("$.html", containsString("<p>上传正文。</p>")))
@@ -630,6 +632,8 @@ class StudioApiIntegrationTests {
         String url = JsonPath.read(uploaded.getResponse().getContentAsString(), "$.url");
 
         mockMvc.perform(get(url))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/studio" + url).session(client.session()))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("image/png"))
                 .andExpect(content().bytes(png));
@@ -638,12 +642,12 @@ class StudioApiIntegrationTests {
         byte[] replaced = png.clone();
         replaced[replaced.length - 1] ^= 1;
         Files.write(DATA_DIRECTORY.resolve(url.substring(1)), replaced);
-        mockMvc.perform(get(url))
+        mockMvc.perform(get("/api/v1/studio" + url).session(client.session()))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("STORAGE_ERROR"));
 
         Files.delete(DATA_DIRECTORY.resolve(url.substring(1)));
-        mockMvc.perform(get(url))
+        mockMvc.perform(get("/api/v1/studio" + url).session(client.session()))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("STORAGE_ERROR"));
 
@@ -686,6 +690,107 @@ class StudioApiIntegrationTests {
             jdbc.execute("DROP TRIGGER IF EXISTS reject_blog_media_insert_trigger ON blog_media");
             jdbc.execute("DROP FUNCTION IF EXISTS reject_blog_media_insert()");
         }
+    }
+
+    @Test
+    void adminOnlyPostsAndTheirMediaNeverLeakThroughPublicEndpoints() throws Exception {
+        Client client = login();
+        MockMultipartFile image = new MockMultipartFile("image", "secret.png", "image/png", VALID_PNG);
+        MvcResult uploaded = mockMvc.perform(multipart("/api/v1/studio/media").file(image)
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken()))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String mediaUrl = JsonPath.read(uploaded.getResponse().getContentAsString(), "$.url");
+        String studioMediaUrl = "/api/v1/studio" + mediaUrl;
+
+        String createPrivate = """
+                {
+                  "slug":"secret-note",
+                  "title":"只有我能看的秘密",
+                  "description":"私密摘要",
+                  "publishedAt":"2026-08-02T08:00:00Z",
+                  "tags":["秘密"],
+                  "cover":"%s",
+                  "visibility":"ADMIN_ONLY",
+                  "body":"![秘密图片](%s)\\n\\n不对外公开。"
+                }
+                """.formatted(mediaUrl, mediaUrl);
+        MvcResult created = mockMvc.perform(post("/api/v1/studio/posts")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(createPrivate))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.visibility").value("ADMIN_ONLY"))
+                .andReturn();
+        String createdVersion = JsonPath.read(created.getResponse().getContentAsString(), "$.version");
+
+        MvcResult publishedPrivate = mockMvc.perform(post("/api/v1/studio/posts/secret-note/publish")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":\"" + createdVersion + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.visibility").value("ADMIN_ONLY"))
+                .andReturn();
+        String privateVersion = JsonPath.read(publishedPrivate.getResponse().getContentAsString(), "$.version");
+
+        mockMvc.perform(get("/api/v1/public/posts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(0)));
+        mockMvc.perform(get("/api/v1/public/posts/secret-note"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get(mediaUrl))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get(studioMediaUrl).session(client.session()))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(VALID_PNG));
+
+        String makePublic = """
+                {
+                  "title":"只有我能看的秘密",
+                  "description":"私密摘要",
+                  "publishedAt":"2026-08-02T08:00:00Z",
+                  "tags":["秘密"],
+                  "cover":"%s",
+                  "visibility":"PUBLIC",
+                  "body":"![秘密图片](%s)\\n\\n现在公开。",
+                  "version":"%s"
+                }
+                """.formatted(mediaUrl, mediaUrl, privateVersion);
+        MvcResult publicPost = mockMvc.perform(put("/api/v1/studio/posts/secret-note")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(makePublic))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.visibility").value("PUBLIC"))
+                .andReturn();
+        String publicVersion = JsonPath.read(publicPost.getResponse().getContentAsString(), "$.version");
+
+        mockMvc.perform(get("/api/v1/public/posts/secret-note"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get(mediaUrl))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(VALID_PNG));
+
+        String makePrivateAgain = makePublic
+                .replace("\"visibility\":\"PUBLIC\"", "\"visibility\":\"ADMIN_ONLY\"")
+                .replace("\"version\":\"" + privateVersion + "\"", "\"version\":\"" + publicVersion + "\"");
+        mockMvc.perform(put("/api/v1/studio/posts/secret-note")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(makePrivateAgain))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.visibility").value("ADMIN_ONLY"));
+
+        mockMvc.perform(get("/api/v1/public/posts/secret-note"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get(mediaUrl))
+                .andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM blog_post_media WHERE relative_path = ?", Integer.class,
+                mediaUrl.substring("/media/".length()))).isEqualTo(1);
     }
 
     @Test
@@ -859,6 +964,7 @@ class StudioApiIntegrationTests {
                   "publishedAt": "2026-08-02T08:00:00Z",
                   "tags": ["随记", "生活"],
                   "cover": null,
+                  "visibility": "PUBLIC",
                   "body": "## 正文\\n\\n**hello**\\n\\n<script>alert(1)</script>"
                 }
                 """.formatted(slug, title);
@@ -866,7 +972,7 @@ class StudioApiIntegrationTests {
 
     private static PostWriteCommand command(String slug, String title) {
         return new PostWriteCommand(slug, title, "", java.time.Instant.parse("2026-08-02T08:00:00Z"),
-                List.of("测试"), null, "正文");
+                List.of("测试"), null, "PUBLIC", "正文");
     }
 
     private static Path createTempDirectory() {

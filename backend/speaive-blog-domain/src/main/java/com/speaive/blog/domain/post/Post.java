@@ -20,11 +20,12 @@ public final class Post {
             PostSlug slug,
             PostContent content,
             Author author,
+            PostVisibility visibility,
             Instant now) {
         requireAuthor(author).ensureCanAuthor();
         requireContent(content);
         Instant createdAt = requireTime(now);
-        return new Post(new PostSnapshot(id, slug, content, author, PostStatus.DRAFT,
+        return new Post(new PostSnapshot(id, slug, content, author, PostStatus.DRAFT, requireVisibility(visibility),
                 createdAt, createdAt, 1, false));
     }
 
@@ -33,8 +34,27 @@ public final class Post {
             String slug,
             PostContent content,
             Author author,
+            PostVisibility visibility,
             Instant now) {
-        return createDraft(id, PostSlug.of(slug), content, author, now);
+        return createDraft(id, PostSlug.of(slug), content, author, visibility, now);
+    }
+
+    public static Post createDraft(
+            String id,
+            PostSlug slug,
+            PostContent content,
+            Author author,
+            Instant now) {
+        return createDraft(id, slug, content, author, PostVisibility.ADMIN_ONLY, now);
+    }
+
+    public static Post createDraft(
+            String id,
+            String slug,
+            PostContent content,
+            Author author,
+            Instant now) {
+        return createDraft(id, PostSlug.of(slug), content, author, PostVisibility.ADMIN_ONLY, now);
     }
 
     public static Post rehydrate(PostSnapshot snapshot) {
@@ -42,26 +62,34 @@ public final class Post {
     }
 
     public PostChange update(PostContent content, String expectedVersion, Instant now) {
+        return update(content, visibility(), expectedVersion, now);
+    }
+
+    public PostChange update(
+            PostContent content,
+            PostVisibility visibility,
+            String expectedVersion,
+            Instant now) {
         assertMutable(expectedVersion);
-        return change(requireContent(content), status(), false,
+        return change(requireContent(content), status(), requireVisibility(visibility), false,
                 requireNextTime(now), PostRevisionEventType.UPDATE);
     }
 
     public PostChange publish(String expectedVersion, Instant now) {
         assertMutable(expectedVersion);
-        return change(content(), PostStatus.PUBLISHED, false,
+        return change(content(), PostStatus.PUBLISHED, visibility(), false,
                 requireNextTime(now), PostRevisionEventType.PUBLISH);
     }
 
     public PostChange unpublish(String expectedVersion, Instant now) {
         assertMutable(expectedVersion);
-        return change(content(), PostStatus.DRAFT, false,
+        return change(content(), PostStatus.DRAFT, visibility(), false,
                 requireNextTime(now), PostRevisionEventType.UNPUBLISH);
     }
 
     public PostChange archive(String expectedVersion, Instant now) {
         assertMutable(expectedVersion);
-        return change(content(), status(), true,
+        return change(content(), status(), visibility(), true,
                 requireNextTime(now), PostRevisionEventType.ARCHIVE);
     }
 
@@ -75,10 +103,11 @@ public final class Post {
     private PostChange change(
             PostContent nextContent,
             PostStatus nextStatus,
+            PostVisibility nextVisibility,
             boolean nextArchived,
             Instant now,
             PostRevisionEventType eventType) {
-        Post current = new Post(new PostSnapshot(id(), slugValue(), nextContent, author(), nextStatus,
+        Post current = new Post(new PostSnapshot(id(), slugValue(), nextContent, author(), nextStatus, nextVisibility,
                 createdAt(), now, revision() + 1, nextArchived));
         return new PostChange(this, current, eventType);
     }
@@ -117,6 +146,13 @@ public final class Post {
             throw new DomainException(DomainErrorCode.INVALID_CONTENT, "文章内容不能为空");
         }
         return content;
+    }
+
+    private static PostVisibility requireVisibility(PostVisibility visibility) {
+        if (visibility == null) {
+            throw new DomainException(DomainErrorCode.INVALID_STATE, "文章可见性不能为空");
+        }
+        return visibility;
     }
 
     public String id() {
@@ -165,6 +201,10 @@ public final class Post {
 
     public PostStatus status() {
         return snapshot.status();
+    }
+
+    public PostVisibility visibility() {
+        return snapshot.visibility();
     }
 
     public Instant createdAt() {

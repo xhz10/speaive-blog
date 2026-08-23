@@ -32,6 +32,7 @@ final class PostApplicationSupport {
                 slug,
                 content(document),
                 author,
+                document.visibility(),
                 now
         );
     }
@@ -58,6 +59,7 @@ final class PostApplicationSupport {
                 post.cover(),
                 author(post.author()),
                 post.status().name(),
+                post.visibility().name(),
                 post.body(),
                 html,
                 post.version()
@@ -75,6 +77,7 @@ final class PostApplicationSupport {
                 post.cover(),
                 author(post.author()),
                 post.status().name(),
+                post.visibility().name(),
                 post.version()
         );
     }

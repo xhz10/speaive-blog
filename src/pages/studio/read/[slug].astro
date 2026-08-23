@@ -1,0 +1,91 @@
+---
+import { ArrowLeft, LockKeyhole, Pencil } from "@lucide/astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { formatDateTime } from "../../../lib/date-time";
+import { fetchStudioApi, isStudioApiError } from "../../../lib/studio/server";
+import type { StudioPostDetail } from "../../../lib/studio/types";
+
+const slug = Astro.params.slug ?? "";
+let post: StudioPostDetail | undefined;
+let loadError: string | undefined;
+
+try {
+  post = await fetchStudioApi<StudioPostDetail>(
+    Astro.request,
+    `/api/v1/studio/posts/${encodeURIComponent(slug)}`
+  );
+} catch (error) {
+  if (isStudioApiError(error) && error.status === 404) Astro.response.status = 404;
+  else Astro.response.status = 502;
+  loadError = error instanceof Error ? error.message : "文章加载失败";
+}
+
+const studioMediaUrl = (value: string | null) => value?.startsWith("/media/")
+  ? `/api/v1/studio/media/${value.slice("/media/".length)}`
+  : value ?? undefined;
+const studioHtml = post?.html.replace(
+  /src="\/media\/([^"]+)"/g,
+  (_match, path: string) => `src="/api/v1/studio/media/${path}"`
+);
+---
+
+<BaseLayout title={post ? `管理员预览：${post.title}` : "文章不存在"} noindex>
+  {
+    post ? (
+      <article class="article-page studio-reading-page">
+        <div class:list={["studio-reading-banner", { private: post.visibility === "ADMIN_ONLY" }]}>
+          <div class="shell studio-reading-banner-inner">
+            <span>
+              <LockKeyhole size={16} stroke-width={1.9} aria-hidden="true" />
+              {post.visibility === "ADMIN_ONLY" ? "仅管理员可见" : "管理员预览"}
+              {post.status === "DRAFT" && " · 草稿"}
+            </span>
+            <div class="button-row">
+              <a class="button secondary" href="/studio/">
+                <ArrowLeft size={15} stroke-width={1.8} aria-hidden="true" />
+                返回写作台
+              </a>
+              <a class="button primary" href={`/studio/edit/${encodeURIComponent(post.slug)}/`}>
+                <Pencil size={15} stroke-width={1.8} aria-hidden="true" />
+                编辑
+              </a>
+            </div>
+          </div>
+        </div>
+        <header class="article-header">
+          <div class="shell">
+            <p class="article-kicker">Private reading</p>
+            <h1>{post.title}</h1>
+            {post.description && <p class="article-deck">{post.description}</p>}
+            <div class="article-meta">
+              <span class="article-author">作者 {post.author.displayName}</span>
+              <time datetime={post.publishedAt}>{formatDateTime(new Date(post.publishedAt))}</time>
+              <span>更新于 {formatDateTime(new Date(post.updatedAt))}</span>
+              {post.tags.length > 0 && (
+                <ul class="article-tag-list" aria-label="文章标签">
+                  {post.tags.map((tag) => <li>#{tag}</li>)}
+                </ul>
+              )}
+            </div>
+          </div>
+          {post.cover && (
+            <figure class="article-cover">
+              <img src={studioMediaUrl(post.cover)} alt="" width="1600" height="900" />
+            </figure>
+          )}
+        </header>
+        <div class="article-body reading-width">
+          <div class="prose" set:html={studioHtml} />
+        </div>
+      </article>
+    ) : (
+      <section class="not-found">
+        <div>
+          <h1>无法打开文章</h1>
+          <p>{loadError ?? "文章不存在。"}</p>
+          <a class="button primary" href="/studio/">返回写作台</a>
+        </div>
+      </section>
+    )
+  }
+</BaseLayout>

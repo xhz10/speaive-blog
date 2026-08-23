@@ -1,5 +1,5 @@
 ---
-import { Archive, ExternalLink, FileUp, Pencil, Plus, Search } from "@lucide/astro";
+import { Archive, Eye, ExternalLink, FileUp, Globe, LockKeyhole, Pencil, Plus, Search } from "@lucide/astro";
 import StudioLayout from "../../layouts/StudioLayout.astro";
 import { fetchStudioApi } from "../../lib/studio/server";
 import type { StudioPostList } from "../../lib/studio/types";
@@ -14,6 +14,7 @@ try {
 
 const draftCount = result.items.filter((post) => post.status === "DRAFT").length;
 const publishedCount = result.items.filter((post) => post.status === "PUBLISHED").length;
+const privateCount = result.items.filter((post) => post.visibility === "ADMIN_ONLY").length;
 const formatDate = (value: string) => {
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? "-" : new Intl.DateTimeFormat("zh-CN", {
@@ -29,7 +30,7 @@ const formatDate = (value: string) => {
     <div>
       <p class="studio-kicker">Studio</p>
       <h1>文章</h1>
-      <p>{draftCount} 篇草稿，{publishedCount} 篇已发布</p>
+      <p>{draftCount} 篇草稿，{publishedCount} 篇已发布，{privateCount} 篇仅自己可见</p>
     </div>
     <div class="button-row studio-page-actions">
       <input type="file" accept=".md,text/markdown,text/plain" hidden data-import-picker />
@@ -70,7 +71,7 @@ const formatDate = (value: string) => {
     </div>
 
     <div class="studio-list-heading" aria-hidden="true">
-      <span>文章</span><span>作者</span><span>状态</span><span>更新</span><span>操作</span>
+      <span>文章</span><span>作者</span><span>状态</span><span>可见性</span><span>更新</span><span>操作</span>
     </div>
 
     <ul class="studio-post-list" data-post-list>
@@ -92,13 +93,30 @@ const formatDate = (value: string) => {
               <small>@{post.author.username}</small>
             </div>
             <div class="studio-post-status"><span class:list={["status-badge", { draft: post.status === "DRAFT" }]}>{post.status === "DRAFT" ? "草稿" : "已发布"}</span></div>
+            <div>
+              <span class:list={["visibility-badge", { private: post.visibility === "ADMIN_ONLY" }]}>
+                {post.visibility === "PUBLIC"
+                  ? <Globe size={13} stroke-width={1.9} aria-hidden="true" />
+                  : <LockKeyhole size={13} stroke-width={1.9} aria-hidden="true" />}
+                {post.visibility === "PUBLIC" ? "公开" : "仅自己"}
+              </span>
+            </div>
             <time datetime={post.updatedAt}>{formatDate(post.updatedAt)}</time>
             <div class="button-row studio-row-actions">
-              {post.status === "PUBLISHED" && (
-                <a class="icon-button" href={`/blog/${encodeURIComponent(post.slug)}/`} target="_blank" rel="noreferrer" title="查看文章" aria-label={`查看 ${post.title}`}>
-                  <ExternalLink size={16} stroke-width={1.8} aria-hidden="true" />
-                </a>
-              )}
+              <a
+                class="icon-button"
+                href={post.status === "PUBLISHED" && post.visibility === "PUBLIC"
+                  ? `/blog/${encodeURIComponent(post.slug)}/`
+                  : `/studio/read/${encodeURIComponent(post.slug)}/`}
+                target="_blank"
+                rel="noreferrer"
+                title={post.status === "PUBLISHED" && post.visibility === "PUBLIC" ? "查看公开文章" : "管理员预览"}
+                aria-label={`查看 ${post.title}`}
+              >
+                {post.status === "PUBLISHED" && post.visibility === "PUBLIC"
+                  ? <ExternalLink size={16} stroke-width={1.8} aria-hidden="true" />
+                  : <Eye size={16} stroke-width={1.8} aria-hidden="true" />}
+              </a>
               <a class="icon-button" href={`/studio/edit/${encodeURIComponent(post.slug)}/`} title="编辑" aria-label={`编辑 ${post.title}`}>
                 <Pencil size={16} stroke-width={1.8} aria-hidden="true" />
               </a>

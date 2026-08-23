@@ -31,7 +31,7 @@ class AuthorIdentityMigrationTests {
             .withPassword("speaive-test-db-password");
 
     @Test
-    void v2BackfillsActivePostsAndRevisionOnlyArchiveHistoryBeforeAddingConstraints() {
+    void productionMigrationChainBackfillsAuthorsVisibilityArchivesAndMediaSafely() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
@@ -48,14 +48,21 @@ class AuthorIdentityMigrationTests {
                     id, slug, title, description, published_at, updated_at, status,
                     body, cover, revision, created_at
                 ) VALUES (?, 'legacy-active', '历史文章', '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-                    'PUBLISHED', '正文', NULL, 1, CURRENT_TIMESTAMP)
+                    'PUBLISHED', '![旧图](/media/legacy.png)', '/media/legacy.png', 1, CURRENT_TIMESTAMP)
                 """, ACTIVE_POST_ID);
+        jdbc.update("""
+                INSERT INTO blog_media (
+                    relative_path, original_file_name, mime_type, size_bytes, sha256, created_at
+                ) VALUES ('legacy.png', 'legacy.png', 'image/png', 1,
+                    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', CURRENT_TIMESTAMP)
+                """);
         jdbc.update("""
                 INSERT INTO blog_post_revision (
                     post_id, revision, slug, title, description, published_at, updated_at,
                     status, body, cover, post_created_at, event_type, recorded_at
                 ) VALUES (?, 1, 'legacy-active', '历史文章', '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-                    'PUBLISHED', '正文', NULL, CURRENT_TIMESTAMP, 'CREATE', CURRENT_TIMESTAMP)
+                    'PUBLISHED', '![旧图](/media/legacy.png)', '/media/legacy.png',
+                    CURRENT_TIMESTAMP, 'CREATE', CURRENT_TIMESTAMP)
                 """, ACTIVE_POST_ID);
         jdbc.update("""
                 INSERT INTO blog_post_revision (
@@ -90,6 +97,27 @@ class AuthorIdentityMigrationTests {
                 "SELECT author_id FROM blog_post_revision WHERE post_id IN (?, ?) ORDER BY post_id",
                 String.class, ACTIVE_POST_ID, ARCHIVED_POST_ID))
                 .containsExactly(MIGRATION_ADMIN_ID, MIGRATION_ADMIN_ID);
+        assertThat(jdbc.queryForObject(
+                "SELECT visibility FROM blog_post WHERE id = ?", String.class, ACTIVE_POST_ID))
+                .isEqualTo("PUBLIC");
+        assertThat(jdbc.queryForList(
+                "SELECT visibility FROM blog_post_revision WHERE post_id IN (?, ?) ORDER BY post_id",
+                String.class, ACTIVE_POST_ID, ARCHIVED_POST_ID))
+                .containsExactly("PUBLIC", "PUBLIC");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM blog_post_media WHERE post_id = ? AND relative_path = 'legacy.png'",
+                Integer.class, ACTIVE_POST_ID)).isEqualTo(1);
+        jdbc.update("""
+                INSERT INTO blog_post (
+                    id, slug, title, description, published_at, updated_at, status,
+                    body, cover, author_id, revision, created_at
+                ) VALUES ('66666666-6666-6666-6666-666666666666', 'new-default-private',
+                    '新文章', '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'DRAFT', '正文', NULL, ?, 1,
+                    CURRENT_TIMESTAMP)
+                """, MIGRATION_ADMIN_ID);
+        assertThat(jdbc.queryForObject(
+                "SELECT visibility FROM blog_post WHERE slug = 'new-default-private'", String.class))
+                .isEqualTo("ADMIN_ONLY");
         assertThat(jdbc.queryForList("""
                 SELECT table_name
                 FROM information_schema.columns

@@ -6,6 +6,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.util.List;
+
 @Mapper
 public interface BlogMediaDatabaseMapper {
     @Insert("""
@@ -24,4 +26,28 @@ public interface BlogMediaDatabaseMapper {
             WHERE relative_path = #{relativePath}
             """)
     BlogMediaPo selectByPath(@Param("relativePath") String relativePath);
+
+    @Select("""
+            <script>
+            SELECT relative_path
+            FROM blog_media
+            WHERE relative_path IN
+            <foreach collection="relativePaths" item="path" open="(" separator="," close=")">
+                #{path}
+            </foreach>
+            </script>
+            """)
+    List<String> selectRegisteredPaths(@Param("relativePaths") List<String> relativePaths);
+
+    @Select("""
+            SELECT EXISTS (
+                SELECT 1
+                FROM blog_post_media pm
+                JOIN blog_post p ON p.id = pm.post_id
+                WHERE pm.relative_path = #{relativePath}
+                  AND p.status = 'PUBLISHED'
+                  AND p.visibility = 'PUBLIC'
+            )
+            """)
+    boolean isPublic(@Param("relativePath") String relativePath);
 }

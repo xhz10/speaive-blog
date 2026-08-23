@@ -103,14 +103,20 @@ server {
 
 ## 4. 更新
 
+服务器部署分支统一回 `main`。首次切换前先确认工作区没有服务器本地改动并完成备份：
+
 ```bash
 cd /srv/speaive-blog/app
 SPEAIVE_BACKUP_DIR=/var/backups/speaive-blog ./scripts/backup-data.sh
-git pull --ff-only
+git fetch origin
+git switch main
+git pull --ff-only origin main
 ./scripts/docker-up.sh
 ```
 
-Flyway 会在后端启动时迁移数据库。更新程序和重建容器不会删除文章、修订或图片。
+以后更新继续在该分支执行 `git pull --ff-only` 和 `./scripts/docker-up.sh`。脚本本身不需要为权限功能修改；它会重建镜像，Flyway 会在后端启动时按 `V1 -> V2 -> V3 -> V4` 迁移数据库。更新程序和重建容器不会删除文章、修订或图片。
+
+原服务器分支 `origin/docs/deployment-ops-notes` 会在本次合并时与 `main` 对齐，其代码和部署记录已经包含在统一历史中。以后只在 `main` 开发和部署，不再单独推进旧分支，避免重新产生分叉。
 
 ## 5. 备份到 Mac mini
 

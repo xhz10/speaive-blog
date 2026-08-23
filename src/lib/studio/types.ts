@@ -1,6 +1,7 @@
 import type { PostAuthor } from "../post-author";
 
 export type PostStatus = "DRAFT" | "PUBLISHED";
+export type PostVisibility = "PUBLIC" | "ADMIN_ONLY";
 
 export interface StudioPostSummary {
   slug: string;
@@ -10,6 +11,7 @@ export interface StudioPostSummary {
   updatedAt: string;
   tags: string[];
   cover: string | null;
+  visibility: PostVisibility;
   status: PostStatus;
   version: string;
   author: PostAuthor;
@@ -59,6 +61,7 @@ export interface PostWritePayload {
   publishedAt: string;
   tags: string[];
   cover: string | null;
+  visibility: PostVisibility;
   body: string;
 }
 

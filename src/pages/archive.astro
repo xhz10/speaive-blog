@@ -2,29 +2,60 @@
 import PostRow from "../components/PostRow.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { listPublishedPosts } from "../lib/public-api";
+import { buildTagArchive } from "../lib/tag-archive";
 
-const posts = await listPublishedPosts();
+const allPosts = await listPublishedPosts();
+const requestedTag = Astro.url.searchParams.get("tag")?.trim() ?? "";
+const { items: posts, selectedTag, options: tags } = buildTagArchive(allPosts, requestedTag);
 ---
 
-<BaseLayout title="归档" description="Speaive 的全部文章。">
+<BaseLayout
+  title={selectedTag ? `标签：${selectedTag}` : "归档"}
+  description={selectedTag ? `Speaive 中标记为“${selectedTag}”的文章。` : "Speaive 的全部文章。"}
+  noindex={Boolean(selectedTag)}
+>
   <header class="page-heading">
     <div class="shell page-heading-grid">
       <div>
         <p class="section-label">Archive</p>
-        <h1>归档</h1>
+        <h1>{selectedTag ? `# ${selectedTag}` : "归档"}</h1>
       </div>
-      <p>所有已经公开的文章都在这里，按发布时间从近到远排列。</p>
+      <p>{selectedTag ? `共找到 ${posts.length} 篇相关文章。` : "所有已经公开的文章都在这里，按发布时间从近到远排列。"}</p>
     </div>
   </header>
   <section class="content-section archive-section" aria-label="文章归档">
     <div class="shell">
+      {
+        tags.length > 0 && (
+          <nav class="archive-tag-filter" aria-label="按标签筛选文章">
+            <a class:list={["archive-tag-option", { active: !selectedTag }]} href="/archive/">
+              全部 <span>{allPosts.length}</span>
+            </a>
+            {tags.map(({ name: tag, count }) => (
+              <a
+                class:list={["archive-tag-option", { active: tag === selectedTag }]}
+                href={`/archive/?tag=${encodeURIComponent(tag)}`}
+                aria-current={tag === selectedTag ? "page" : undefined}
+              >
+                {tag} <span>{count}</span>
+              </a>
+            ))}
+          </nav>
+        )
+      }
       {
         posts.length > 0 ? (
           <div class="post-list">
             {posts.map((post) => <PostRow post={post} />)}
           </div>
         ) : (
-          <div class="empty-state"><div><h2>暂时没有文章</h2><p>公开文章会出现在这里。</p></div></div>
+          <div class="empty-state">
+            <div>
+              <h2>{selectedTag ? "没有匹配的文章" : "暂时没有文章"}</h2>
+              <p>{selectedTag ? "可以选择其他标签，或查看全部文章。" : "公开文章会出现在这里。"}</p>
+              {selectedTag && <a class="inline-link" href="/archive/">查看全部文章</a>}
+            </div>
+          </div>
         )
       }
     </div>

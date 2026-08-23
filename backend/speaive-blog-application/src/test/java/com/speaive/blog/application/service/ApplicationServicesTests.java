@@ -12,6 +12,7 @@ import com.speaive.blog.application.port.out.markdown.MarkdownParseRequest;
 import com.speaive.blog.application.port.out.markdown.MarkdownPort;
 import com.speaive.blog.application.port.out.markdown.ParsedPostDocument;
 import com.speaive.blog.application.port.out.media.MediaContent;
+import com.speaive.blog.application.port.out.media.MediaReadScope;
 import com.speaive.blog.application.port.out.media.MediaStoragePort;
 import com.speaive.blog.application.port.out.media.StoredMedia;
 import com.speaive.blog.application.port.out.persistence.ArchiveReceipt;
@@ -36,6 +37,7 @@ import com.speaive.blog.domain.post.PostContent;
 import com.speaive.blog.domain.post.PostRevisionEventType;
 import com.speaive.blog.domain.post.PostStatus;
 import com.speaive.blog.domain.post.PostSummary;
+import com.speaive.blog.domain.post.PostVisibility;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.GenericArrayType;
@@ -51,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -81,6 +84,8 @@ class ApplicationServicesTests {
         assertEquals(Author.ADMIN_ID, imported.author().id());
         assertEquals("DRAFT", created.status());
         assertEquals("DRAFT", imported.status());
+        assertEquals("ADMIN_ONLY", created.visibility());
+        assertEquals("ADMIN_ONLY", imported.visibility());
         assertEquals(NOW, created.publishedAt());
         assertEquals(2, fixture.transactions.calls);
         assertTrue(fixture.transactions.outsideTransactionCalls.isEmpty());
@@ -217,7 +222,7 @@ class ApplicationServicesTests {
         Fixture fixture = new Fixture();
 
         StoredMediaResult stored = fixture.mediaService.storeMedia("fake.png", "image/png", new byte[]{1, 2});
-        MediaContentResult content = fixture.mediaService.readMedia(stored.relativePath());
+        MediaContentResult content = fixture.mediaService.readPublicMedia(stored.relativePath());
 
         assertEquals("/media/fake.png", stored.url());
         assertEquals("fake.png", stored.relativePath());
@@ -384,14 +389,14 @@ class ApplicationServicesTests {
         }
 
         @Override
-        public void add(Post post, PostRevisionEventType eventType) {
+        public void add(Post post, PostRevisionEventType eventType, Set<String> mediaPaths) {
             transactions.observe("posts.add:" + eventType.name());
             added.add(new AddedPost(post, eventType));
             current = post;
         }
 
         @Override
-        public void save(PostChange change) {
+        public void save(PostChange change, Set<String> mediaPaths) {
             transactions.observe("posts.save:" + change.eventType().name());
             saved.add(change);
             current = change.current();
@@ -449,12 +454,17 @@ class ApplicationServicesTests {
             transactions.observe("markdown.normalize");
             String resultSlug = normalizedSlug == null ? slug : normalizedSlug;
             return new ParsedPostDocument(resultSlug, command.title(), command.description(), publishedAt,
-                    command.tags(), command.cover(), command.body());
+                    command.tags(), command.cover(), PostVisibility.valueOf(command.visibility()), command.body());
         }
 
         @Override
         public String render(String markdown) {
             return "<p>" + markdown + "</p>";
+        }
+
+        @Override
+        public Set<String> referencedMediaPaths(String body, String cover) {
+            return Set.of();
         }
     }
 
@@ -465,7 +475,7 @@ class ApplicationServicesTests {
         }
 
         @Override
-        public MediaContent read(String relativePath) {
+        public MediaContent read(String relativePath, MediaReadScope scope) {
             return new MediaContent("image/png", new byte[]{1});
         }
     }

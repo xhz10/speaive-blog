@@ -17,6 +17,7 @@ public final class PostResponses {
             String cover,
             AuthorSummary author,
             String status,
+            String visibility,
             String body,
             String html,
             String version
@@ -33,6 +34,7 @@ public final class PostResponses {
             String cover,
             AuthorSummary author,
             String status,
+            String visibility,
             String version
     ) {
     }

@@ -5,6 +5,11 @@ import com.speaive.blog.interfaces.http.error.ApiErrorCode;
 import com.speaive.blog.interfaces.http.error.ApiHttpException;
 import com.speaive.blog.interfaces.http.media.MediaResponses.StoredMediaResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -23,6 +28,17 @@ public class StudioMediaController {
     public StudioMediaController(MediaUseCase media, MediaHttpMapper mapper) {
         this.media = media;
         this.mapper = mapper;
+    }
+
+    @GetMapping("/media/{*path}")
+    ResponseEntity<byte[]> read(@PathVariable String path) {
+        String normalizedPath = path.startsWith("/") ? path.substring(1) : path;
+        var content = media.readStudioMedia(normalizedPath);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, content.mimeType())
+                .header("X-Content-Type-Options", "nosniff")
+                .cacheControl(CacheControl.noStore())
+                .body(content.bytes());
     }
 
     @PostMapping(path = "/media", consumes = "multipart/form-data")

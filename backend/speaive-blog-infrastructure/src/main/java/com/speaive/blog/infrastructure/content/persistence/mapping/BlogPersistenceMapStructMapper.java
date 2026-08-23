@@ -9,11 +9,13 @@ import com.speaive.blog.domain.post.PostSlug;
 import com.speaive.blog.domain.post.PostSnapshot;
 import com.speaive.blog.domain.post.PostStatus;
 import com.speaive.blog.domain.post.PostSummary;
+import com.speaive.blog.domain.post.PostVisibility;
 import com.speaive.blog.infrastructure.content.persistence.po.AuthorStatusPo;
 import com.speaive.blog.infrastructure.content.persistence.po.AuthorTypePo;
 import com.speaive.blog.infrastructure.content.persistence.po.BlogAuthorPo;
 import com.speaive.blog.infrastructure.content.persistence.po.BlogPostPo;
 import com.speaive.blog.infrastructure.content.persistence.po.PostStatusPo;
+import com.speaive.blog.infrastructure.content.persistence.po.PostVisibilityPo;
 import com.speaive.blog.infrastructure.content.persistence.po.RevisionEventTypePo;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -59,6 +61,10 @@ public interface BlogPersistenceMapStructMapper {
     PostStatus toDomain(PostStatusPo status);
 
     PostStatusPo toPo(PostStatus status);
+
+    PostVisibility toDomain(PostVisibilityPo visibility);
+
+    PostVisibilityPo toPo(PostVisibility visibility);
 
     AuthorType toDomain(AuthorTypePo type);
 

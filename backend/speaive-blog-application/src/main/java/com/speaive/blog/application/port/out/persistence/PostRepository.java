@@ -7,6 +7,7 @@ import com.speaive.blog.domain.post.PostSummary;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface PostRepository {
     List<PostSummary> findAll(PostQueryScope scope);
@@ -15,9 +16,9 @@ public interface PostRepository {
 
     Optional<Post> lockBySlug(String slug);
 
-    void add(Post post, PostRevisionEventType eventType);
+    void add(Post post, PostRevisionEventType eventType, Set<String> mediaPaths);
 
-    void save(PostChange change);
+    void save(PostChange change, Set<String> mediaPaths);
 
     ArchiveReceipt archive(PostChange change);
 }

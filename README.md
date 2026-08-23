@@ -9,6 +9,8 @@
 - PostgreSQL 17 + pgvector：内容用户、文章、修订记录和媒体元数据；当前只启用 `vector` 扩展，向量表和嵌入模型等到引入 Spring AI 时再设计；
 - 独立宿主机数据目录：正文图片、封面原文件和 Markdown 投递箱；
 - 单管理员 Session 登录、BCrypt 密码、CSRF 防护和登录限流；
+- 文章状态与权限分离：公开文章供访客阅读，私密文章和对应图片只对登录管理员开放；
+- CodeMirror Markdown 写作、回车生成标签、标签归档筛选和管理员阅读预览；
 - Spring Boot 仍是一个部署单元，后端以 `domain`、`application`、`infrastructure`、`start` 四个 Maven 模块约束代码边界；`start` 同时承担 Web 入站、启动入口和组合根，并分别直接依赖 `application` 契约与 `infrastructure` 实现，`infrastructure` 则分别直接依赖 `application` 与 `domain`。
 
 浏览器只访问 Astro。Astro 在容器网络内访问 Spring Boot，Spring Boot 再访问 PostgreSQL；因此不需要给浏览器配置跨域，也不需要把数据库或后端端口暴露到公网。
@@ -125,6 +127,8 @@ pnpm build
 ```
 
 后端模块说明见 [backend/README.md](backend/README.md)。
+
+权限业务、分支合并与升级安全见 [docs/content-visibility.md](docs/content-visibility.md)，编辑器和标签说明见 [docs/writing-studio.md](docs/writing-studio.md)。
 
 ## Credits
 

@@ -54,8 +54,9 @@ public class BlogBackendConfiguration {
     PostRepository postRepository(
             BlogPostDatabaseMapper posts,
             BlogAuthorDatabaseMapper authors,
+            BlogMediaDatabaseMapper media,
             BlogPersistenceMapStructMapper mapping) {
-        return new PostgresPostRepository(posts, authors, mapping);
+        return new PostgresPostRepository(posts, authors, media, mapping);
     }
 
     @Bean

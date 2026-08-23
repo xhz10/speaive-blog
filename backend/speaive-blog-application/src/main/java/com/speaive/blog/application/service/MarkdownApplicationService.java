@@ -78,7 +78,8 @@ public final class MarkdownApplicationService implements MarkdownUseCase, Markdo
         Instant now = clock.instant();
         ParsedPostDocument parsed = markdown.parse(new MarkdownParseRequest(fileName, source, now));
         Post post = PostApplicationSupport.newDraft(parsed, requiredContentAuthor(), now);
-        posts.add(post, PostRevisionEventType.IMPORT);
+        posts.add(post, PostRevisionEventType.IMPORT,
+                markdown.referencedMediaPaths(post.body(), post.cover()));
         return post;
     }
 

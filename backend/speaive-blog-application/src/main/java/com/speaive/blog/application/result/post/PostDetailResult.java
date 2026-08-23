@@ -13,6 +13,7 @@ public record PostDetailResult(
         String cover,
         AuthorResult author,
         String status,
+        String visibility,
         String body,
         String html,
         String version

@@ -42,7 +42,13 @@ if (!post) {
                   <span>更新于 <time datetime={post.updatedAt.toISOString()}>{formatDateTime(post.updatedAt)}</time></span>
                 )
               }
-              {post.tags.length > 0 && <span>{post.tags.join(" · ")}</span>}
+              {post.tags.length > 0 && (
+                <ul class="article-tag-list" aria-label="文章标签">
+                  {post.tags.map((tag) => (
+                    <li><a href={`/archive/?tag=${encodeURIComponent(tag)}`}>#{tag}</a></li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
           {

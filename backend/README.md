@@ -57,7 +57,7 @@ speaive-blog-start（Web 入站 / 启动入口 / 组合根）
 env -u JAVA_HOME sh -c '. ../scripts/java-25.sh && use_java_25 && ./mvnw test'
 ```
 
-发布前使用同一 Java 25 环境执行 `./mvnw clean verify`。Flyway 会在测试容器的空数据库执行完整迁移，并通过独立测试验证带活动文章和仅归档修订的 V1 数据升级到 V2。不要修改已发布迁移，也不要使用 H2 代替 PostgreSQL 验证锁、事务或 SQL 方言。
+发布前使用同一 Java 25 环境执行 `./mvnw clean verify`。Flyway 会在测试容器的空数据库执行完整迁移，并通过独立测试验证带活动文章、仅归档修订和媒体引用的 V1 数据安全升级到 V4。不要修改已发布迁移，也不要使用 H2 代替 PostgreSQL 验证锁、事务或 SQL 方言。
 
 ## 独立启动
 

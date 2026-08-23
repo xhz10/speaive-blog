@@ -1,6 +1,6 @@
 # Speaive Blog
 
-一个面向个人、低频写作的博客。公开站点负责阅读，`/studio` 提供登录、在线写作、Markdown 导入、图片上传和文章可见性设置；文章与程序代码分开保存，不进入 GitHub。
+一个面向个人、低频写作的博客。公开站点负责阅读，`/studio` 提供登录、Markdown 长文编辑、标签导航、Markdown 导入、图片上传和文章可见性设置；文章与程序代码分开保存，不进入 GitHub。
 
 ## 当前架构
 
@@ -75,6 +75,8 @@ SPEAIVE_DATA_DIR/
 直接投递时先上传为隐藏的 `.uploading` 临时文件，完成后原子改名成 `.md`。后端会自动导入 PostgreSQL，并将源文件移动到 `imported/` 或 `rejected/`；完整格式和命令见 [docs/content-files.md](docs/content-files.md)。
 
 文章状态与阅读权限彼此独立：已发布文章也可以设置为“仅管理员”，此时不会进入首页、归档、RSS 或 Sitemap，只能登录后从写作台阅读。新文章默认仅管理员，历史文章升级后保持公开。设计、安全边界与使用说明见 [docs/content-visibility.md](docs/content-visibility.md)。
+
+写作台使用 Markdown 源码编辑器，并把标签作为公开文章之间的导航入口。编辑快捷键、标签输入规则和业务边界见 [docs/writing-studio.md](docs/writing-studio.md)。
 
 备份时两部分必须一起保存，且备份期间不要发布或上传文章。项目脚本会同时生成 PostgreSQL 自包含 dump 和数据目录归档：
 

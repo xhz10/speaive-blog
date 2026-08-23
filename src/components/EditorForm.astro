@@ -1,10 +1,17 @@
 ---
 import {
   Archive,
+  Bold,
   Check,
+  CodeXml,
   Eye,
+  Heading2,
   ImagePlus,
+  Italic,
+  Link2,
+  List,
   LockKeyhole,
+  Quote,
   Save,
   Send,
   TriangleAlert,
@@ -102,10 +109,28 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
           <option value="PUBLIC" selected={post?.visibility === "PUBLIC"}>所有访客</option>
         </select>
       </label>
-      <label class="field">
+      <div class="field">
         <span class="field-label">标签</span>
-        <input class="input" type="text" name="tags" value={post?.tags.join(", ") ?? ""} placeholder="阅读, 随记" data-tags />
-      </label>
+        <div class="tag-input-shell" data-tag-input-shell>
+          <div class="tag-chip-list" data-tag-list aria-label="已添加的标签">
+            {post?.tags.map((tag) => (
+              <span class="tag-chip">
+                <span>{tag}</span>
+                <button type="button" aria-label={`删除标签 ${tag}`} data-remove-tag={tag}>×</button>
+              </span>
+            ))}
+          </div>
+          <input
+            type="text"
+            maxlength="40"
+            placeholder="输入标签后按回车"
+            aria-label="添加标签"
+            autocomplete="off"
+            data-tag-input
+          />
+        </div>
+        <span class="field-hint">回车生成标签，最多 20 个</span>
+      </div>
       <label class="field cover-field">
         <span class="field-label">封面</span>
         <input class="input" type="text" name="cover" value={post?.cover ?? ""} placeholder="上传图片后可以设为封面" data-cover />
@@ -131,6 +156,30 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
           </button>
         </div>
       </div>
+      <div class="markdown-toolbar" role="toolbar" aria-label="Markdown 格式工具">
+        <button type="button" title="二级标题" aria-label="插入二级标题" data-markdown-action="heading">
+          <Heading2 size={16} stroke-width={1.8} aria-hidden="true" />
+        </button>
+        <button type="button" title="加粗（⌘/Ctrl+B）" aria-label="加粗" data-markdown-action="bold">
+          <Bold size={16} stroke-width={1.8} aria-hidden="true" />
+        </button>
+        <button type="button" title="斜体（⌘/Ctrl+I）" aria-label="斜体" data-markdown-action="italic">
+          <Italic size={16} stroke-width={1.8} aria-hidden="true" />
+        </button>
+        <button type="button" title="链接" aria-label="插入链接" data-markdown-action="link">
+          <Link2 size={16} stroke-width={1.8} aria-hidden="true" />
+        </button>
+        <button type="button" title="无序列表" aria-label="插入无序列表" data-markdown-action="list">
+          <List size={16} stroke-width={1.8} aria-hidden="true" />
+        </button>
+        <button type="button" title="引用" aria-label="插入引用" data-markdown-action="quote">
+          <Quote size={16} stroke-width={1.8} aria-hidden="true" />
+        </button>
+        <button type="button" title="代码块" aria-label="插入代码块" data-markdown-action="code">
+          <CodeXml size={16} stroke-width={1.8} aria-hidden="true" />
+        </button>
+        <span class="markdown-toolbar-hint">⌘/Ctrl+F 搜索</span>
+      </div>
       <div class="media-result" hidden data-media-result>
         <Check size={15} stroke-width={1.8} aria-hidden="true" />
         <span data-media-message></span>
@@ -144,6 +193,11 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
         spellcheck="true"
         data-body
       >{post?.body ?? ""}</textarea>
+      <div class="markdown-editor-host" data-markdown-editor></div>
+      <div class="markdown-editor-status" aria-live="polite">
+        <span data-document-count>0 字 · 1 行</span>
+        <span>Markdown</span>
+      </div>
       <div class="drop-overlay" hidden data-drop-overlay>松开以上传图片</div>
     </section>
 
@@ -164,6 +218,27 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
 <script is:inline id="editor-initial-state" type="application/json" set:html={initialState}></script>
 
 <script>
+  import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+  import {
+    defaultHighlightStyle,
+    foldGutter,
+    foldKeymap,
+    indentOnInput,
+    syntaxHighlighting
+  } from "@codemirror/language";
+  import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
+  import { EditorSelection, EditorState } from "@codemirror/state";
+  import {
+    drawSelection,
+    dropCursor,
+    EditorView,
+    highlightActiveLine,
+    highlightActiveLineGutter,
+    highlightSpecialChars,
+    keymap,
+    lineNumbers,
+    placeholder as editorPlaceholder
+  } from "@codemirror/view";
   import { StudioClientError, studioRequest } from "../lib/studio/client";
   import type {
     CreatePostPayload,
@@ -181,18 +256,22 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
   const stateScript = document.querySelector<HTMLScriptElement>("#editor-initial-state");
   if (form && stateScript) {
     const parsed = JSON.parse(stateScript.textContent || "null") as StudioPostDetail | null;
-    setupEditor(form, parsed);
+    void setupEditor(form, parsed);
   }
 
-  function setupEditor(editorForm: HTMLFormElement, initialPost: StudioPostDetail | null) {
+  async function setupEditor(editorForm: HTMLFormElement, initialPost: StudioPostDetail | null) {
     const titleInput = editorForm.querySelector<HTMLInputElement>("[data-title]")!;
     const descriptionInput = editorForm.querySelector<HTMLTextAreaElement>("[data-description]")!;
     const slugInput = editorForm.querySelector<HTMLInputElement>("[data-slug]")!;
     const publishedAtInput = editorForm.querySelector<HTMLInputElement>("[data-published-at]")!;
     const visibilityInput = editorForm.querySelector<HTMLSelectElement>("[data-visibility]")!;
-    const tagsInput = editorForm.querySelector<HTMLInputElement>("[data-tags]")!;
+    const tagInputShell = editorForm.querySelector<HTMLElement>("[data-tag-input-shell]")!;
+    const tagList = editorForm.querySelector<HTMLElement>("[data-tag-list]")!;
+    const tagInput = editorForm.querySelector<HTMLInputElement>("[data-tag-input]")!;
     const coverInput = editorForm.querySelector<HTMLInputElement>("[data-cover]")!;
     const bodyInput = editorForm.querySelector<HTMLTextAreaElement>("[data-body]")!;
+    const markdownHost = editorForm.querySelector<HTMLElement>("[data-markdown-editor]")!;
+    const documentCount = editorForm.querySelector<HTMLElement>("[data-document-count]")!;
     const saveButton = editorForm.querySelector<HTMLButtonElement>("[data-save-draft]")!;
     const publishButton = editorForm.querySelector<HTMLButtonElement>("[data-publish]")!;
     const publishLabel = editorForm.querySelector<HTMLElement>("[data-publish-label]")!;
@@ -233,6 +312,9 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
     let previewTimer: number | undefined;
     let previewController: AbortController | undefined;
     let lastUploadedUrl = "";
+    let tags = [...(initialPost?.tags ?? [])];
+    let markdownView: EditorView | null = null;
+    let syncingMarkdown = false;
     const localDraftKey = resolveLocalDraftKey();
     let savedSnapshot = snapshot();
     const request = <T = void,>(path: string, init: RequestInit = {}) =>
@@ -241,12 +323,24 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
     loginAgain.href = `/studio/login?next=${encodeURIComponent(window.location.pathname)}`;
 
     if (!post) restoreLocalDraft();
-    syncDirtyFlag();
+    renderTags();
+    markdownView = await createMarkdownEditor(markdownHost, bodyInput, (value) => {
+      bodyInput.value = value;
+      if (syncingMarkdown) return;
+      markDirty();
+      updateDocumentCount();
+      schedulePreview(450);
+    });
+    dropZone.dataset.editorEnhanced = "true";
+    updateDocumentCount();
+    if (snapshot() !== savedSnapshot) markDirty();
+    else syncDirtyFlag();
     syncControls();
     if (!post && bodyInput.value.trim()) schedulePreview(0);
 
     editorForm.addEventListener("submit", (event) => event.preventDefault());
     editorForm.addEventListener("input", (event) => {
+      if (event.target === tagInput) return;
       if (event.target === titleInput && !slugTouched && !slugInput.readOnly) {
         slugInput.value = toSlug(titleInput.value);
       }
@@ -254,6 +348,29 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
       markDirty();
       if (event.target === bodyInput) schedulePreview(700);
     });
+
+    tagInputShell.addEventListener("click", () => tagInput.focus());
+    tagInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === "," || event.key === "，" || event.key === "、") {
+        event.preventDefault();
+        commitTagInput();
+        return;
+      }
+      if (event.key === "Backspace" && !tagInput.value && tags.length > 0) {
+        event.preventDefault();
+        removeTag(tags.at(-1)!);
+      }
+    });
+    tagInput.addEventListener("blur", commitTagInput);
+    tagList.addEventListener("click", (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-remove-tag]");
+      if (!button) return;
+      removeTag(button.dataset.removeTag ?? "");
+    });
+
+    for (const button of editorForm.querySelectorAll<HTMLButtonElement>("[data-markdown-action]")) {
+      button.addEventListener("click", () => applyMarkdownAction(button.dataset.markdownAction ?? ""));
+    }
 
     saveButton.addEventListener("click", () => void runCommand(async () => {
       await saveDraft(true);
@@ -278,7 +395,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
       mediaResult.hidden = true;
     });
 
-    bodyInput.addEventListener("paste", (event) => {
+    markdownHost.addEventListener("paste", (event) => {
       const image = Array.from(event.clipboardData?.files ?? []).find((file) => file.type.startsWith("image/"));
       if (!image) return;
       event.preventDefault();
@@ -319,7 +436,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
         title: titleInput.value.trim(),
         description: descriptionInput.value.trim(),
         publishedAt: resolvePublishedAt(),
-        tags: tagsInput.value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean),
+        tags: [...tags],
         cover: coverInput.value.trim() || null,
         visibility: visibilityInput.value as PostVisibility,
         body: bodyInput.value
@@ -345,6 +462,101 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
       setSaveState("dirty", status === "PUBLISHED" ? "未发布修改" : "未保存");
       if (!post) persistLocalDraft();
       scheduleAutosave();
+    }
+
+    function commitTagInput() {
+      const candidates = tagInput.value.split(/[,，、\n]+/).map(normalizeTag).filter(Boolean);
+      if (candidates.length === 0) return;
+
+      let changed = false;
+      let validationError = "";
+      for (const candidate of candidates) {
+        if (candidate.length > 40) {
+          validationError = "单个标签不能超过 40 个字符。";
+          continue;
+        }
+        if (tags.some((tag) => tag.toLocaleLowerCase("zh-CN") === candidate.toLocaleLowerCase("zh-CN"))) {
+          continue;
+        }
+        if (tags.length >= 20) {
+          validationError = "一篇文章最多添加 20 个标签。";
+          break;
+        }
+        tags.push(candidate);
+        changed = true;
+      }
+      tagInput.value = "";
+      if (changed) {
+        renderTags();
+        markDirty();
+      }
+      if (validationError) showError(validationError);
+    }
+
+    function removeTag(tag: string) {
+      const index = tags.indexOf(tag);
+      if (index < 0) return;
+      tags.splice(index, 1);
+      renderTags();
+      markDirty();
+      tagInput.focus();
+    }
+
+    function setTags(values: string[]) {
+      const seen = new Set<string>();
+      tags = values.map(normalizeTag).filter((tag) => {
+        const key = tag.toLocaleLowerCase("zh-CN");
+        if (!tag || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).slice(0, 20);
+      renderTags();
+    }
+
+    function renderTags() {
+      const chips = tags.map((tag) => {
+        const chip = document.createElement("span");
+        chip.className = "tag-chip";
+        const label = document.createElement("span");
+        label.textContent = tag;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.dataset.removeTag = tag;
+        remove.setAttribute("aria-label", `删除标签 ${tag}`);
+        remove.textContent = "×";
+        chip.append(label, remove);
+        return chip;
+      });
+      tagList.replaceChildren(...chips);
+    }
+
+    function updateDocumentCount() {
+      const characters = Array.from(bodyInput.value.replace(/\s/g, "")).length;
+      const lines = bodyInput.value.split("\n").length;
+      documentCount.textContent = `${characters} 字符 · ${lines} 行`;
+    }
+
+    function setMarkdownValue(value: string) {
+      bodyInput.value = value;
+      if (!markdownView || markdownView.state.doc.toString() === value) {
+        updateDocumentCount();
+        return;
+      }
+      syncingMarkdown = true;
+      markdownView.dispatch({ changes: { from: 0, to: markdownView.state.doc.length, insert: value } });
+      syncingMarkdown = false;
+      updateDocumentCount();
+    }
+
+    function applyMarkdownAction(action: string) {
+      if (!markdownView) return;
+      if (action === "bold") toggleInlineMarkup(markdownView, "**", "**", "加粗文字");
+      else if (action === "italic") toggleInlineMarkup(markdownView, "*", "*", "斜体文字");
+      else if (action === "link") insertMarkdownLink(markdownView);
+      else if (action === "heading") toggleLinePrefix(markdownView, "## ");
+      else if (action === "list") toggleLinePrefix(markdownView, "- ");
+      else if (action === "quote") toggleLinePrefix(markdownView, "> ");
+      else if (action === "code") toggleInlineMarkup(markdownView, "```\n", "\n```", "代码");
     }
 
     async function saveDraft(explicit: boolean): Promise<StudioPostDetail | null> {
@@ -544,9 +756,21 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
     }
 
     function insertAtCursor(markdown: string) {
+      if (markdownView) {
+        const selection = markdownView.state.selection.main;
+        const before = markdownView.state.doc.sliceString(0, selection.from);
+        const needsLeadingLine = before.length > 0 && !before.endsWith("\n");
+        const insertion = `${needsLeadingLine ? "\n" : ""}${markdown}\n`;
+        markdownView.dispatch({
+          changes: { from: selection.from, to: selection.to, insert: insertion },
+          selection: { anchor: selection.from + insertion.length },
+          scrollIntoView: true
+        });
+        markdownView.focus();
+        return;
+      }
       const before = bodyInput.value.slice(0, bodyInput.selectionStart);
-      const needsLeadingLine = before.length > 0 && !before.endsWith("\n");
-      const insertion = `${needsLeadingLine ? "\n" : ""}${markdown}\n`;
+      const insertion = `${before.length > 0 && !before.endsWith("\n") ? "\n" : ""}${markdown}\n`;
       bodyInput.setRangeText(insertion, bodyInput.selectionStart, bodyInput.selectionEnd, "end");
       bodyInput.dispatchEvent(new InputEvent("input", { bubbles: true }));
       bodyInput.focus();
@@ -563,10 +787,10 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
         titleInput.value = next.title;
         descriptionInput.value = next.description;
         publishedAtInput.value = next.publishedAt.slice(0, 10);
-        tagsInput.value = next.tags.join(", ");
+        setTags(next.tags);
         coverInput.value = next.cover ?? "";
         visibilityInput.value = next.visibility;
-        bodyInput.value = next.body;
+        setMarkdownValue(next.body);
         previewPane.innerHTML = next.html;
       }
       conflicted = false;
@@ -681,7 +905,7 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
         descriptionInput.value = draft.description ?? "";
         slugInput.value = draft.slug ?? "";
         publishedAtInput.value = draft.publishedAt?.slice(0, 10) ?? publishedAtInput.value;
-        tagsInput.value = draft.tags?.join(", ") ?? "";
+        setTags(draft.tags ?? []);
         coverInput.value = draft.cover ?? "";
         visibilityInput.value = draft.visibility ?? "ADMIN_ONLY";
         bodyInput.value = draft.body ?? "";
@@ -705,6 +929,170 @@ const publishedAt = post?.publishedAt?.slice(0, 10) ?? new Date().toISOString().
     function syncDirtyFlag() {
       editorForm.dataset.dirty = String(dirty);
     }
+  }
+
+  async function createMarkdownEditor(
+    host: HTMLElement,
+    source: HTMLTextAreaElement,
+    onChange: (value: string) => void
+  ): Promise<EditorView> {
+    const { markdown } = await import("@codemirror/lang-markdown");
+    const writerTheme = EditorView.theme({
+      "&": {
+        backgroundColor: "#ffffff",
+        color: "#252723",
+        fontSize: "0.9rem"
+      },
+      "&.cm-focused": { outline: "none" },
+      ".cm-scroller": {
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+        lineHeight: "1.8"
+      },
+      ".cm-content": { padding: "22px 0", caretColor: "#c83e2c" },
+      ".cm-line": { padding: "0 22px" },
+      ".cm-gutters": {
+        border: "0",
+        borderRight: "1px solid #ecebe6",
+        backgroundColor: "#fbfbf8",
+        color: "#aaa9a2",
+        paddingTop: "22px"
+      },
+      ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "#faf7f3" },
+      ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
+        backgroundColor: "#f3d8d2"
+      },
+      ".cm-cursor": { borderLeftColor: "#c83e2c" }
+    });
+
+    return new EditorView({
+      parent: host,
+      doc: source.value,
+      extensions: [
+        lineNumbers(),
+        highlightActiveLineGutter(),
+        highlightSpecialChars(),
+        history(),
+        foldGutter(),
+        drawSelection(),
+        dropCursor(),
+        EditorState.allowMultipleSelections.of(true),
+        indentOnInput(),
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        highlightActiveLine(),
+        highlightSelectionMatches(),
+        keymap.of([
+          { key: "Mod-b", run: (view) => toggleInlineMarkup(view, "**", "**", "加粗文字") },
+          { key: "Mod-i", run: (view) => toggleInlineMarkup(view, "*", "*", "斜体文字") },
+          indentWithTab,
+          ...defaultKeymap,
+          ...searchKeymap,
+          ...historyKeymap,
+          ...foldKeymap
+        ]),
+        markdown(),
+        EditorView.lineWrapping,
+        editorPlaceholder("从这里开始写……"),
+        EditorView.contentAttributes.of({
+          "aria-label": "Markdown 正文",
+          autocapitalize: "sentences",
+          spellcheck: "true"
+        }),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) onChange(update.state.doc.toString());
+        }),
+        writerTheme
+      ]
+    });
+  }
+
+  function toggleInlineMarkup(
+    view: EditorView,
+    before: string,
+    after: string,
+    placeholder: string
+  ): boolean {
+    const selection = view.state.selection.main;
+    const selected = view.state.doc.sliceString(selection.from, selection.to);
+    const hasMarkup = selection.from >= before.length
+      && view.state.doc.sliceString(selection.from - before.length, selection.from) === before
+      && view.state.doc.sliceString(selection.to, selection.to + after.length) === after;
+
+    if (hasMarkup) {
+      view.dispatch({
+        changes: [
+          { from: selection.from - before.length, to: selection.from, insert: "" },
+          { from: selection.to, to: selection.to + after.length, insert: "" }
+        ],
+        selection: EditorSelection.range(selection.from - before.length, selection.to - before.length),
+        scrollIntoView: true
+      });
+      view.focus();
+      return true;
+    }
+
+    const content = selected || placeholder;
+    view.dispatch({
+      changes: { from: selection.from, to: selection.to, insert: `${before}${content}${after}` },
+      selection: EditorSelection.range(
+        selection.from + before.length,
+        selection.from + before.length + content.length
+      ),
+      scrollIntoView: true
+    });
+    view.focus();
+    return true;
+  }
+
+  function toggleLinePrefix(view: EditorView, prefix: string): boolean {
+    const selection = view.state.selection.main;
+    const first = view.state.doc.lineAt(selection.from);
+    const selectionEnd = selection.to > selection.from && selection.to > 0
+      && view.state.doc.sliceString(selection.to - 1, selection.to) === "\n"
+      ? selection.to - 1
+      : selection.to;
+    const last = view.state.doc.lineAt(selectionEnd);
+    const lines = [];
+    for (let position = first.from; position <= last.to;) {
+      const line = view.state.doc.lineAt(position);
+      lines.push(line);
+      if (line.to >= last.to) break;
+      position = line.to + 1;
+    }
+    const allPrefixed = lines.every((line) => line.text.startsWith(prefix));
+    const headingPattern = prefix === "## " ? /^#{1,6}\s+/ : null;
+    view.dispatch({
+      changes: lines.map((line) => {
+        const existing = headingPattern?.exec(line.text)?.[0]
+          ?? (line.text.startsWith(prefix) ? prefix : "");
+        return {
+          from: line.from,
+          to: line.from + existing.length,
+          insert: allPrefixed ? "" : prefix
+        };
+      }),
+      scrollIntoView: true
+    });
+    view.focus();
+    return true;
+  }
+
+  function insertMarkdownLink(view: EditorView): boolean {
+    const selection = view.state.selection.main;
+    const label = view.state.doc.sliceString(selection.from, selection.to) || "链接文字";
+    const url = "https://";
+    const insertion = `[${label}](${url})`;
+    const urlStart = selection.from + label.length + 3;
+    view.dispatch({
+      changes: { from: selection.from, to: selection.to, insert: insertion },
+      selection: EditorSelection.range(urlStart, urlStart + url.length),
+      scrollIntoView: true
+    });
+    view.focus();
+    return true;
+  }
+
+  function normalizeTag(value: string): string {
+    return value.trim().replace(/\s+/g, " ");
   }
 
   function toSlug(value: string): string {

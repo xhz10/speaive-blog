@@ -32,7 +32,11 @@ const date = new Intl.DateTimeFormat("zh-CN", {
     {
       post.tags.length > 0 && (
         <ul class="tag-list" aria-label="文章标签">
-          {post.tags.map((tag) => <li class="tag">{tag}</li>)}
+          {post.tags.map((tag) => (
+            <li class="tag">
+              <a href={`/archive/?tag=${encodeURIComponent(tag)}`}>{tag}</a>
+            </li>
+          ))}
         </ul>
       )
     }

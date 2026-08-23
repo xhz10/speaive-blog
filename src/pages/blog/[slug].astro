@@ -41,7 +41,13 @@ const formatDate = (date: Date) => new Intl.DateTimeFormat("zh-CN", {
             <div class="article-meta">
               <time datetime={post.publishedAt.toISOString()}>{formatDate(post.publishedAt)}</time>
               {post.updatedAt && <span>更新于 {formatDate(post.updatedAt)}</span>}
-              {post.tags.length > 0 && <span>{post.tags.join(" · ")}</span>}
+              {post.tags.length > 0 && (
+                <ul class="article-tag-list" aria-label="文章标签">
+                  {post.tags.map((tag) => (
+                    <li><a href={`/archive/?tag=${encodeURIComponent(tag)}`}>#{tag}</a></li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
           {

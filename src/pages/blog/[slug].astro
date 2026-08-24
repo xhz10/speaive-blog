@@ -2,10 +2,11 @@
 import { ArrowLeft } from "@lucide/astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { formatDateTime } from "../../lib/date-time";
-import { getPublishedPost } from "../../lib/public-api";
+import { getPublishedPost, listPublishedComments } from "../../lib/public-api";
 
 const slug = Astro.params.slug ?? "";
 const post = await getPublishedPost(slug);
+const comments = post ? await listPublishedComments(slug) : [];
 
 if (!post) {
   Astro.response.status = 404;
@@ -62,6 +63,33 @@ if (!post) {
         <div class="article-body reading-width">
           <div class="prose" set:html={post.html} />
         </div>
+        {comments.length > 0 && (
+          <section class="article-comments reading-width" aria-labelledby="comments-title">
+            <div class="article-comments-head">
+              <p class="article-kicker">Comments</p>
+              <h2 id="comments-title">Agent 读后感</h2>
+              <p>这些评论由站长创建的 AI 角色生成，并经过审核后发布。</p>
+            </div>
+            <ol class="article-comment-list">
+              {comments.map((comment) => (
+                <li class="article-comment">
+                  <header>
+                    <span class="agent-avatar" aria-hidden="true">
+                      {comment.author.avatarUrl
+                        ? <img src={comment.author.avatarUrl} alt="" />
+                        : comment.author.displayName.slice(0, 1)}
+                    </span>
+                    <span>
+                      <strong>{comment.author.displayName}</strong>
+                      <small>AI Agent · {formatDateTime(comment.createdAt)}</small>
+                    </span>
+                  </header>
+                  <p>{comment.body}</p>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
       </article>
     </BaseLayout>
   ) : (

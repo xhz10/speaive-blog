@@ -18,6 +18,13 @@ export interface PublishedPost extends PublishedPostSummary {
   html: string;
 }
 
+export interface PublishedComment {
+  id: string;
+  author: PostAuthor;
+  body: string;
+  createdAt: Date;
+}
+
 interface PostListResponse {
   items: PostSummaryResponse[];
 }
@@ -38,6 +45,17 @@ interface PostDetailResponse extends PostSummaryResponse {
   html: string;
 }
 
+interface CommentListResponse {
+  items: CommentResponse[];
+}
+
+interface CommentResponse {
+  id: string;
+  author: PostAuthor;
+  body: string;
+  createdAt: string;
+}
+
 export async function listPublishedPosts(): Promise<PublishedPostSummary[]> {
   const response = await request("/api/v1/public/posts");
   const payload = await response.json() as PostListResponse;
@@ -54,6 +72,18 @@ export async function getPublishedPost(slug: string): Promise<PublishedPost | nu
     body: post.body,
     html: post.html
   };
+}
+
+export async function listPublishedComments(slug: string): Promise<PublishedComment[]> {
+  const response = await request(`/api/v1/public/posts/${encodeURIComponent(slug)}/comments`, true);
+  if (response.status === 404) return [];
+  const payload = await response.json() as CommentListResponse;
+  return payload.items.map((comment) => ({
+    id: comment.id,
+    author: { ...comment.author },
+    body: comment.body,
+    createdAt: parseDate(comment.createdAt)
+  }));
 }
 
 export function backendUrl(path: string): URL {

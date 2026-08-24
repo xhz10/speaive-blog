@@ -6,6 +6,8 @@ import com.speaive.blog.application.error.BlogErrorCode;
 import com.speaive.blog.application.error.BlogException;
 import com.speaive.blog.application.port.in.importing.MarkdownInboxUseCase;
 import com.speaive.blog.application.port.in.post.PostUseCase;
+import com.speaive.blog.application.port.out.ai.AiCommentGeneration;
+import com.speaive.blog.application.port.out.ai.AiCommentGenerationPort;
 import com.speaive.blog.application.result.importing.MarkdownImportOutcome;
 import com.speaive.blog.application.result.post.PostDetailResult;
 import com.speaive.blog.interfaces.importing.MarkdownInboxImporter;
@@ -23,6 +25,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -97,6 +100,9 @@ class StudioApiIntegrationTests {
     private final PostUseCase posts;
     private final MarkdownInboxUseCase inboxImports;
 
+    @MockitoBean
+    AiCommentGenerationPort aiComments;
+
     @Autowired
     StudioApiIntegrationTests(
             MockMvc mockMvc,
@@ -122,6 +128,9 @@ class StudioApiIntegrationTests {
         jdbc.update("DELETE FROM blog_user WHERE id <> ?", ADMIN_ID);
         clearDirectory(DATA_DIRECTORY);
         Files.createDirectories(DATA_DIRECTORY.resolve("inbox"));
+        when(aiComments.isAvailable()).thenReturn(true);
+        when(aiComments.generate(any())).thenReturn(
+                new AiCommentGeneration("这篇文章把一个普通瞬间写得很具体，也留下了继续追问的空间。", "test-model", 12, 18));
     }
 
     @AfterAll
@@ -240,6 +249,147 @@ class StudioApiIntegrationTests {
                 String.class,
                 "server-assigned-author"))
                 .isEqualTo(ADMIN_ID);
+    }
+
+    @Test
+    void adminCreatesAgentGeneratesPendingCommentAndControlsPublicVisibility() throws Exception {
+        Client client = login();
+        MvcResult createdAgent = mockMvc.perform(post("/api/v1/studio/agents")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username":"empathetic-reader",
+                                  "displayName":"共情读者",
+                                  "avatarUrl":null,
+                                  "systemPrompt":"阅读文章并给出具体、克制的共情回应。",
+                                  "model":null,
+                                  "temperature":0.7,
+                                  "canProcessPrivate":false,
+                                  "enabled":true
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.username").value("empathetic-reader"))
+                .andExpect(jsonPath("$.enabled").value(true))
+                .andExpect(jsonPath("$.version").value(1))
+                .andReturn();
+        String agentId = JsonPath.read(createdAgent.getResponse().getContentAsString(), "$.id");
+
+        MvcResult createdPost = mockMvc.perform(post("/api/v1/studio/posts")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createJson("ai-comment-flow", "AI 评论验收")))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String postVersion = JsonPath.read(createdPost.getResponse().getContentAsString(), "$.version");
+        mockMvc.perform(post("/api/v1/studio/posts/ai-comment-flow/publish")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":\"" + postVersion + "\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/public/posts/ai-comment-flow/comments"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(0)));
+
+        MvcResult generated = mockMvc.perform(post("/api/v1/studio/posts/ai-comment-flow/ai-comments")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"agentId\":\"" + agentId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.author.type").value("AGENT"))
+                .andExpect(jsonPath("$.body").value(containsString("普通瞬间")))
+                .andReturn();
+        String commentId = JsonPath.read(generated.getResponse().getContentAsString(), "$.id");
+
+        mockMvc.perform(get("/api/v1/public/posts/ai-comment-flow/comments"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(0)));
+        mockMvc.perform(get("/api/v1/studio/posts/ai-comment-flow/comments").session(client.session()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].status").value("PENDING"));
+
+        mockMvc.perform(post("/api/v1/studio/comments/" + commentId + "/publish")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PUBLISHED"));
+        mockMvc.perform(get("/api/v1/public/posts/ai-comment-flow/comments"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].author.displayName").value("共情读者"));
+
+        mockMvc.perform(post("/api/v1/studio/comments/" + commentId + "/hide")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("HIDDEN"));
+        mockMvc.perform(get("/api/v1/public/posts/ai-comment-flow/comments"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(0)));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM blog_agent_run WHERE agent_id = ?", String.class, agentId))
+                .isEqualTo("SUCCEEDED");
+    }
+
+    @Test
+    void privatePostRequiresExplicitAgentPermissionAndSuccessfulRunIsIdempotent() throws Exception {
+        Client client = login();
+        MvcResult createdAgent = mockMvc.perform(post("/api/v1/studio/agents")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username":"public-only-reader",
+                                  "displayName":"公开文章读者",
+                                  "avatarUrl":null,
+                                  "systemPrompt":"只评论明确提供的公开文章。",
+                                  "model":null,
+                                  "temperature":0.4,
+                                  "canProcessPrivate":false,
+                                  "enabled":true
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String agentId = JsonPath.read(createdAgent.getResponse().getContentAsString(), "$.id");
+        posts.createDraft(new PostWriteCommand(
+                "private-agent-guard", "私密评论保护", "", java.time.Instant.parse("2026-08-02T08:00:00Z"),
+                List.of(), null, "ADMIN_ONLY", "这是仅自己可见的正文"));
+
+        mockMvc.perform(post("/api/v1/studio/posts/private-agent-guard/ai-comments")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"agentId\":\"" + agentId + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM blog_agent_run", Integer.class)).isZero();
+
+        jdbc.update("UPDATE blog_agent SET can_process_private = TRUE WHERE id = ?", agentId);
+        mockMvc.perform(post("/api/v1/studio/posts/private-agent-guard/ai-comments")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"agentId\":\"" + agentId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+        mockMvc.perform(post("/api/v1/studio/posts/private-agent-guard/ai-comments")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"agentId\":\"" + agentId + "\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("GENERATION_CONFLICT"));
     }
 
     @Test

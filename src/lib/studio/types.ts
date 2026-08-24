@@ -72,3 +72,56 @@ export interface CreatePostPayload extends PostWritePayload {
 export interface UpdatePostPayload extends PostWritePayload {
   version: string;
 }
+
+export interface StudioAgent {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  systemPrompt: string;
+  model: string | null;
+  temperature: number;
+  canProcessPrivate: boolean;
+  enabled: boolean;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StudioAgentList {
+  items: StudioAgent[];
+  aiAvailable: boolean;
+}
+
+export interface AgentWritePayload {
+  displayName: string;
+  avatarUrl: string | null;
+  systemPrompt: string;
+  model: string | null;
+  temperature: number;
+  canProcessPrivate: boolean;
+  enabled: boolean;
+}
+
+export interface CreateAgentPayload extends AgentWritePayload {
+  username: string;
+}
+
+export interface UpdateAgentPayload extends AgentWritePayload {
+  version: number;
+}
+
+export type CommentStatus = "PENDING" | "PUBLISHED" | "HIDDEN";
+
+export interface StudioComment {
+  id: string;
+  author: PostAuthor;
+  body: string;
+  status: CommentStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StudioCommentList {
+  items: StudioComment[];
+}

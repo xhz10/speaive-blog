@@ -54,7 +54,9 @@ public class ApiExceptionHandler {
     private static HttpStatus statusFor(BlogErrorCode code) {
         return switch (code) {
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
-            case SLUG_CONFLICT, VERSION_CONFLICT -> HttpStatus.CONFLICT;
+            case SLUG_CONFLICT, VERSION_CONFLICT, GENERATION_CONFLICT -> HttpStatus.CONFLICT;
+            case AI_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
+            case AI_GENERATION_FAILED -> HttpStatus.BAD_GATEWAY;
             case TOO_LARGE -> HttpStatus.PAYLOAD_TOO_LARGE;
             case STORAGE_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
             case INVALID_REQUEST, INVALID_FILE_NAME, INVALID_MARKDOWN, INVALID_IMAGE,

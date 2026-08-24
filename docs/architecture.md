@@ -9,8 +9,9 @@ flowchart LR
     Browser["浏览器"] --> Proxy["Nginx / Caddy<br/>HTTPS"]
     Proxy --> Astro["Astro SSR<br/>公开站与写作台"]
     Astro -->|"同源 BFF"| Spring["Spring Boot 4<br/>认证与内容 API"]
-    Spring --> PG["PostgreSQL 17<br/>文章与修订"]
+    Spring --> PG["PostgreSQL 17<br/>文章 / Agent / 评论"]
     Spring --> Data["SPEAIVE_DATA_DIR<br/>媒体与导入箱"]
+    Spring --> AI["Spring AI<br/>外部模型服务"]
     PG --> Backup["完整备份"]
     Data --> Backup
     Backup --> Mac["Mac mini"]
@@ -50,9 +51,9 @@ flowchart TB
 
 模型按边界分开：PO、SQL、Flyway 迁移和数据库驱动只属于 infrastructure，DO 是 domain 的聚合、实体和值对象，DTO、HTTP 与 Security 只属于 start 的入站适配器，application 使用 Command/Query/Result。新增或重构的结构映射统一使用 MapStruct，业务决策不写入映射表达式。当前代码仍有手工映射，这是一条渐进实施规则，不表示现有映射已经全部迁移。
 
-每个对外用例由 application input port 表达；数据库、文件、时钟以及未来的 AI/向量服务由 output port 表达。HTTP、定时任务和后续消息消费者都属于入站适配器，只能调用 input port。
+每个对外用例由 application input port 表达；数据库、文件、时钟以及 AI/向量服务由 output port 表达。HTTP、定时任务和后续消息消费者都属于入站适配器，只能调用 input port。
 
-未来接入 Spring AI 时，模型与向量存储适配器放在 `infrastructure`，生成、润色和检索流程放在 `application`，不改变现有前后端边界。
+当前 Spring AI `ChatModel` 适配器放在 `infrastructure`，Agent 评论生成和审核流程放在 `application`，Agent/评论状态规则放在 `domain`，没有改变现有前后端边界。向量存储尚未启用，后续检索功能仍应通过独立 output port 接入。
 
 ## 数据边界
 
@@ -66,14 +67,17 @@ PostgreSQL 是文章的唯一真源：
 - `blog_media` 保存媒体路径、类型、大小和校验值；
 - `blog_post_media` 保存文章实际引用的媒体，用于阻止私密正文图片从匿名地址泄露；
 - `blog_markdown_import` 记录已导入文件的 SHA-256，避免重复导入。
+- `blog_agent` 保存 Agent 的系统提示词、模型参数、私密内容授权和配置版本；
+- `blog_comment` 保存由 Agent 创建、经管理员审核的文章评论；
+- `blog_agent_run` 保存每次模型调用的文章版本和执行结果，用于去重、失败记录与后续成本审计。
 
 每次写操作都使用递增 revision 和 `id + slug + revision` 条件做数据库 CAS。创建、更新、发布、撤回和归档各推进一次 revision；两个页面同时编辑或归档后重用 slug 时，旧 version 会得到 `409 VERSION_CONFLICT`，不会覆盖新的正文或发布状态。HTML 不入库，由后端从 Markdown 实时渲染和过滤。
 
 文章主记录、标签、修订快照和归档删除属于同一个事务边界，任一步失败都必须回滚。数据库和媒体文件是双资源操作，上传失败时需要补偿已写文件，读取时继续校验 MIME、大小和 SHA-256。事务语义跟随 application 用例，具体 Spring 事务和补偿实现留在 infrastructure 或 `start`，不进入 domain。
 
-活动文章和每条修订快照都通过不可级联删除的 `author_id` 引用 `blog_user`。V2 迁移会把已有文章及仅剩修订记录的已归档文章统一回填给固定 `admin`。网页创建、Markdown 上传和后台投递箱导入都由服务端指定作者，请求正文和 Markdown frontmatter 不能冒充作者。未来 AI Agent 复用 `blog_user` 作为公开身份，登录凭证仍应放在独立账号表中。
+活动文章和每条修订快照都通过不可级联删除的 `author_id` 引用 `blog_user`。V2 迁移会把已有文章及仅剩修订记录的已归档文章统一回填给固定 `admin`。网页创建、Markdown 上传和后台投递箱导入都由服务端指定作者，请求正文和 Markdown frontmatter 不能冒充作者。AI Agent 复用 `blog_user` 作为公开身份，但不拥有登录凭证；后台仍只有管理员 Session。
 
-PostgreSQL 镜像预装并启用 `pgvector` 扩展，当前不创建向量业务表；等 Spring AI 功能确定后再独立迁移文章分块和 embedding 表。
+PostgreSQL 镜像预装并启用 `pgvector` 扩展，当前 AI 评论不使用向量检索，也不创建向量业务表；后续需要文章检索时再独立迁移分块和 embedding 表。
 
 服务器目录只保存非结构化文件：
 
@@ -94,6 +98,7 @@ SPEAIVE_DATA_DIR/
 - Astro BFF 限制请求体为 9 MiB、流式转发，并清洗后重建可信客户端 IP；
 - 写作台使用单管理员 Session、BCrypt、CSRF 和登录失败限流；
 - 公开文章查询必须同时满足 `PUBLISHED + PUBLIC`；私密文章和媒体只能从已认证的 Studio 接口读取；
+- AI 评论默认关闭；私密文章只有在 Agent 被单独授权后才能发送给外部模型，模型输出必须经管理员审核才公开；
 - 数据库结构只由 Flyway 迁移，MyBatis-Plus 不负责自动建表。
 
 Flyway 迁移只追加、不修改已发布版本；每次迁移同时验证空库安装和带真实旧数据升级。CAS、事务、迁移和 SQL 方言统一使用 PostgreSQL 17 Testcontainers 测试，不以 H2 替代。后端测试命令是：

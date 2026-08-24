@@ -1,24 +1,37 @@
 package com.speaive.blog;
 
 import com.speaive.blog.application.port.in.importing.MarkdownInboxUseCase;
+import com.speaive.blog.application.port.out.ai.AiCommentGenerationPort;
 import com.speaive.blog.application.port.out.importing.MarkdownImportLedger;
 import com.speaive.blog.application.port.out.markdown.MarkdownPort;
 import com.speaive.blog.application.port.out.media.MediaStoragePort;
 import com.speaive.blog.application.port.out.persistence.AuthorRepository;
+import com.speaive.blog.application.port.out.persistence.AgentRepository;
+import com.speaive.blog.application.port.out.persistence.AgentRunRepository;
+import com.speaive.blog.application.port.out.persistence.CommentRepository;
 import com.speaive.blog.application.port.out.persistence.PostRepository;
 import com.speaive.blog.application.port.out.transaction.TransactionRunner;
 import com.speaive.blog.application.service.MarkdownApplicationService;
 import com.speaive.blog.application.service.MediaApplicationService;
 import com.speaive.blog.application.service.PostApplicationService;
+import com.speaive.blog.application.service.AgentApplicationService;
+import com.speaive.blog.application.service.CommentApplicationService;
 import com.speaive.blog.infrastructure.content.config.ContentStorageSettings;
 import com.speaive.blog.infrastructure.content.markdown.CommonMarkMarkdownAdapter;
 import com.speaive.blog.infrastructure.content.media.PostgresMediaStorageAdapter;
 import com.speaive.blog.infrastructure.content.persistence.ledger.PostgresMarkdownImportLedger;
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogAuthorDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapper.BlogAgentDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapper.BlogAgentRunDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapper.BlogCommentDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogMediaDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogPostDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.MarkdownImportDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapping.BlogPersistenceMapStructMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapping.BlogAiPersistenceMapStructMapper;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAgentRepository;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAgentRunRepository;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresCommentRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAuthorRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresPostRepository;
 import com.speaive.blog.infrastructure.transaction.SpringTransactionRunner;
@@ -67,6 +80,29 @@ public class BlogBackendConfiguration {
     }
 
     @Bean
+    AgentRepository agentRepository(
+            BlogAgentDatabaseMapper agents,
+            BlogAuthorDatabaseMapper authors,
+            BlogAiPersistenceMapStructMapper mapping) {
+        return new PostgresAgentRepository(agents, authors, mapping);
+    }
+
+    @Bean
+    CommentRepository commentRepository(
+            BlogCommentDatabaseMapper comments,
+            BlogAuthorDatabaseMapper authors,
+            BlogAiPersistenceMapStructMapper mapping) {
+        return new PostgresCommentRepository(comments, authors, mapping);
+    }
+
+    @Bean
+    AgentRunRepository agentRunRepository(
+            BlogAgentRunDatabaseMapper runs,
+            BlogAiPersistenceMapStructMapper mapping) {
+        return new PostgresAgentRunRepository(runs, mapping);
+    }
+
+    @Bean
     MarkdownPort markdownPort(ContentStorageSettings settings) {
         return new CommonMarkMarkdownAdapter(settings);
     }
@@ -97,6 +133,26 @@ public class BlogBackendConfiguration {
                 transactions,
                 Clock.systemUTC()
         );
+    }
+
+    @Bean
+    AgentApplicationService agentApplicationService(
+            AgentRepository agents,
+            AiCommentGenerationPort ai,
+            TransactionRunner transactions) {
+        return new AgentApplicationService(agents, ai, transactions, Clock.systemUTC());
+    }
+
+    @Bean
+    CommentApplicationService commentApplicationService(
+            PostRepository posts,
+            AgentRepository agents,
+            CommentRepository comments,
+            AgentRunRepository runs,
+            AiCommentGenerationPort ai,
+            TransactionRunner transactions) {
+        return new CommentApplicationService(
+                posts, agents, comments, runs, ai, transactions, Clock.systemUTC());
     }
 
     @Bean

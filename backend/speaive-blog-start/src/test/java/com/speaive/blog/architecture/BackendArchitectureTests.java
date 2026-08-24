@@ -167,6 +167,8 @@ class BackendArchitectureTests {
                 .and().doNotHaveSimpleName("package-info")
                 .should().resideInAnyPackage(
                         "..domain.author..",
+                        "..domain.agent..",
+                        "..domain.comment..",
                         "..domain.error..",
                         "..domain.post..")
                 .check(PRODUCTION_CLASSES);

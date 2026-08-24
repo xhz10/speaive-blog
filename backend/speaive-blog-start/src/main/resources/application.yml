@@ -7,6 +7,22 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:}
   flyway:
     enabled: true
+  ai:
+    model:
+      chat: ${SPEAIVE_AI_MODEL_CHAT:none}
+      embedding: none
+      image: none
+      moderation: none
+    openai:
+      api-key: ${SPEAIVE_AI_API_KEY:}
+      base-url: ${SPEAIVE_AI_BASE_URL:https://api.openai.com}
+      chat:
+        model: ${SPEAIVE_AI_DEFAULT_MODEL:gpt-4.1-mini}
+    retry:
+      max-attempts: ${SPEAIVE_AI_RETRY_MAX_ATTEMPTS:2}
+      backoff:
+        initial-interval: 500ms
+        max-interval: 3s
   servlet:
     multipart:
       max-file-size: 8MB
@@ -49,3 +65,6 @@ speaive:
     login-max-attempts: ${SPEAIVE_LOGIN_MAX_ATTEMPTS:5}
     login-window-seconds: ${SPEAIVE_LOGIN_WINDOW_SECONDS:900}
     login-max-tracked-addresses: ${SPEAIVE_LOGIN_MAX_TRACKED_ADDRESSES:10000}
+  ai:
+    enabled: ${SPEAIVE_AI_ENABLED:false}
+    max-article-characters: ${SPEAIVE_AI_MAX_ARTICLE_CHARACTERS:24000}

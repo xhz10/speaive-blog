@@ -19,6 +19,7 @@ import {
 } from "@lucide/astro";
 import { formatDateTimeInput } from "../lib/date-time";
 import type { StudioPostDetail } from "../lib/studio/types";
+import AiCommentPanel from "./AiCommentPanel.astro";
 
 interface Props {
   post?: StudioPostDetail;
@@ -218,6 +219,7 @@ const previewHtml = post?.html.replace(
       </div>
     </section>
   </div>
+  <AiCommentPanel post={post} />
 </form>
 
 <script is:inline id="editor-initial-state" type="application/json" set:html={initialState}></script>
@@ -820,6 +822,7 @@ const previewHtml = post?.html.replace(
       }
       clearError();
       syncControls();
+      document.dispatchEvent(new CustomEvent("studio:post-saved", { detail: { slug: next.slug } }));
     }
 
     function syncControls() {

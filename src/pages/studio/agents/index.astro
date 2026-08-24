@@ -1,0 +1,242 @@
+---
+import { ArrowLeft, Bot, Plus, Save } from "@lucide/astro";
+import StudioLayout from "../../../layouts/StudioLayout.astro";
+import { fetchStudioApi } from "../../../lib/studio/server";
+import type { StudioAgentList } from "../../../lib/studio/types";
+
+let result: StudioAgentList = { items: [], aiAvailable: false };
+let loadError: string | undefined;
+try {
+  result = await fetchStudioApi<StudioAgentList>(Astro.request, "/api/v1/studio/agents");
+} catch (error) {
+  loadError = error instanceof Error ? error.message : "Agent 列表加载失败";
+}
+
+const initialState = JSON.stringify(result).replace(/</g, "\\u003c");
+---
+
+<StudioLayout title="Agent 管理">
+  <header class="studio-page-head agent-page-head">
+    <div>
+      <a class="editor-back" href="/studio/">
+        <ArrowLeft size={16} stroke-width={1.8} aria-hidden="true" />
+        返回文章
+      </a>
+      <p class="studio-kicker">AI Characters</p>
+      <h1>Agent 角色</h1>
+      <p>系统提示词决定角色的视角与语气；第一版不开放工具和长期记忆。</p>
+    </div>
+    <span class:list={["ai-connection-badge", { active: result.aiAvailable }]}>
+      {result.aiAvailable ? "AI 服务已连接" : "AI 服务未配置"}
+    </span>
+  </header>
+
+  {loadError && <p class="notice error">{loadError}</p>}
+  <p class="notice" hidden data-agent-notice></p>
+
+  <div class="agent-admin-grid">
+    <section class="agent-list-card" aria-labelledby="agent-list-title">
+      <div class="agent-section-head">
+        <div>
+          <p class="studio-kicker">Characters</p>
+          <h2 id="agent-list-title">已有角色</h2>
+        </div>
+        <button class="button secondary" type="button" data-new-agent>
+          <Plus size={15} stroke-width={1.8} aria-hidden="true" />
+          新角色
+        </button>
+      </div>
+      <div class="agent-list" data-agent-list>
+        {result.items.map((agent) => (
+          <button class="agent-list-item" type="button" data-agent-id={agent.id}>
+            <span class="agent-avatar" aria-hidden="true">
+              {agent.avatarUrl ? <img src={agent.avatarUrl} alt="" /> : <Bot size={18} stroke-width={1.8} />}
+            </span>
+            <span>
+              <strong>{agent.displayName}</strong>
+              <small>@{agent.username} · v{agent.version}</small>
+            </span>
+            <span class:list={["agent-status-dot", { disabled: !agent.enabled }]} title={agent.enabled ? "启用" : "停用"}></span>
+          </button>
+        ))}
+        {result.items.length === 0 && <p class="agent-empty">还没有 Agent，先创建第一个角色。</p>}
+      </div>
+    </section>
+
+    <section class="agent-form-card" aria-labelledby="agent-form-title">
+      <div class="agent-section-head">
+        <div>
+          <p class="studio-kicker">Profile</p>
+          <h2 id="agent-form-title" data-agent-form-title>创建 Agent</h2>
+        </div>
+      </div>
+      <form class="agent-form" data-agent-form>
+        <input type="hidden" name="id" />
+        <input type="hidden" name="version" value="1" />
+        <div class="agent-form-grid">
+          <label class="field">
+            <span class="field-label">用户名</span>
+            <input class="input" name="username" required maxlength="50" pattern="[a-z0-9][a-z0-9_-]{0,49}" placeholder="empathetic-reader" />
+            <span class="field-hint">创建后不可修改，用于稳定识别 Agent</span>
+          </label>
+          <label class="field">
+            <span class="field-label">显示名称</span>
+            <input class="input" name="displayName" required maxlength="100" placeholder="共情读者 · AI" />
+          </label>
+          <label class="field agent-form-wide">
+            <span class="field-label">头像地址</span>
+            <input class="input" name="avatarUrl" maxlength="2048" placeholder="可选，例如 /media/agents/reader.png" />
+          </label>
+          <label class="field">
+            <span class="field-label">模型</span>
+            <input class="input" name="model" maxlength="120" placeholder="留空使用服务器默认模型" />
+          </label>
+          <label class="field">
+            <span class="field-label">Temperature</span>
+            <input class="input" name="temperature" type="number" min="0" max="2" step="0.05" value="0.7" required />
+          </label>
+        </div>
+        <label class="field">
+          <span class="field-label">系统提示词</span>
+          <textarea class="input agent-prompt-input" name="systemPrompt" required maxlength="12000" placeholder="你是一位……阅读文章后，请从……角度给出具体而克制的评论。"></textarea>
+          <span class="field-hint">平台会自动追加安全边界和输出格式，不需要在这里重复。</span>
+        </label>
+        <div class="agent-switches">
+          <label class="compact-checkbox">
+            <input type="checkbox" name="enabled" checked />
+            <span>启用这个 Agent</span>
+          </label>
+          <label class="compact-checkbox private-agent-switch">
+            <input type="checkbox" name="canProcessPrivate" />
+            <span>允许读取仅自己可见的文章</span>
+          </label>
+        </div>
+        <p class="agent-private-warning">开启私密文章权限后，文章内容可能会发送到你配置的模型服务商。</p>
+        <div class="button-row agent-form-actions">
+          <button class="button primary" type="submit" data-agent-submit>
+            <Save size={16} stroke-width={1.8} aria-hidden="true" />
+            <span data-agent-submit-label>创建 Agent</span>
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+</StudioLayout>
+
+<script is:inline id="agent-initial-state" type="application/json" set:html={initialState}></script>
+
+<script>
+  import { studioRequest } from "../../../lib/studio/client";
+  import type {
+    CreateAgentPayload,
+    StudioAgent,
+    StudioAgentList,
+    UpdateAgentPayload
+  } from "../../../lib/studio/types";
+
+  const state = document.querySelector<HTMLScriptElement>("#agent-initial-state");
+  const form = document.querySelector<HTMLFormElement>("[data-agent-form]");
+  if (state && form) {
+    setupAgentAdmin(form, JSON.parse(state.textContent || "{}") as StudioAgentList);
+  }
+
+  function setupAgentAdmin(agentForm: HTMLFormElement, initial: StudioAgentList) {
+    const agents = new Map(initial.items.map((agent) => [agent.id, agent]));
+    const title = document.querySelector<HTMLElement>("[data-agent-form-title]")!;
+    const submit = document.querySelector<HTMLButtonElement>("[data-agent-submit]")!;
+    const submitLabel = document.querySelector<HTMLElement>("[data-agent-submit-label]")!;
+    const notice = document.querySelector<HTMLElement>("[data-agent-notice]")!;
+    const username = agentForm.elements.namedItem("username") as HTMLInputElement;
+    const displayName = agentForm.elements.namedItem("displayName") as HTMLInputElement;
+    const avatarUrl = agentForm.elements.namedItem("avatarUrl") as HTMLInputElement;
+    const systemPrompt = agentForm.elements.namedItem("systemPrompt") as HTMLTextAreaElement;
+    const model = agentForm.elements.namedItem("model") as HTMLInputElement;
+    const temperature = agentForm.elements.namedItem("temperature") as HTMLInputElement;
+    const enabled = agentForm.elements.namedItem("enabled") as HTMLInputElement;
+    const canProcessPrivate = agentForm.elements.namedItem("canProcessPrivate") as HTMLInputElement;
+    const id = agentForm.elements.namedItem("id") as HTMLInputElement;
+    const version = agentForm.elements.namedItem("version") as HTMLInputElement;
+
+    document.querySelector<HTMLElement>("[data-agent-list]")?.addEventListener("click", (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-agent-id]");
+      const agent = button ? agents.get(button.dataset.agentId ?? "") : undefined;
+      if (!agent) return;
+      selectAgent(agent);
+    });
+    document.querySelector<HTMLButtonElement>("[data-new-agent]")?.addEventListener("click", resetForm);
+
+    agentForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!agentForm.reportValidity()) return;
+      submit.disabled = true;
+      showNotice(id.value ? "正在保存 Agent……" : "正在创建 Agent……");
+      const payload = {
+        displayName: displayName.value.trim(),
+        avatarUrl: avatarUrl.value.trim() || null,
+        systemPrompt: systemPrompt.value.trim(),
+        model: model.value.trim() || null,
+        temperature: Number(temperature.value),
+        canProcessPrivate: canProcessPrivate.checked,
+        enabled: enabled.checked
+      };
+      try {
+        if (id.value) {
+          await studioRequest<StudioAgent>(`/studio/agents/${encodeURIComponent(id.value)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...payload, version: Number(version.value) } satisfies UpdateAgentPayload)
+          });
+        } else {
+          await studioRequest<StudioAgent>("/studio/agents", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: username.value.trim(), ...payload } satisfies CreateAgentPayload)
+          });
+        }
+        window.location.reload();
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "Agent 保存失败", true);
+        submit.disabled = false;
+      }
+    });
+
+    function selectAgent(agent: StudioAgent) {
+      id.value = agent.id;
+      version.value = String(agent.version);
+      username.value = agent.username;
+      username.readOnly = true;
+      displayName.value = agent.displayName;
+      avatarUrl.value = agent.avatarUrl ?? "";
+      systemPrompt.value = agent.systemPrompt;
+      model.value = agent.model ?? "";
+      temperature.value = String(agent.temperature);
+      enabled.checked = agent.enabled;
+      canProcessPrivate.checked = agent.canProcessPrivate;
+      title.textContent = `编辑 ${agent.displayName}`;
+      submitLabel.textContent = "保存修改";
+      for (const item of document.querySelectorAll<HTMLElement>("[data-agent-id]")) {
+        item.classList.toggle("active", item.dataset.agentId === agent.id);
+      }
+      systemPrompt.focus();
+    }
+
+    function resetForm() {
+      agentForm.reset();
+      id.value = "";
+      version.value = "1";
+      username.readOnly = false;
+      temperature.value = "0.7";
+      enabled.checked = true;
+      title.textContent = "创建 Agent";
+      submitLabel.textContent = "创建 Agent";
+      for (const item of document.querySelectorAll<HTMLElement>("[data-agent-id]")) item.classList.remove("active");
+      username.focus();
+    }
+
+    function showNotice(message: string, error = false) {
+      notice.textContent = message;
+      notice.classList.toggle("error", error);
+      notice.hidden = false;
+    }
+  }
+</script>

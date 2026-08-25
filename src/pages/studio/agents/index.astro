@@ -1,5 +1,18 @@
 ---
-import { ArrowLeft, Bot, Plus, Save } from "@lucide/astro";
+import {
+  ArrowLeft,
+  Bot,
+  Check,
+  Cpu,
+  LockKeyhole,
+  MessageSquareText,
+  Plus,
+  Power,
+  Save,
+  ShieldCheck,
+  SlidersHorizontal,
+  UserRound
+} from "@lucide/astro";
 import StudioLayout from "../../../layouts/StudioLayout.astro";
 import { fetchStudioApi } from "../../../lib/studio/server";
 import type { StudioAgentList } from "../../../lib/studio/types";
@@ -12,112 +25,246 @@ try {
   loadError = error instanceof Error ? error.message : "Agent 列表加载失败";
 }
 
+const enabledCount = result.items.filter((agent) => agent.enabled).length;
+const privateCount = result.items.filter((agent) => agent.canProcessPrivate).length;
 const initialState = JSON.stringify(result).replace(/</g, "\\u003c");
 ---
 
-<StudioLayout title="Agent 管理">
-  <header class="studio-page-head agent-page-head">
-    <div>
+<StudioLayout title="Agent 角色工作室">
+  <header class="agent-hero">
+    <div class="agent-hero-copy">
       <a class="editor-back" href="/studio/">
         <ArrowLeft size={16} stroke-width={1.8} aria-hidden="true" />
         返回文章
       </a>
-      <p class="studio-kicker">AI Characters</p>
-      <h1>Agent 角色</h1>
-      <p>系统提示词决定角色的视角与语气；第一版不开放工具和长期记忆。</p>
+      <p class="studio-kicker">Agent Studio</p>
+      <h1>给每一种声音，<br />一张清晰的角色卡。</h1>
+      <p>在这里定义角色、语气和模型边界；生成评论仍然由你在文章页手动决定。</p>
     </div>
-    <span class:list={["ai-connection-badge", { active: result.aiAvailable }]}>
-      {result.aiAvailable ? "AI 服务已连接" : "AI 服务未配置"}
-    </span>
+    <aside class:list={["agent-service-card", { active: result.aiAvailable }]} aria-label="AI 服务状态">
+      <span class="agent-service-icon" aria-hidden="true">
+        {result.aiAvailable ? <Check size={18} stroke-width={2.1} /> : <Cpu size={18} stroke-width={1.8} />}
+      </span>
+      <span>
+        <small>MODEL CONNECTION</small>
+        <strong>{result.aiAvailable ? "模型服务已连接" : "模型服务尚未启用"}</strong>
+        <em>{result.aiAvailable ? "角色现在可以参与文章评论" : "角色配置可保存，生成按钮暂不可用"}</em>
+      </span>
+    </aside>
   </header>
 
-  {loadError && <p class="notice error">{loadError}</p>}
-  <p class="notice" hidden data-agent-notice></p>
+  <section class="agent-overview" aria-label="Agent 概览">
+    <div>
+      <strong>{result.items.length.toString().padStart(2, "0")}</strong>
+      <span>已创建角色</span>
+    </div>
+    <div>
+      <strong>{enabledCount.toString().padStart(2, "0")}</strong>
+      <span>正在启用</span>
+    </div>
+    <div>
+      <strong>{privateCount.toString().padStart(2, "0")}</strong>
+      <span>可读取私密文章</span>
+    </div>
+    <p>第一版只使用系统提示词和模型参数，不开放工具、Skills 与长期记忆。</p>
+  </section>
 
-  <div class="agent-admin-grid">
-    <section class="agent-list-card" aria-labelledby="agent-list-title">
-      <div class="agent-section-head">
+  {loadError && <p class="notice error">{loadError}</p>}
+
+  <div class="agent-workbench">
+    <aside class="agent-roster-card" aria-labelledby="agent-list-title">
+      <div class="agent-roster-head">
         <div>
-          <p class="studio-kicker">Characters</p>
-          <h2 id="agent-list-title">已有角色</h2>
+          <p>CHARACTER ROSTER</p>
+          <h2 id="agent-list-title">角色名册</h2>
         </div>
-        <button class="button secondary" type="button" data-new-agent>
-          <Plus size={15} stroke-width={1.8} aria-hidden="true" />
-          新角色
-        </button>
+        <span>{result.items.length}</span>
       </div>
+
+      <button class="agent-new-button" type="button" data-new-agent>
+        <span><Plus size={17} stroke-width={2} aria-hidden="true" /></span>
+        <span>
+          <strong>创建新角色</strong>
+          <small>从一张空白角色卡开始</small>
+        </span>
+      </button>
+
       <div class="agent-list" data-agent-list>
         {result.items.map((agent) => (
-          <button class="agent-list-item" type="button" data-agent-id={agent.id}>
+          <button class="agent-list-item" type="button" data-agent-id={agent.id} aria-pressed="false">
             <span class="agent-avatar" aria-hidden="true">
-              {agent.avatarUrl ? <img src={agent.avatarUrl} alt="" /> : <Bot size={18} stroke-width={1.8} />}
+              {agent.avatarUrl ? <img src={agent.avatarUrl} alt="" /> : <Bot size={19} stroke-width={1.8} />}
             </span>
-            <span>
-              <strong>{agent.displayName}</strong>
-              <small>@{agent.username} · v{agent.version}</small>
+            <span class="agent-list-copy">
+              <span class="agent-list-name">
+                <strong>{agent.displayName}</strong>
+                <i class:list={["agent-state-pill", { disabled: !agent.enabled }]}>
+                  {agent.enabled ? "启用" : "停用"}
+                </i>
+              </span>
+              <small>@{agent.username}</small>
+              <em>{agent.model || "使用服务器默认模型"} · v{agent.version}</em>
             </span>
-            <span class:list={["agent-status-dot", { disabled: !agent.enabled }]} title={agent.enabled ? "启用" : "停用"}></span>
           </button>
         ))}
-        {result.items.length === 0 && <p class="agent-empty">还没有 Agent，先创建第一个角色。</p>}
+        {result.items.length === 0 && (
+          <div class="agent-roster-empty">
+            <Bot size={24} stroke-width={1.5} aria-hidden="true" />
+            <strong>还没有角色</strong>
+            <p>创建第一个 Agent，让它从自己的角度读你的文章。</p>
+          </div>
+        )}
       </div>
-    </section>
 
-    <section class="agent-form-card" aria-labelledby="agent-form-title">
-      <div class="agent-section-head">
-        <div>
-          <p class="studio-kicker">Profile</p>
-          <h2 id="agent-form-title" data-agent-form-title>创建 Agent</h2>
-        </div>
+      <div class="agent-roster-foot">
+        <ShieldCheck size={16} stroke-width={1.8} aria-hidden="true" />
+        <p>Agent 只是内容身份，不拥有后台登录权限。</p>
       </div>
+    </aside>
+
+    <section class="agent-config-card" aria-labelledby="agent-form-title" data-agent-config-card>
+      <header class="agent-config-header">
+        <div class="agent-live-identity">
+          <span class="agent-live-avatar" aria-hidden="true">
+            <span data-agent-avatar-fallback><Bot size={25} stroke-width={1.6} /></span>
+            <img src="" alt="" hidden data-agent-avatar-image />
+          </span>
+          <span>
+            <small data-agent-mode>NEW CHARACTER</small>
+            <h2 id="agent-form-title" data-agent-preview-name>未命名角色</h2>
+            <em data-agent-preview-handle>设置一个稳定的角色身份</em>
+          </span>
+        </div>
+        <span class="agent-config-state" data-agent-preview-state>
+          <i aria-hidden="true"></i>
+          <span>保存后启用</span>
+        </span>
+      </header>
+
+      <p class="agent-form-notice" role="status" hidden data-agent-notice></p>
+
       <form class="agent-form" data-agent-form>
         <input type="hidden" name="id" />
         <input type="hidden" name="version" value="1" />
-        <div class="agent-form-grid">
+
+        <section class="agent-form-section" aria-labelledby="agent-identity-title">
+          <div class="agent-section-intro">
+            <span>01</span>
+            <div>
+              <h3 id="agent-identity-title"><UserRound size={17} stroke-width={1.8} aria-hidden="true" />角色身份</h3>
+              <p>这些信息会和评论一起展示给读者。</p>
+            </div>
+          </div>
+          <div class="agent-form-grid">
+            <label class="field">
+              <span class="field-label">显示名称</span>
+              <input class="input" name="displayName" required maxlength="100" placeholder="例如：共情读者" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span class="field-label">稳定用户名</span>
+              <div class="agent-handle-input">
+                <span aria-hidden="true">@</span>
+                <input class="input" name="username" required maxlength="50" pattern="[a-z0-9][a-z0-9_-]{0,49}" placeholder="empathetic-reader" autocomplete="off" />
+              </div>
+              <span class="field-hint">只允许小写字母、数字、连字符和下划线；创建后不可修改。</span>
+            </label>
+            <label class="field agent-form-wide">
+              <span class="field-label">头像地址 <i>可选</i></span>
+              <input class="input" name="avatarUrl" maxlength="2048" placeholder="/media/agents/reader.png 或完整图片地址" autocomplete="off" />
+            </label>
+          </div>
+        </section>
+
+        <section class="agent-form-section" aria-labelledby="agent-prompt-title">
+          <div class="agent-section-intro">
+            <span>02</span>
+            <div>
+              <h3 id="agent-prompt-title"><MessageSquareText size={17} stroke-width={1.8} aria-hidden="true" />角色提示词</h3>
+              <p>描述它是谁、关心什么，以及你希望它怎样回应文章。</p>
+            </div>
+          </div>
           <label class="field">
-            <span class="field-label">用户名</span>
-            <input class="input" name="username" required maxlength="50" pattern="[a-z0-9][a-z0-9_-]{0,49}" placeholder="empathetic-reader" />
-            <span class="field-hint">创建后不可修改，用于稳定识别 Agent</span>
+            <span class="field-label visually-hidden">系统提示词</span>
+            <div class="agent-prompt-shell">
+              <textarea class="agent-prompt-input" name="systemPrompt" required maxlength="12000" placeholder="你是一位认真、克制的读者。阅读文章后，从具体细节出发回应作者；可以提出不同看法，但不要空泛夸奖……"></textarea>
+              <footer>
+                <span><ShieldCheck size={14} stroke-width={1.8} aria-hidden="true" />平台会自动追加安全与输出规则</span>
+                <strong data-prompt-count>0 / 12,000</strong>
+              </footer>
+            </div>
           </label>
-          <label class="field">
-            <span class="field-label">显示名称</span>
-            <input class="input" name="displayName" required maxlength="100" placeholder="共情读者 · AI" />
-          </label>
-          <label class="field agent-form-wide">
-            <span class="field-label">头像地址</span>
-            <input class="input" name="avatarUrl" maxlength="2048" placeholder="可选，例如 /media/agents/reader.png" />
-          </label>
-          <label class="field">
-            <span class="field-label">模型</span>
-            <input class="input" name="model" maxlength="120" placeholder="留空使用服务器默认模型" />
-          </label>
-          <label class="field">
-            <span class="field-label">Temperature</span>
-            <input class="input" name="temperature" type="number" min="0" max="2" step="0.05" value="0.7" required />
-          </label>
-        </div>
-        <label class="field">
-          <span class="field-label">系统提示词</span>
-          <textarea class="input agent-prompt-input" name="systemPrompt" required maxlength="12000" placeholder="你是一位……阅读文章后，请从……角度给出具体而克制的评论。"></textarea>
-          <span class="field-hint">平台会自动追加安全边界和输出格式，不需要在这里重复。</span>
-        </label>
-        <div class="agent-switches">
-          <label class="compact-checkbox">
-            <input type="checkbox" name="enabled" checked />
-            <span>启用这个 Agent</span>
-          </label>
-          <label class="compact-checkbox private-agent-switch">
-            <input type="checkbox" name="canProcessPrivate" />
-            <span>允许读取仅自己可见的文章</span>
-          </label>
-        </div>
-        <p class="agent-private-warning">开启私密文章权限后，文章内容可能会发送到你配置的模型服务商。</p>
-        <div class="button-row agent-form-actions">
+        </section>
+
+        <section class="agent-form-section" aria-labelledby="agent-runtime-title">
+          <div class="agent-section-intro">
+            <span>03</span>
+            <div>
+              <h3 id="agent-runtime-title"><SlidersHorizontal size={17} stroke-width={1.8} aria-hidden="true" />模型与表达</h3>
+              <p>模型留空会跟随服务器默认配置；表达幅度可以随角色单独调整。</p>
+            </div>
+          </div>
+          <div class="agent-runtime-grid">
+            <label class="field agent-model-field">
+              <span class="field-label">指定模型 <i>可选</i></span>
+              <span class="agent-input-with-icon">
+                <Cpu size={16} stroke-width={1.7} aria-hidden="true" />
+                <input class="input" name="model" maxlength="120" placeholder="使用服务器默认模型" autocomplete="off" />
+              </span>
+            </label>
+            <div class="agent-temperature-field">
+              <div class="agent-temperature-head">
+                <span>
+                  <strong>表达自由度</strong>
+                  <small>越高越发散，越低越稳定</small>
+                </span>
+                <label>
+                  <span class="visually-hidden">Temperature</span>
+                  <input class="input" name="temperature" type="number" min="0" max="2" step="0.05" value="0.7" required />
+                </label>
+              </div>
+              <input class="agent-temperature-range" type="range" min="0" max="2" step="0.05" value="0.7" aria-label="表达自由度" data-temperature-range />
+              <div class="agent-temperature-scale" aria-hidden="true"><span>克制</span><span>平衡</span><span>活跃</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="agent-form-section" aria-labelledby="agent-policy-title">
+          <div class="agent-section-intro">
+            <span>04</span>
+            <div>
+              <h3 id="agent-policy-title"><LockKeyhole size={17} stroke-width={1.8} aria-hidden="true" />启用与内容权限</h3>
+              <p>私密文章权限需要单独确认，不会跟随启用状态自动开放。</p>
+            </div>
+          </div>
+          <div class="agent-policy-grid">
+            <label class="agent-policy-card">
+              <input class="agent-toggle-input" type="checkbox" name="enabled" checked />
+              <span class="agent-toggle" aria-hidden="true"><i></i></span>
+              <span class="agent-policy-icon"><Power size={18} stroke-width={1.8} aria-hidden="true" /></span>
+              <span class="agent-policy-copy">
+                <strong>启用这个角色</strong>
+                <small>启用后，它会出现在文章编辑页的 Agent 选择区。</small>
+              </span>
+            </label>
+            <label class="agent-policy-card private">
+              <input class="agent-toggle-input" type="checkbox" name="canProcessPrivate" />
+              <span class="agent-toggle" aria-hidden="true"><i></i></span>
+              <span class="agent-policy-icon"><LockKeyhole size={18} stroke-width={1.8} aria-hidden="true" /></span>
+              <span class="agent-policy-copy">
+                <strong>允许读取私密文章</strong>
+                <small>开启后，仅自己可见的正文也可能发送给模型服务商。</small>
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <footer class="agent-form-actions">
+          <p data-agent-form-context>创建后即可在文章编辑页选择这个角色。</p>
           <button class="button primary" type="submit" data-agent-submit>
             <Save size={16} stroke-width={1.8} aria-hidden="true" />
-            <span data-agent-submit-label>创建 Agent</span>
+            <span data-agent-submit-label>创建角色</span>
           </button>
-        </div>
+        </footer>
       </form>
     </section>
   </div>
@@ -136,16 +283,23 @@ const initialState = JSON.stringify(result).replace(/</g, "\\u003c");
 
   const state = document.querySelector<HTMLScriptElement>("#agent-initial-state");
   const form = document.querySelector<HTMLFormElement>("[data-agent-form]");
-  if (state && form) {
-    setupAgentAdmin(form, JSON.parse(state.textContent || "{}") as StudioAgentList);
-  }
+  if (state && form) setupAgentAdmin(form, JSON.parse(state.textContent || "{}") as StudioAgentList);
 
   function setupAgentAdmin(agentForm: HTMLFormElement, initial: StudioAgentList) {
     const agents = new Map(initial.items.map((agent) => [agent.id, agent]));
-    const title = document.querySelector<HTMLElement>("[data-agent-form-title]")!;
+    const configCard = document.querySelector<HTMLElement>("[data-agent-config-card]")!;
     const submit = document.querySelector<HTMLButtonElement>("[data-agent-submit]")!;
     const submitLabel = document.querySelector<HTMLElement>("[data-agent-submit-label]")!;
     const notice = document.querySelector<HTMLElement>("[data-agent-notice]")!;
+    const formContext = document.querySelector<HTMLElement>("[data-agent-form-context]")!;
+    const previewName = document.querySelector<HTMLElement>("[data-agent-preview-name]")!;
+    const previewHandle = document.querySelector<HTMLElement>("[data-agent-preview-handle]")!;
+    const previewMode = document.querySelector<HTMLElement>("[data-agent-mode]")!;
+    const previewState = document.querySelector<HTMLElement>("[data-agent-preview-state]")!;
+    const avatarImage = document.querySelector<HTMLImageElement>("[data-agent-avatar-image]")!;
+    const avatarFallback = document.querySelector<HTMLElement>("[data-agent-avatar-fallback]")!;
+    const promptCount = document.querySelector<HTMLElement>("[data-prompt-count]")!;
+    const temperatureRange = document.querySelector<HTMLInputElement>("[data-temperature-range]")!;
     const username = agentForm.elements.namedItem("username") as HTMLInputElement;
     const displayName = agentForm.elements.namedItem("displayName") as HTMLInputElement;
     const avatarUrl = agentForm.elements.namedItem("avatarUrl") as HTMLInputElement;
@@ -160,16 +314,27 @@ const initialState = JSON.stringify(result).replace(/</g, "\\u003c");
     document.querySelector<HTMLElement>("[data-agent-list]")?.addEventListener("click", (event) => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-agent-id]");
       const agent = button ? agents.get(button.dataset.agentId ?? "") : undefined;
-      if (!agent) return;
-      selectAgent(agent);
+      if (agent) selectAgent(agent, true);
     });
-    document.querySelector<HTMLButtonElement>("[data-new-agent]")?.addEventListener("click", resetForm);
+    document.querySelector<HTMLButtonElement>("[data-new-agent]")?.addEventListener("click", () => resetForm(true));
+
+    displayName.addEventListener("input", updatePreview);
+    username.addEventListener("input", updatePreview);
+    avatarUrl.addEventListener("input", updateAvatar);
+    enabled.addEventListener("change", updatePreview);
+    systemPrompt.addEventListener("input", updatePromptCount);
+    temperatureRange.addEventListener("input", () => { temperature.value = temperatureRange.value; });
+    temperature.addEventListener("input", () => {
+      const value = Number(temperature.value);
+      if (Number.isFinite(value)) temperatureRange.value = String(Math.min(2, Math.max(0, value)));
+    });
+    avatarImage.addEventListener("error", showAvatarFallback);
 
     agentForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (!agentForm.reportValidity()) return;
       submit.disabled = true;
-      showNotice(id.value ? "正在保存 Agent……" : "正在创建 Agent……");
+      showNotice(id.value ? "正在保存角色配置……" : "正在创建角色……");
       const payload = {
         displayName: displayName.value.trim(),
         avatarUrl: avatarUrl.value.trim() || null,
@@ -180,27 +345,31 @@ const initialState = JSON.stringify(result).replace(/</g, "\\u003c");
         enabled: enabled.checked
       };
       try {
+        let saved: StudioAgent;
         if (id.value) {
-          await studioRequest<StudioAgent>(`/studio/agents/${encodeURIComponent(id.value)}`, {
+          saved = await studioRequest<StudioAgent>(`/studio/agents/${encodeURIComponent(id.value)}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ ...payload, version: Number(version.value) } satisfies UpdateAgentPayload)
           });
         } else {
-          await studioRequest<StudioAgent>("/studio/agents", {
+          saved = await studioRequest<StudioAgent>("/studio/agents", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username: username.value.trim(), ...payload } satisfies CreateAgentPayload)
           });
         }
-        window.location.reload();
+        const next = new URL(window.location.href);
+        next.searchParams.set("agent", saved.id);
+        next.searchParams.set("saved", "1");
+        window.location.assign(next);
       } catch (error) {
         showNotice(error instanceof Error ? error.message : "Agent 保存失败", true);
         submit.disabled = false;
       }
     });
 
-    function selectAgent(agent: StudioAgent) {
+    function selectAgent(agent: StudioAgent, updateUrl: boolean) {
       id.value = agent.id;
       version.value = String(agent.version);
       username.value = agent.username;
@@ -210,27 +379,86 @@ const initialState = JSON.stringify(result).replace(/</g, "\\u003c");
       systemPrompt.value = agent.systemPrompt;
       model.value = agent.model ?? "";
       temperature.value = String(agent.temperature);
+      temperatureRange.value = String(agent.temperature);
       enabled.checked = agent.enabled;
       canProcessPrivate.checked = agent.canProcessPrivate;
-      title.textContent = `编辑 ${agent.displayName}`;
       submitLabel.textContent = "保存修改";
-      for (const item of document.querySelectorAll<HTMLElement>("[data-agent-id]")) {
-        item.classList.toggle("active", item.dataset.agentId === agent.id);
+      formContext.textContent = `正在编辑 @${agent.username} · 配置版本 v${agent.version}`;
+      for (const item of document.querySelectorAll<HTMLButtonElement>("[data-agent-id]")) {
+        const selected = item.dataset.agentId === agent.id;
+        item.classList.toggle("active", selected);
+        item.setAttribute("aria-pressed", String(selected));
       }
-      systemPrompt.focus();
+      updatePreview();
+      updateAvatar();
+      updatePromptCount();
+      if (updateUrl) {
+        const next = new URL(window.location.href);
+        next.searchParams.set("agent", agent.id);
+        next.searchParams.delete("saved");
+        window.history.replaceState({}, "", next);
+      }
+      if (window.matchMedia("(max-width: 900px)").matches) {
+        configCard.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
     }
 
-    function resetForm() {
+    function resetForm(updateUrl: boolean) {
       agentForm.reset();
       id.value = "";
       version.value = "1";
       username.readOnly = false;
       temperature.value = "0.7";
+      temperatureRange.value = "0.7";
       enabled.checked = true;
-      title.textContent = "创建 Agent";
-      submitLabel.textContent = "创建 Agent";
-      for (const item of document.querySelectorAll<HTMLElement>("[data-agent-id]")) item.classList.remove("active");
+      submitLabel.textContent = "创建角色";
+      formContext.textContent = "创建后即可在文章编辑页选择这个角色。";
+      notice.hidden = true;
+      for (const item of document.querySelectorAll<HTMLButtonElement>("[data-agent-id]")) {
+        item.classList.remove("active");
+        item.setAttribute("aria-pressed", "false");
+      }
+      updatePreview();
+      updateAvatar();
+      updatePromptCount();
+      if (updateUrl) {
+        const next = new URL(window.location.href);
+        next.searchParams.delete("agent");
+        next.searchParams.delete("saved");
+        window.history.replaceState({}, "", next);
+      }
       username.focus();
+      if (window.matchMedia("(max-width: 900px)").matches) {
+        configCard.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+
+    function updatePreview() {
+      previewName.textContent = displayName.value.trim() || "未命名角色";
+      previewHandle.textContent = username.value.trim() ? `@${username.value.trim()}` : "设置一个稳定的角色身份";
+      previewMode.textContent = id.value ? `EDITING · V${version.value}` : "NEW CHARACTER";
+      previewState.classList.toggle("disabled", !enabled.checked);
+      const label = previewState.querySelector("span");
+      if (label) label.textContent = enabled.checked
+        ? (id.value ? "当前已启用" : "保存后启用")
+        : (id.value ? "当前已停用" : "保存后停用");
+    }
+
+    function updateAvatar() {
+      const value = avatarUrl.value.trim();
+      if (!value) { showAvatarFallback(); return; }
+      avatarImage.hidden = false;
+      avatarFallback.hidden = true;
+      avatarImage.src = value;
+    }
+
+    function showAvatarFallback() {
+      avatarImage.hidden = true;
+      avatarFallback.hidden = false;
+    }
+
+    function updatePromptCount() {
+      promptCount.textContent = `${[...systemPrompt.value].length.toLocaleString("zh-CN")} / 12,000`;
     }
 
     function showNotice(message: string, error = false) {
@@ -238,5 +466,11 @@ const initialState = JSON.stringify(result).replace(/</g, "\\u003c");
       notice.classList.toggle("error", error);
       notice.hidden = false;
     }
+
+    const params = new URLSearchParams(window.location.search);
+    const selected = params.get("agent");
+    if (selected && agents.has(selected)) selectAgent(agents.get(selected)!, false);
+    else resetForm(false);
+    if (params.get("saved") === "1") showNotice("角色配置已保存。");
   }
 </script>

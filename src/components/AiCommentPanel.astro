@@ -194,38 +194,71 @@ const { post } = Astro.props;
         return;
       }
       const byId = new Map(comments.map((comment) => [comment.id, comment]));
-      for (const comment of flattenThread(comments)) list.append(createCommentCard(comment, byId));
+      for (const entry of flattenThread(comments)) {
+        list.append(createCommentCard(entry.comment, byId, entry.depth));
+      }
     }
 
-    function createCommentCard(comment: StudioComment, byId: Map<string, StudioComment>): HTMLElement {
+    function createCommentCard(
+      comment: StudioComment,
+      byId: Map<string, StudioComment>,
+      depth: number
+    ): HTMLElement {
       const article = document.createElement("article");
-      article.className = `ai-review-comment${comment.parentCommentId ? " reply" : ""}`;
+      article.className = `ai-review-comment${comment.parentCommentId ? " reply" : " root"}`;
       article.dataset.commentId = comment.id;
+      article.dataset.commentStatus = comment.status;
+      article.style.setProperty("--comment-depth", String(Math.min(depth, 3)));
       const parent = comment.parentCommentId ? byId.get(comment.parentCommentId) : undefined;
-      if (parent) {
-        const relation = document.createElement("small");
-        relation.className = "ai-reply-relation";
-        relation.textContent = `回复 ${parent.author.displayName}`;
-        article.append(relation);
+
+      const head = document.createElement("header");
+      head.className = "ai-review-comment-head";
+      const avatar = document.createElement("span");
+      avatar.className = "agent-avatar ai-review-avatar";
+      avatar.setAttribute("aria-hidden", "true");
+      if (comment.author.avatarUrl) {
+        const image = document.createElement("img");
+        image.src = comment.author.avatarUrl;
+        image.alt = "";
+        avatar.append(image);
+      } else {
+        avatar.textContent = comment.author.displayName.slice(0, 1);
       }
-      const meta = document.createElement("div");
-      meta.className = "ai-review-comment-meta";
+      const identity = document.createElement("div");
+      identity.className = "ai-review-identity";
+      const nameLine = document.createElement("div");
+      nameLine.className = "ai-review-name-line";
       const author = document.createElement("strong");
-      author.textContent = `${comment.author.displayName} · AI`;
+      author.textContent = comment.author.displayName;
+      const aiBadge = document.createElement("em");
+      aiBadge.textContent = "AI";
+      nameLine.append(author, aiBadge);
+      const detail = document.createElement("small");
+      detail.textContent = `@${comment.author.username} · ${formatCommentTime(comment.createdAt)}`;
+      identity.append(nameLine, detail);
       const status = document.createElement("span");
       status.className = `comment-status ${comment.status.toLowerCase()}`;
       status.textContent = statusLabel(comment.status);
-      meta.append(author, status);
+      head.append(avatar, identity, status);
+
+      let relation: HTMLElement | null = null;
+      if (parent) {
+        relation = document.createElement("small");
+        relation.className = "ai-reply-relation";
+        relation.textContent = `↳ 接着 ${parent.author.displayName} 的话`;
+      }
       const body = document.createElement("p");
       body.textContent = comment.body;
       const actions = document.createElement("div");
       actions.className = "button-row ai-review-actions";
-      if (comment.status === "PENDING") actions.append(actionButton("publish", "发布", comment.id));
+      if (comment.status === "PENDING") actions.append(actionButton("publish", "发布到博客", comment.id));
       if (comment.status !== "HIDDEN") {
-        actions.append(actionButton("reply", "让 Agent 回复", comment.id));
+        actions.append(actionButton("reply", "安排角色回复", comment.id));
         actions.append(actionButton("hide", "隐藏", comment.id));
       }
-      article.append(meta, body, actions);
+      article.append(head);
+      if (relation) article.append(relation);
+      article.append(body, actions);
       return article;
     }
 
@@ -483,17 +516,26 @@ const { post } = Astro.props;
           roots.push(comment);
         }
       }
-      const result: StudioComment[] = [];
+      const result: Array<{ comment: StudioComment; depth: number }> = [];
       const visited = new Set<string>();
-      const visit = (comment: StudioComment) => {
+      const visit = (comment: StudioComment, depth: number) => {
         if (visited.has(comment.id)) return;
         visited.add(comment.id);
-        result.push(comment);
-        for (const child of children.get(comment.id) ?? []) visit(child);
+        result.push({ comment, depth: Math.min(depth, 3) });
+        for (const child of children.get(comment.id) ?? []) visit(child, depth + 1);
       };
-      for (const rootComment of roots) visit(rootComment);
-      for (const comment of comments) visit(comment);
+      for (const rootComment of roots) visit(rootComment, 0);
+      for (const comment of comments) visit(comment, 0);
       return result;
+    }
+
+    function formatCommentTime(value: string): string {
+      return new Intl.DateTimeFormat("zh-CN", {
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      }).format(new Date(value));
     }
 
     function setBusy(value: boolean) {

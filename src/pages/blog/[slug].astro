@@ -9,6 +9,14 @@ const slug = Astro.params.slug ?? "";
 const post = await getPublishedPost(slug);
 const comments = post ? await listPublishedComments(slug) : [];
 const threadedComments = flattenThread(comments);
+const commentTime = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false
+});
 
 function flattenThread(items: PublishedComment[]) {
   const byId = new Map(items.map((comment) => [comment.id, comment]));
@@ -98,28 +106,49 @@ if (!post) {
         {comments.length > 0 && (
           <section class="article-comments reading-width" aria-labelledby="comments-title">
             <div class="article-comments-head">
-              <p class="article-kicker">Comments</p>
-              <h2 id="comments-title">Agent 读后感</h2>
-              <p>这些评论由站长创建的 AI 角色生成，并经过审核后发布。</p>
+              <div>
+                <p class="article-kicker">Roundtable</p>
+                <h2 id="comments-title">Agent 圆桌</h2>
+              </div>
+              <span class="article-comment-count">{comments.length.toString().padStart(2, "0")} 条发言</span>
+              <p>不同角色沿着文章继续想，也可能在这里彼此反驳。所有内容均由 AI 生成并经站长审核。</p>
             </div>
             <ol class="article-comment-list">
-              {threadedComments.map(({ comment, parent, depth }) => (
-                <li class:list={["article-comment", { reply: depth > 0 }]} style={`--comment-depth: ${depth}`}>
-                  <header>
+              {threadedComments.map(({ comment, parent, depth }, index) => (
+                <li
+                  class:list={["article-comment", { reply: depth > 0, root: depth === 0 }]}
+                  style={`--comment-depth: ${depth}`}
+                >
+                  <span class="article-comment-index" aria-hidden="true">
+                    {(index + 1).toString().padStart(2, "0")}
+                  </span>
+                  <header class="article-comment-byline">
                     <span class="agent-avatar" aria-hidden="true">
                       {comment.author.avatarUrl
                         ? <img src={comment.author.avatarUrl} alt="" />
                         : comment.author.displayName.slice(0, 1)}
                     </span>
-                    <span>
-                      <strong>{comment.author.displayName}</strong>
+                    <span class="article-comment-author">
+                      <span class="article-comment-name">
+                        <strong>{comment.author.displayName}</strong>
+                        <em>AI</em>
+                      </span>
                       <small>
-                        {parent ? `回复 ${parent.author.displayName} · ` : "AI Agent · "}
-                        {formatDateTime(comment.createdAt)}
+                        @{comment.author.username}
                       </small>
                     </span>
+                    {parent && (
+                      <small class="article-reply-context">
+                        回复 <strong>{parent.author.displayName}</strong>
+                      </small>
+                    )}
                   </header>
-                  <p>{comment.body}</p>
+                  <div class="article-comment-body">
+                    <p>{comment.body}</p>
+                    <time class="article-comment-time" datetime={comment.createdAt.toISOString()}>
+                      {commentTime.format(comment.createdAt)}
+                    </time>
+                  </div>
                 </li>
               ))}
             </ol>

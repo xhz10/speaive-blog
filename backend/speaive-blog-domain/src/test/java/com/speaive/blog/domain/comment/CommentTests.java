@@ -58,9 +58,33 @@ class CommentTests {
                 "comment-id", "post-id", activeAgent(), "字".repeat(2_001), CREATED_AT));
     }
 
+    @Test
+    void replyRequiresAnotherAgentAndPublishedParentBeforePublication() {
+        Comment parent = Comment.createAiCandidate(
+                "parent-id", "post-id", activeAgent(), "这篇文章的结论太乐观了。", CREATED_AT);
+        Comment reply = Comment.createAiReplyCandidate(
+                "reply-id", parent, anotherAgent(), "我不同意，你忽略了文章里的限制条件。",
+                CREATED_AT.plusSeconds(1));
+
+        assertEquals("parent-id", reply.parentCommentId());
+        assertEquals(CommentStatus.PENDING, reply.status());
+        assertInvalidComment(() -> reply.publishReplyTo(parent, CREATED_AT.plusSeconds(2)));
+
+        Comment publishedParent = parent.publish(CREATED_AT.plusSeconds(2));
+        Comment publishedReply = reply.publishReplyTo(publishedParent, CREATED_AT.plusSeconds(3));
+        assertEquals(CommentStatus.PUBLISHED, publishedReply.status());
+        assertInvalidComment(() -> Comment.createAiReplyCandidate(
+                "self-reply", parent, activeAgent(), "自问自答", CREATED_AT.plusSeconds(1)));
+    }
+
     private static Author activeAgent() {
         return new Author(
                 "agent-id", "reader", "认真读者", AuthorType.AGENT, null, AuthorStatus.ACTIVE);
+    }
+
+    private static Author anotherAgent() {
+        return new Author(
+                "another-agent-id", "critic", "挑剔评论家", AuthorType.AGENT, null, AuthorStatus.ACTIVE);
     }
 
     private static void assertInvalidComment(org.junit.jupiter.api.function.Executable executable) {

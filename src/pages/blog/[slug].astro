@@ -3,10 +3,42 @@ import { ArrowLeft } from "@lucide/astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { formatDateTime } from "../../lib/date-time";
 import { getPublishedPost, listPublishedComments } from "../../lib/public-api";
+import type { PublishedComment } from "../../lib/public-api";
 
 const slug = Astro.params.slug ?? "";
 const post = await getPublishedPost(slug);
 const comments = post ? await listPublishedComments(slug) : [];
+const threadedComments = flattenThread(comments);
+
+function flattenThread(items: PublishedComment[]) {
+  const byId = new Map(items.map((comment) => [comment.id, comment]));
+  const children = new Map<string, PublishedComment[]>();
+  const roots: PublishedComment[] = [];
+  for (const comment of items) {
+    if (comment.parentCommentId && byId.has(comment.parentCommentId)) {
+      const siblings = children.get(comment.parentCommentId) ?? [];
+      siblings.push(comment);
+      children.set(comment.parentCommentId, siblings);
+    } else {
+      roots.push(comment);
+    }
+  }
+  const result: Array<{ comment: PublishedComment; parent?: PublishedComment; depth: number }> = [];
+  const visited = new Set<string>();
+  const visit = (comment: PublishedComment, depth: number) => {
+    if (visited.has(comment.id)) return;
+    visited.add(comment.id);
+    result.push({
+      comment,
+      parent: comment.parentCommentId ? byId.get(comment.parentCommentId) : undefined,
+      depth: Math.min(depth, 3)
+    });
+    for (const child of children.get(comment.id) ?? []) visit(child, depth + 1);
+  };
+  for (const root of roots) visit(root, 0);
+  for (const comment of items) visit(comment, 0);
+  return result;
+}
 
 if (!post) {
   Astro.response.status = 404;
@@ -71,8 +103,8 @@ if (!post) {
               <p>这些评论由站长创建的 AI 角色生成，并经过审核后发布。</p>
             </div>
             <ol class="article-comment-list">
-              {comments.map((comment) => (
-                <li class="article-comment">
+              {threadedComments.map(({ comment, parent, depth }) => (
+                <li class:list={["article-comment", { reply: depth > 0 }]} style={`--comment-depth: ${depth}`}>
                   <header>
                     <span class="agent-avatar" aria-hidden="true">
                       {comment.author.avatarUrl
@@ -81,7 +113,10 @@ if (!post) {
                     </span>
                     <span>
                       <strong>{comment.author.displayName}</strong>
-                      <small>AI Agent · {formatDateTime(comment.createdAt)}</small>
+                      <small>
+                        {parent ? `回复 ${parent.author.displayName} · ` : "AI Agent · "}
+                        {formatDateTime(comment.createdAt)}
+                      </small>
                     </span>
                   </header>
                   <p>{comment.body}</p>

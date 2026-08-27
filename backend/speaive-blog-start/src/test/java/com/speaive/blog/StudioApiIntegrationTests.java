@@ -5,9 +5,13 @@ import com.speaive.blog.application.command.post.PostWriteCommand;
 import com.speaive.blog.application.error.BlogErrorCode;
 import com.speaive.blog.application.error.BlogException;
 import com.speaive.blog.application.port.in.importing.MarkdownInboxUseCase;
+import com.speaive.blog.application.port.in.automation.CommunityAutomationUseCase;
 import com.speaive.blog.application.port.in.post.PostUseCase;
 import com.speaive.blog.application.port.out.ai.AiCommentGeneration;
 import com.speaive.blog.application.port.out.ai.AiCommentGenerationPort;
+import com.speaive.blog.application.port.out.ai.AiCommentPrompt;
+import com.speaive.blog.application.port.out.ai.AiSummaryGeneration;
+import com.speaive.blog.application.port.out.ai.AiSummaryGenerationPort;
 import com.speaive.blog.application.result.importing.MarkdownImportOutcome;
 import com.speaive.blog.application.result.post.PostDetailResult;
 import com.speaive.blog.interfaces.importing.MarkdownInboxImporter;
@@ -15,6 +19,7 @@ import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -54,6 +59,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -99,9 +105,13 @@ class StudioApiIntegrationTests {
     private final MarkdownInboxImporter inboxImporter;
     private final PostUseCase posts;
     private final MarkdownInboxUseCase inboxImports;
+    private final CommunityAutomationUseCase communityAutomation;
 
     @MockitoBean
     AiCommentGenerationPort aiComments;
+
+    @MockitoBean
+    AiSummaryGenerationPort aiSummaries;
 
     @Autowired
     StudioApiIntegrationTests(
@@ -109,12 +119,14 @@ class StudioApiIntegrationTests {
             JdbcTemplate jdbc,
             MarkdownInboxImporter inboxImporter,
             PostUseCase posts,
-            MarkdownInboxUseCase inboxImports) {
+            MarkdownInboxUseCase inboxImports,
+            CommunityAutomationUseCase communityAutomation) {
         this.mockMvc = mockMvc;
         this.jdbc = jdbc;
         this.inboxImporter = inboxImporter;
         this.posts = posts;
         this.inboxImports = inboxImports;
+        this.communityAutomation = communityAutomation;
     }
 
     @BeforeEach
@@ -126,11 +138,15 @@ class StudioApiIntegrationTests {
         jdbc.update("DELETE FROM blog_post_tag");
         jdbc.update("DELETE FROM blog_post");
         jdbc.update("DELETE FROM blog_user WHERE id <> ?", ADMIN_ID);
+        jdbc.update("DELETE FROM blog_invitation");
         clearDirectory(DATA_DIRECTORY);
         Files.createDirectories(DATA_DIRECTORY.resolve("inbox"));
         when(aiComments.isAvailable()).thenReturn(true);
         when(aiComments.generate(any())).thenReturn(
                 new AiCommentGeneration("这篇文章把一个普通瞬间写得很具体，也留下了继续追问的空间。", "test-model", 12, 18));
+        when(aiSummaries.isAvailable()).thenReturn(true);
+        when(aiSummaries.generate(any())).thenReturn(
+                new AiSummaryGeneration("文章记录了一个具体瞬间，并围绕它留下了值得继续讨论的问题。", "test-model", 20, 12));
     }
 
     @AfterAll
@@ -165,6 +181,148 @@ class StudioApiIntegrationTests {
 
         mockMvc.perform(get("/api/v1/studio/session"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void inviteOnlyMembersCreateAgentsThatRequireAdminReviewAndAutoCommentsRemainPending() throws Exception {
+        Client admin = login();
+        MvcResult invitation = mockMvc.perform(post("/api/v1/studio/invitations")
+                        .session(admin.session()).cookie(admin.csrfCookie())
+                        .header(admin.csrfHeader(), admin.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"validDays\":30,\"maxUses\":1}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.code", org.hamcrest.Matchers.startsWith("spv_")))
+                .andReturn();
+        String invitationCode = JsonPath.read(invitation.getResponse().getContentAsString(), "$.code");
+
+        MvcResult anonymousCsrf = mockMvc.perform(get("/api/v1/account/csrf"))
+                .andExpect(status().isOk())
+                .andReturn();
+        Cookie anonymousCookie = anonymousCsrf.getResponse().getCookie("XSRF-TOKEN");
+        String anonymousToken = JsonPath.read(anonymousCsrf.getResponse().getContentAsString(), "$.token");
+        String anonymousHeader = JsonPath.read(anonymousCsrf.getResponse().getContentAsString(), "$.headerName");
+        MvcResult registered = mockMvc.perform(post("/api/v1/account/register")
+                        .cookie(anonymousCookie).header(anonymousHeader, anonymousToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username":"member-one",
+                                  "displayName":"一号读者",
+                                  "password":"member-password-123",
+                                  "invitationCode":"%s"
+                                }
+                                """.formatted(invitationCode)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.username").value("member-one"))
+                .andReturn();
+        MockHttpSession memberSession = (MockHttpSession) registered.getRequest().getSession(false);
+        Cookie memberCookie = registered.getResponse().getCookie("XSRF-TOKEN");
+        MvcResult memberCsrf = mockMvc.perform(get("/api/v1/account/csrf")
+                        .session(memberSession).cookie(memberCookie))
+                .andExpect(status().isOk())
+                .andReturn();
+        String memberToken = JsonPath.read(memberCsrf.getResponse().getContentAsString(), "$.token");
+        String memberHeader = JsonPath.read(memberCsrf.getResponse().getContentAsString(), "$.headerName");
+
+        mockMvc.perform(get("/api/v1/studio/agents").session(memberSession))
+                .andExpect(status().isForbidden());
+
+        MvcResult createdAgent = mockMvc.perform(post("/api/v1/account/agents")
+                        .session(memberSession).cookie(memberCookie).header(memberHeader, memberToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username":"member-critic",
+                                  "displayName":"会员评论家",
+                                  "avatarUrl":null,
+                                  "systemPrompt":"阅读文章后给出具体、有边界的不同意见。",
+                                  "temperature":0.7,
+                                  "autoCommentEnabled":true,
+                                  "autoCommentAllPosts":true,
+                                  "autoCommentTags":[]
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.reviewStatus").value("PENDING"))
+                .andExpect(jsonPath("$.enabled").value(false))
+                .andExpect(jsonPath("$.canProcessPrivate").value(false))
+                .andExpect(jsonPath("$.model").value(nullValue()))
+                .andReturn();
+        String agentId = JsonPath.read(createdAgent.getResponse().getContentAsString(), "$.id");
+
+        mockMvc.perform(post("/api/v1/studio/agents/" + agentId + "/approve")
+                        .session(memberSession).cookie(memberCookie).header(memberHeader, memberToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"version\":1}"))
+                .andExpect(status().isForbidden());
+
+        MvcResult approved = mockMvc.perform(post("/api/v1/studio/agents/" + agentId + "/approve")
+                        .session(admin.session()).cookie(admin.csrfCookie()).header(admin.csrfHeader(), admin.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"version\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.enabled").value(true))
+                .andReturn();
+        int approvedVersion = JsonPath.read(approved.getResponse().getContentAsString(), "$.version");
+
+        MvcResult changed = mockMvc.perform(put("/api/v1/account/agents/" + agentId)
+                        .session(memberSession).cookie(memberCookie).header(memberHeader, memberToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "displayName":"会员评论家",
+                                  "avatarUrl":null,
+                                  "systemPrompt":"修改后，必须重新审核才能继续评论。",
+                                  "temperature":0.6,
+                                  "version":%d
+                                }
+                                """.formatted(approvedVersion)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("PENDING"))
+                .andExpect(jsonPath("$.enabled").value(false))
+                .andReturn();
+        int changedVersion = JsonPath.read(changed.getResponse().getContentAsString(), "$.version");
+
+        mockMvc.perform(post("/api/v1/studio/agents/" + agentId + "/approve")
+                        .session(admin.session()).cookie(admin.csrfCookie()).header(admin.csrfHeader(), admin.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":" + changedVersion + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("APPROVED"));
+
+        MvcResult createdPost = mockMvc.perform(post("/api/v1/studio/posts")
+                        .session(admin.session()).cookie(admin.csrfCookie()).header(admin.csrfHeader(), admin.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON).content(createJson("community-post", "社区文章")))
+                .andExpect(status().isCreated()).andReturn();
+        String draftVersion = JsonPath.read(createdPost.getResponse().getContentAsString(), "$.version");
+        mockMvc.perform(post("/api/v1/studio/posts/community-post/publish")
+                        .session(admin.session()).cookie(admin.csrfCookie()).header(admin.csrfHeader(), admin.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":\"" + draftVersion + "\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/v1/studio/posts/community-post/community-agents")
+                        .session(admin.session()).cookie(admin.csrfCookie()).header(admin.csrfHeader(), admin.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"enabled\":true,\"version\":0}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enabled").value(true))
+                .andExpect(jsonPath("$.queuedAgents").value(1));
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM blog_community_comment_job WHERE agent_id = ?", String.class, agentId))
+                .isEqualTo("PENDING");
+
+        var batch = communityAutomation.processDueJobs(3);
+        assertThat(batch.succeeded()).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM blog_community_comment_job WHERE agent_id = ?", String.class, agentId))
+                .isEqualTo("SUCCEEDED");
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM blog_comment WHERE author_id = ?", String.class, agentId))
+                .isEqualTo("PENDING");
+        mockMvc.perform(get("/api/v1/public/posts/community-post/comments"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(0)));
     }
 
     @Test
@@ -276,6 +434,44 @@ class StudioApiIntegrationTests {
                 .andExpect(jsonPath("$.version").value(1))
                 .andReturn();
         String agentId = JsonPath.read(createdAgent.getResponse().getContentAsString(), "$.id");
+        MvcResult createdCritic = mockMvc.perform(post("/api/v1/studio/agents")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username":"skeptical-critic",
+                                  "displayName":"挑剔评论家",
+                                  "avatarUrl":null,
+                                  "systemPrompt":"找出其他评论忽略的条件，直接但克制地提出反驳。",
+                                  "model":null,
+                                  "temperature":0.8,
+                                  "canProcessPrivate":false,
+                                  "enabled":true
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String criticId = JsonPath.read(createdCritic.getResponse().getContentAsString(), "$.id");
+
+        PostDetailResult olderMemory = posts.createDraft(new PostWriteCommand(
+                "older-memory", "更早的生活记录", "", java.time.Instant.parse("2025-01-02T08:00:00Z"),
+                List.of("生活"), null, "PUBLIC", "一段更早的生活记录。"));
+        posts.publish(olderMemory.slug(), olderMemory.version());
+        PostDetailResult recentMemory = posts.createDraft(new PostWriteCommand(
+                "recent-memory", "最近的生活记录", "", java.time.Instant.parse("2026-07-02T08:00:00Z"),
+                List.of("生活", "随记"), null, "PUBLIC", "一段最近的生活记录。"));
+        posts.publish(recentMemory.slug(), recentMemory.version());
+        posts.createDraft(new PostWriteCommand(
+                "private-memory", "不能泄露的生活记录", "", java.time.Instant.parse("2026-07-20T08:00:00Z"),
+                List.of("生活", "随记"), null, "ADMIN_ONLY", "这段私密经历不能进入公开评论上下文。"));
+        for (String relatedSlug : List.of("older-memory", "recent-memory", "private-memory")) {
+            mockMvc.perform(post("/api/v1/studio/posts/" + relatedSlug + "/ai-summary")
+                            .session(client.session()).cookie(client.csrfCookie())
+                            .header(client.csrfHeader(), client.csrfToken()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.state").value("CURRENT"));
+        }
 
         MvcResult createdPost = mockMvc.perform(post("/api/v1/studio/posts")
                         .session(client.session()).cookie(client.csrfCookie())
@@ -307,6 +503,11 @@ class StudioApiIntegrationTests {
                 .andExpect(jsonPath("$.body").value(containsString("普通瞬间")))
                 .andReturn();
         String commentId = JsonPath.read(generated.getResponse().getContentAsString(), "$.id");
+        ArgumentCaptor<AiCommentPrompt> promptCaptor = ArgumentCaptor.forClass(AiCommentPrompt.class);
+        verify(aiComments).generate(promptCaptor.capture());
+        assertThat(promptCaptor.getValue().relatedPosts())
+                .extracting(AiCommentPrompt.RelatedPost::title)
+                .containsExactly("更早的生活记录", "最近的生活记录");
 
         mockMvc.perform(get("/api/v1/public/posts/ai-comment-flow/comments"))
                 .andExpect(status().isOk())
@@ -316,15 +517,39 @@ class StudioApiIntegrationTests {
                 .andExpect(jsonPath("$.items", hasSize(1)))
                 .andExpect(jsonPath("$.items[0].status").value("PENDING"));
 
+        MvcResult generatedReply = mockMvc.perform(post("/api/v1/studio/comments/" + commentId + "/ai-replies")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"agentId\":\"" + criticId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.parentCommentId").value(commentId))
+                .andExpect(jsonPath("$.author.displayName").value("挑剔评论家"))
+                .andReturn();
+        String replyId = JsonPath.read(generatedReply.getResponse().getContentAsString(), "$.id");
+
+        mockMvc.perform(post("/api/v1/studio/comments/" + replyId + "/publish")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
         mockMvc.perform(post("/api/v1/studio/comments/" + commentId + "/publish")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PUBLISHED"));
+        mockMvc.perform(post("/api/v1/studio/comments/" + replyId + "/publish")
                         .session(client.session()).cookie(client.csrfCookie())
                         .header(client.csrfHeader(), client.csrfToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PUBLISHED"));
         mockMvc.perform(get("/api/v1/public/posts/ai-comment-flow/comments"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items", hasSize(1)))
-                .andExpect(jsonPath("$.items[0].author.displayName").value("共情读者"));
+                .andExpect(jsonPath("$.items", hasSize(2)))
+                .andExpect(jsonPath("$.items[0].author.displayName").value("共情读者"))
+                .andExpect(jsonPath("$.items[1].parentCommentId").value(commentId));
 
         mockMvc.perform(post("/api/v1/studio/comments/" + commentId + "/hide")
                         .session(client.session()).cookie(client.csrfCookie())
@@ -338,6 +563,12 @@ class StudioApiIntegrationTests {
         assertThat(jdbc.queryForObject(
                 "SELECT status FROM blog_agent_run WHERE agent_id = ?", String.class, agentId))
                 .isEqualTo("SUCCEEDED");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM blog_comment WHERE status = 'HIDDEN'", Integer.class))
+                .isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM blog_post_ai_summary", Integer.class))
+                .isEqualTo(4);
     }
 
     @Test

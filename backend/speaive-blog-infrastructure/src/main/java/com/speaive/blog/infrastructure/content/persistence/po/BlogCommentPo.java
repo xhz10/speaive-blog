@@ -13,6 +13,8 @@ public class BlogCommentPo {
     private String id;
     @TableField("post_id")
     private String postId;
+    @TableField("parent_comment_id")
+    private String parentCommentId;
     @TableField("author_id")
     private String authorId;
     private String body;
@@ -26,6 +28,8 @@ public class BlogCommentPo {
     public void setId(String id) { this.id = id; }
     public String getPostId() { return postId; }
     public void setPostId(String postId) { this.postId = postId; }
+    public String getParentCommentId() { return parentCommentId; }
+    public void setParentCommentId(String parentCommentId) { this.parentCommentId = parentCommentId; }
     public String getAuthorId() { return authorId; }
     public void setAuthorId(String authorId) { this.authorId = authorId; }
     public String getBody() { return body; }

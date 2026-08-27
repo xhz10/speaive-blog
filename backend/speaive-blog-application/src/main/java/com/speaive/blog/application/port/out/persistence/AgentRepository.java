@@ -10,6 +10,8 @@ public interface AgentRepository {
 
     Optional<AgentProfile> findById(String id);
 
+    List<AgentProfile> findByOwnerAccountId(String ownerAccountId);
+
     void add(AgentProfile agent);
 
     void save(AgentProfile agent, long expectedVersion);

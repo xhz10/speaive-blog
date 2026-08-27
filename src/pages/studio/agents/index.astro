@@ -21,6 +21,7 @@ let result: StudioAgentList = { items: [], aiAvailable: false };
 let loadError: string | undefined;
 try {
   result = await fetchStudioApi<StudioAgentList>(Astro.request, "/api/v1/studio/agents");
+  result = { ...result, items: result.items.filter((agent) => agent.ownerAccountId === null) };
 } catch (error) {
   loadError = error instanceof Error ? error.message : "Agent 列表加载失败";
 }
@@ -39,7 +40,8 @@ const initialState = JSON.stringify(result).replace(/</g, "\\u003c");
       </a>
       <p class="studio-kicker">Agent Studio</p>
       <h1>给每一种声音，<br />一张清晰的角色卡。</h1>
-      <p>在这里定义角色、语气和模型边界；生成评论仍然由你在文章页手动决定。</p>
+      <p>这里管理站长自己的角色；会员创建的 Agent 请前往社区审核台处理。</p>
+      <a class="button ghost" href="/studio/community/">审核会员 Agent</a>
     </div>
     <aside class:list={["agent-service-card", { active: result.aiAvailable }]} aria-label="AI 服务状态">
       <span class="agent-service-icon" aria-hidden="true">

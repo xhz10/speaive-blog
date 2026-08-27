@@ -108,7 +108,8 @@ final class PostApplicationSupport {
         return switch (code) {
             case INVALID_SLUG -> BlogErrorCode.INVALID_FILE_NAME;
             case INVALID_CONTENT -> BlogErrorCode.INVALID_MARKDOWN;
-            case INVALID_STATE, INVALID_AUTHOR, INVALID_AGENT, INVALID_COMMENT -> BlogErrorCode.INVALID_REQUEST;
+            case INVALID_STATE, INVALID_AUTHOR, INVALID_ACCOUNT, INVALID_AGENT, INVALID_COMMENT ->
+                    BlogErrorCode.INVALID_REQUEST;
             case VERSION_CONFLICT -> BlogErrorCode.VERSION_CONFLICT;
         };
     }

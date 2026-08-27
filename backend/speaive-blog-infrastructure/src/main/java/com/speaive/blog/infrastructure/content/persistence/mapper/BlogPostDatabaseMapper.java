@@ -38,6 +38,17 @@ public interface BlogPostDatabaseMapper extends BaseMapper<BlogPostPo> {
 
     @Select("""
             SELECT p.id, p.slug, p.title, p.description, p.published_at, p.updated_at, p.status, p.visibility,
+                   p.body, p.cover, p.author_id AS "authorId", p.revision, p.created_at
+            FROM blog_post p
+            WHERE p.id = #{postId} AND p.status = #{status} AND p.visibility = #{visibility}
+            """)
+    BlogPostPo selectByIdAndStatusAndVisibility(
+            @Param("postId") String postId,
+            @Param("status") PostStatusPo status,
+            @Param("visibility") PostVisibilityPo visibility);
+
+    @Select("""
+            SELECT p.id, p.slug, p.title, p.description, p.published_at, p.updated_at, p.status, p.visibility,
                    p.cover, p.author_id AS "authorId", p.revision, p.created_at
             FROM blog_post p
             ORDER BY p.published_at DESC, p.slug

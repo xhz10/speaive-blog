@@ -1,5 +1,6 @@
 package com.speaive.blog.interfaces.security;
 
+import com.speaive.blog.application.port.in.account.MemberAccountUseCase;
 import com.speaive.blog.interfaces.http.error.ApiErrorCode;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -15,9 +16,9 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -56,7 +57,8 @@ public class WebSecurityConfiguration {
     UserDetailsService userDetailsService(
             @Value("${speaive.security.admin-username:admin}") String username,
             @Value("${speaive.security.admin-password-hash:}") String configuredHash,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            MemberAccountUseCase accounts) {
         String normalizedUsername = username.trim();
         if (normalizedUsername.isEmpty() || normalizedUsername.length() > 100) {
             throw new IllegalStateException("SPEAIVE_ADMIN_USERNAME 必须为 1 到 100 个字符");
@@ -70,10 +72,23 @@ public class WebSecurityConfiguration {
             throw new IllegalStateException("SPEAIVE_ADMIN_PASSWORD_HASH 必须是 BCrypt 哈希");
         }
 
-        return new InMemoryUserDetailsManager(User.withUsername(normalizedUsername)
-                .password(passwordHash)
-                .roles("ADMIN")
-                .build());
+        String adminPasswordHash = passwordHash;
+        return requestedUsername -> {
+            String candidate = requestedUsername == null ? "" : requestedUsername.trim();
+            if (normalizedUsername.equalsIgnoreCase(candidate)) {
+                return User.withUsername(normalizedUsername)
+                        .password(adminPasswordHash)
+                        .roles("ADMIN")
+                        .build();
+            }
+            return accounts.findCredentials(candidate)
+                    .map(credentials -> User.withUsername(credentials.username())
+                            .password(credentials.passwordHash())
+                            .roles("MEMBER")
+                            .disabled(!credentials.enabled())
+                            .build())
+                    .orElseThrow(() -> new UsernameNotFoundException("账号不存在"));
+        };
     }
 
     @Bean
@@ -114,9 +129,11 @@ public class WebSecurityConfiguration {
                 .logout(logout -> logout.disable())
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/**", "/media/**",
-                                "/api/v1/studio/csrf", "/actuator/health").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/studio/login").permitAll()
-                        .requestMatchers("/api/v1/studio/**").authenticated()
+                                "/api/v1/studio/csrf", "/api/v1/account/csrf", "/actuator/health").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/studio/login",
+                                "/api/v1/account/login", "/api/v1/account/register").permitAll()
+                        .requestMatchers("/api/v1/studio/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/account/**").hasRole("MEMBER")
                         .anyRequest().denyAll())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, exception) ->

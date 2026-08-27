@@ -1,21 +1,31 @@
 package com.speaive.blog;
 
 import com.speaive.blog.application.port.in.importing.MarkdownInboxUseCase;
+import com.speaive.blog.application.port.in.comment.CommentUseCase;
 import com.speaive.blog.application.port.out.ai.AiCommentGenerationPort;
+import com.speaive.blog.application.port.out.ai.AiSummaryGenerationPort;
 import com.speaive.blog.application.port.out.importing.MarkdownImportLedger;
 import com.speaive.blog.application.port.out.markdown.MarkdownPort;
 import com.speaive.blog.application.port.out.media.MediaStoragePort;
 import com.speaive.blog.application.port.out.persistence.AuthorRepository;
+import com.speaive.blog.application.port.out.persistence.AccountRepository;
 import com.speaive.blog.application.port.out.persistence.AgentRepository;
 import com.speaive.blog.application.port.out.persistence.AgentRunRepository;
 import com.speaive.blog.application.port.out.persistence.CommentRepository;
 import com.speaive.blog.application.port.out.persistence.PostRepository;
+import com.speaive.blog.application.port.out.persistence.PostAiSummaryRepository;
+import com.speaive.blog.application.port.out.persistence.InvitationRepository;
+import com.speaive.blog.application.port.out.persistence.CommunityPostPolicyRepository;
+import com.speaive.blog.application.port.out.persistence.CommunityCommentJobRepository;
 import com.speaive.blog.application.port.out.transaction.TransactionRunner;
 import com.speaive.blog.application.service.MarkdownApplicationService;
 import com.speaive.blog.application.service.MediaApplicationService;
 import com.speaive.blog.application.service.PostApplicationService;
 import com.speaive.blog.application.service.AgentApplicationService;
 import com.speaive.blog.application.service.CommentApplicationService;
+import com.speaive.blog.application.service.MemberAccountApplicationService;
+import com.speaive.blog.application.service.CommunityAutomationPlanner;
+import com.speaive.blog.application.service.CommunityAutomationApplicationService;
 import com.speaive.blog.infrastructure.content.config.ContentStorageSettings;
 import com.speaive.blog.infrastructure.content.markdown.CommonMarkMarkdownAdapter;
 import com.speaive.blog.infrastructure.content.media.PostgresMediaStorageAdapter;
@@ -26,6 +36,11 @@ import com.speaive.blog.infrastructure.content.persistence.mapper.BlogAgentRunDa
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogCommentDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogMediaDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogPostDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapper.BlogPostAiSummaryDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapper.BlogAccountDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapper.BlogInvitationDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapper.BlogCommunityPostPolicyDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapper.BlogCommunityCommentJobDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.MarkdownImportDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapping.BlogPersistenceMapStructMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapping.BlogAiPersistenceMapStructMapper;
@@ -34,6 +49,11 @@ import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAg
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresCommentRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAuthorRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresPostRepository;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresPostAiSummaryRepository;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAccountRepository;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresInvitationRepository;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresCommunityPostPolicyRepository;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresCommunityCommentJobRepository;
 import com.speaive.blog.infrastructure.transaction.SpringTransactionRunner;
 import com.speaive.blog.interfaces.importing.MarkdownInboxImporter;
 import org.springframework.beans.factory.annotation.Value;
@@ -88,6 +108,33 @@ public class BlogBackendConfiguration {
     }
 
     @Bean
+    AccountRepository accountRepository(
+            BlogAccountDatabaseMapper accounts,
+            BlogAuthorDatabaseMapper authors,
+            BlogAiPersistenceMapStructMapper mapping) {
+        return new PostgresAccountRepository(accounts, authors, mapping);
+    }
+
+    @Bean
+    InvitationRepository invitationRepository(BlogInvitationDatabaseMapper invitations) {
+        return new PostgresInvitationRepository(invitations);
+    }
+
+    @Bean
+    CommunityPostPolicyRepository communityPostPolicyRepository(
+            BlogCommunityPostPolicyDatabaseMapper policies,
+            BlogAiPersistenceMapStructMapper mapping) {
+        return new PostgresCommunityPostPolicyRepository(policies, mapping);
+    }
+
+    @Bean
+    CommunityCommentJobRepository communityCommentJobRepository(
+            BlogCommunityCommentJobDatabaseMapper jobs,
+            BlogAiPersistenceMapStructMapper mapping) {
+        return new PostgresCommunityCommentJobRepository(jobs, mapping);
+    }
+
+    @Bean
     CommentRepository commentRepository(
             BlogCommentDatabaseMapper comments,
             BlogAuthorDatabaseMapper authors,
@@ -100,6 +147,13 @@ public class BlogBackendConfiguration {
             BlogAgentRunDatabaseMapper runs,
             BlogAiPersistenceMapStructMapper mapping) {
         return new PostgresAgentRunRepository(runs, mapping);
+    }
+
+    @Bean
+    PostAiSummaryRepository postAiSummaryRepository(
+            BlogPostAiSummaryDatabaseMapper summaries,
+            BlogAiPersistenceMapStructMapper mapping) {
+        return new PostgresPostAiSummaryRepository(summaries, mapping);
     }
 
     @Bean
@@ -125,34 +179,72 @@ public class BlogBackendConfiguration {
             PostRepository posts,
             AuthorRepository authors,
             MarkdownPort markdown,
-            TransactionRunner transactions) {
+            TransactionRunner transactions,
+            CommunityAutomationPlanner communityAutomation) {
         return new PostApplicationService(
                 posts,
                 authors,
                 markdown,
                 transactions,
-                Clock.systemUTC()
+                Clock.systemUTC(),
+                communityAutomation
         );
+    }
+
+    @Bean
+    CommunityAutomationPlanner communityAutomationPlanner(
+            AgentRepository agents,
+            CommunityPostPolicyRepository policies,
+            CommunityCommentJobRepository jobs,
+            @Value("${speaive.ai.community-max-agents-per-post:3}") int maxAgentsPerPost) {
+        return new CommunityAutomationPlanner(
+                agents, policies, jobs, Clock.systemUTC(), maxAgentsPerPost);
     }
 
     @Bean
     AgentApplicationService agentApplicationService(
             AgentRepository agents,
+            AccountRepository accounts,
             AiCommentGenerationPort ai,
+            TransactionRunner transactions,
+            @Value("${speaive.ai.community-max-agents-per-account:3}") int maxAgentsPerAccount) {
+        return new AgentApplicationService(
+                agents, accounts, ai, transactions, Clock.systemUTC(), maxAgentsPerAccount);
+    }
+
+    @Bean
+    MemberAccountApplicationService memberAccountApplicationService(
+            AccountRepository accounts,
+            InvitationRepository invitations,
             TransactionRunner transactions) {
-        return new AgentApplicationService(agents, ai, transactions, Clock.systemUTC());
+        return new MemberAccountApplicationService(accounts, invitations, transactions, Clock.systemUTC());
     }
 
     @Bean
     CommentApplicationService commentApplicationService(
             PostRepository posts,
+            PostAiSummaryRepository summaries,
             AgentRepository agents,
             CommentRepository comments,
             AgentRunRepository runs,
-            AiCommentGenerationPort ai,
+            AiCommentGenerationPort commentAi,
+            AiSummaryGenerationPort summaryAi,
             TransactionRunner transactions) {
         return new CommentApplicationService(
-                posts, agents, comments, runs, ai, transactions, Clock.systemUTC());
+                posts, summaries, agents, comments, runs, commentAi, summaryAi, transactions, Clock.systemUTC());
+    }
+
+    @Bean
+    CommunityAutomationApplicationService communityAutomationApplicationService(
+            PostRepository posts,
+            CommunityPostPolicyRepository policies,
+            CommunityCommentJobRepository jobs,
+            CommunityAutomationPlanner planner,
+            CommentUseCase comments,
+            TransactionRunner transactions,
+            @Value("${speaive.ai.community-max-attempts:3}") int maxAttempts) {
+        return new CommunityAutomationApplicationService(
+                posts, policies, jobs, planner, comments, transactions, Clock.systemUTC(), maxAttempts);
     }
 
     @Bean

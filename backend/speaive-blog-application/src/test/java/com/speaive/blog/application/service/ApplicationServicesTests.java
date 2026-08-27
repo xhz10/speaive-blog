@@ -383,6 +383,15 @@ class ApplicationServicesTests {
         }
 
         @Override
+        public Optional<Post> findById(String postId, PostQueryScope scope) {
+            if (current == null || !current.id().equals(postId)
+                    || scope == PostQueryScope.PUBLISHED && current.status() != PostStatus.PUBLISHED) {
+                return Optional.empty();
+            }
+            return Optional.of(current);
+        }
+
+        @Override
         public Optional<Post> lockBySlug(String slug) {
             transactions.observe("posts.lock");
             return Optional.ofNullable(current).filter(post -> post.slug().equals(slug));

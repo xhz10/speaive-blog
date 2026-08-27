@@ -64,6 +64,11 @@ public class StudioAuthenticationController {
         try {
             Authentication authentication = authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(login.username(), login.password()));
+            boolean admin = authentication.getAuthorities().stream()
+                    .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
+            if (!admin) {
+                throw new org.springframework.security.authentication.BadCredentialsException("not admin");
+            }
 
             HttpSession existingSession = request.getSession(false);
             if (existingSession != null) {

@@ -9,6 +9,7 @@ public final class CommentResponses {
 
     public record CommentDetail(
             String id,
+            String parentCommentId,
             CommentAuthor author,
             String body,
             String status,
@@ -27,5 +28,24 @@ public final class CommentResponses {
     }
 
     public record CommentList(List<CommentDetail> items) {
+    }
+
+    public record PostAiSummaryDetail(
+            String postSlug,
+            long postRevision,
+            String body,
+            String model,
+            String state,
+            Instant generatedAt
+    ) {
+    }
+
+    public record AiSummaryCoverage(
+            int total,
+            int current,
+            int missing,
+            int stale,
+            String generatedSlug
+    ) {
     }
 }

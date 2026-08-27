@@ -20,6 +20,7 @@ export interface PublishedPost extends PublishedPostSummary {
 
 export interface PublishedComment {
   id: string;
+  parentCommentId: string | null;
   author: PostAuthor;
   body: string;
   createdAt: Date;
@@ -51,6 +52,7 @@ interface CommentListResponse {
 
 interface CommentResponse {
   id: string;
+  parentCommentId: string | null;
   author: PostAuthor;
   body: string;
   createdAt: string;
@@ -80,6 +82,7 @@ export async function listPublishedComments(slug: string): Promise<PublishedComm
   const payload = await response.json() as CommentListResponse;
   return payload.items.map((comment) => ({
     id: comment.id,
+    parentCommentId: comment.parentCommentId,
     author: { ...comment.author },
     body: comment.body,
     createdAt: parseDate(comment.createdAt)

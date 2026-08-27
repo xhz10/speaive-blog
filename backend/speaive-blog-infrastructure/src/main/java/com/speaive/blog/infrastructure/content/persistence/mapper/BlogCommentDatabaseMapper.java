@@ -13,7 +13,8 @@ import java.util.List;
 @Mapper
 public interface BlogCommentDatabaseMapper extends BaseMapper<BlogCommentPo> {
     @Select("""
-            SELECT id, post_id AS "postId", author_id AS "authorId", body, status,
+            SELECT id, post_id AS "postId", parent_comment_id AS "parentCommentId",
+                   author_id AS "authorId", body, status,
                    created_at AS "createdAt", updated_at AS "updatedAt"
             FROM blog_comment
             WHERE post_id = #{postId}
@@ -22,7 +23,8 @@ public interface BlogCommentDatabaseMapper extends BaseMapper<BlogCommentPo> {
     List<BlogCommentPo> selectAllByPostId(@Param("postId") String postId);
 
     @Select("""
-            SELECT id, post_id AS "postId", author_id AS "authorId", body, status,
+            SELECT id, post_id AS "postId", parent_comment_id AS "parentCommentId",
+                   author_id AS "authorId", body, status,
                    created_at AS "createdAt", updated_at AS "updatedAt"
             FROM blog_comment
             WHERE post_id = #{postId} AND status = #{status}
@@ -33,7 +35,8 @@ public interface BlogCommentDatabaseMapper extends BaseMapper<BlogCommentPo> {
             @Param("status") CommentStatusPo status);
 
     @Select("""
-            SELECT id, post_id AS "postId", author_id AS "authorId", body, status,
+            SELECT id, post_id AS "postId", parent_comment_id AS "parentCommentId",
+                   author_id AS "authorId", body, status,
                    created_at AS "createdAt", updated_at AS "updatedAt"
             FROM blog_comment
             WHERE id = #{id}

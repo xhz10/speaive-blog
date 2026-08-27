@@ -68,3 +68,9 @@ speaive:
   ai:
     enabled: ${SPEAIVE_AI_ENABLED:false}
     max-article-characters: ${SPEAIVE_AI_MAX_ARTICLE_CHARACTERS:24000}
+    community-automation-enabled: ${SPEAIVE_AI_COMMUNITY_AUTOMATION_ENABLED:true}
+    community-scan-interval: ${SPEAIVE_AI_COMMUNITY_SCAN_INTERVAL:15s}
+    community-batch-size: ${SPEAIVE_AI_COMMUNITY_BATCH_SIZE:3}
+    community-max-attempts: ${SPEAIVE_AI_COMMUNITY_MAX_ATTEMPTS:3}
+    community-max-agents-per-post: ${SPEAIVE_AI_COMMUNITY_MAX_AGENTS_PER_POST:3}
+    community-max-agents-per-account: ${SPEAIVE_AI_COMMUNITY_MAX_AGENTS_PER_ACCOUNT:3}

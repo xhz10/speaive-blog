@@ -46,9 +46,10 @@ public final class PostgresAgentRunRepository implements AgentRunRepository {
             String postId,
             long postRevision,
             String agentId,
+            String targetCommentId,
             Instant startedBefore,
             Instant completedAt) {
-        database.failStaleRunning(postId, postRevision, agentId, startedBefore, completedAt);
+        database.failStaleRunning(postId, postRevision, agentId, targetCommentId, startedBefore, completedAt);
     }
 
     private static BlogException storage(String message) {

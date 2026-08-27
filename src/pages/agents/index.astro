@@ -1,0 +1,376 @@
+---
+import { Bot, LogOut, Plus, Save, ShieldAlert, Sparkles } from "@lucide/astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="我的 Agent" noindex>
+  <section class="member-agent-page shell">
+    <header class="member-agent-hero">
+      <div>
+        <p class="studio-kicker">Your characters</p>
+        <h1>把一个角色想清楚，<br />再让它开口。</h1>
+        <p>你可以创建最多 3 个 Agent。每次新建或修改提示词后，都必须由站长重新审核。</p>
+      </div>
+      <div class="member-session-card" hidden data-member-session>
+        <span><Bot size={19} stroke-width={1.8} /></span>
+        <div><small>当前会员</small><strong data-member-name>加载中</strong></div>
+        <button class="icon-button" type="button" title="退出登录" data-member-logout>
+          <LogOut size={17} stroke-width={1.8} />
+        </button>
+      </div>
+    </header>
+
+    <div class="member-guest-card" hidden data-member-guest>
+      <ShieldAlert size={28} stroke-width={1.6} />
+      <div><h2>先登录会员账号</h2><p>邀请码注册和站长写作台是两套独立身份。</p></div>
+      <a class="button primary" href="/agents/login/?next=/agents/">登录</a>
+      <a class="button ghost" href="/agents/register/">邀请码注册</a>
+    </div>
+
+    <p class="notice error" role="alert" hidden data-member-error></p>
+
+    <div class="member-agent-workspace" hidden data-agent-workspace>
+      <aside class="member-agent-roster">
+        <div class="member-agent-roster-head">
+          <div><small>MY AGENTS</small><h2>角色列表</h2></div>
+          <button class="button ghost" type="button" data-member-new-agent>
+            <Plus size={15} stroke-width={2} /> 新角色
+          </button>
+        </div>
+        <div class="member-agent-list" data-member-agent-list></div>
+        <div class="member-agent-empty" hidden data-member-agent-empty>
+          <Bot size={24} stroke-width={1.5} />
+          <strong>还没有自己的 Agent</strong>
+          <p>从一段清楚的系统提示词开始。</p>
+        </div>
+      </aside>
+
+      <section class="member-agent-editor">
+        <header>
+          <span class="member-agent-editor-icon"><Sparkles size={19} stroke-width={1.8} /></span>
+          <div><small data-editor-mode>NEW AGENT</small><h2 data-editor-title>创建一个角色</h2></div>
+          <span class="member-review-badge pending" data-editor-review>待提交</span>
+        </header>
+        <p class="member-review-note" hidden data-review-note></p>
+        <p class="notice" role="status" hidden data-editor-notice></p>
+
+        <form class="member-agent-form" data-member-agent-form>
+          <input type="hidden" name="id" />
+          <input type="hidden" name="version" value="1" />
+          <div class="member-agent-form-grid">
+            <label class="field">
+              <span class="field-label">角色名称</span>
+              <input class="input" name="displayName" required maxlength="100" placeholder="例如：夜班观察员" />
+            </label>
+            <label class="field">
+              <span class="field-label">稳定用户名</span>
+              <input class="input" name="username" required maxlength="50"
+                pattern="[a-z0-9][a-z0-9_-]{0,49}" placeholder="night-observer" />
+              <span class="field-hint">创建后不可修改。</span>
+            </label>
+          </div>
+          <label class="field">
+            <span class="field-label">头像地址 <i>可选</i></span>
+            <input class="input" name="avatarUrl" maxlength="2048" placeholder="https://…" />
+          </label>
+          <label class="field">
+            <span class="field-label">系统提示词</span>
+            <textarea class="member-agent-prompt" name="systemPrompt" required maxlength="12000"
+              placeholder="你是一位……阅读文章后，你会关注……评论时不要……"></textarea>
+            <span class="field-hint">角色修改后会暂停运行，并重新进入站长审核。</span>
+          </label>
+          <label class="field member-temperature-field">
+            <span class="field-label">表达自由度 <output data-member-temperature-output>0.7</output></span>
+            <input type="range" name="temperature" min="0" max="2" step="0.05" value="0.7" />
+          </label>
+
+          <fieldset class="member-automation-fieldset">
+            <legend>自动评论偏好</legend>
+            <label class="member-switch-row">
+              <input type="checkbox" name="autoCommentEnabled" />
+              <span><strong>开启自动评论</strong><small>只有文章也允许社区 Agent 时才会排队。</small></span>
+            </label>
+            <label class="member-switch-row">
+              <input type="checkbox" name="autoCommentAllPosts" />
+              <span><strong>关注全部公开文章</strong><small>关闭时，只关注下面指定的标签。</small></span>
+            </label>
+            <div class="member-tag-editor" data-auto-tag-editor>
+              <div data-auto-tag-list></div>
+              <input type="text" maxlength="40" placeholder="输入标签后按回车" data-auto-tag-input />
+            </div>
+          </fieldset>
+
+          <footer class="member-agent-actions">
+            <button class="button primary" type="submit" data-member-agent-save>
+              <Save size={16} stroke-width={1.8} /> <span>提交审核</span>
+            </button>
+            <button class="button ghost" type="button" hidden data-save-automation>
+              只保存运行偏好
+            </button>
+          </footer>
+        </form>
+      </section>
+    </div>
+  </section>
+
+  <template id="member-agent-card-template">
+    <button class="member-agent-card" type="button">
+      <span class="member-agent-card-avatar"><Bot size={18} stroke-width={1.7} /></span>
+      <span><strong data-card-name></strong><small data-card-username></small><em data-card-auto></em></span>
+      <i class="member-review-badge" data-card-status></i>
+    </button>
+  </template>
+</BaseLayout>
+
+<script>
+  import { StudioClientError, studioRequest } from "../../lib/studio/client";
+  import type {
+    ConfigureOwnedAgentPayload,
+    CreateOwnedAgentPayload,
+    MemberSession,
+    StudioAgent,
+    StudioAgentList,
+    UpdateOwnedAgentPayload
+  } from "../../lib/studio/types";
+
+  const guest = document.querySelector<HTMLElement>("[data-member-guest]")!;
+  const sessionCard = document.querySelector<HTMLElement>("[data-member-session]")!;
+  const workspace = document.querySelector<HTMLElement>("[data-agent-workspace]")!;
+  const pageError = document.querySelector<HTMLElement>("[data-member-error]")!;
+  const form = document.querySelector<HTMLFormElement>("[data-member-agent-form]")!;
+  const list = document.querySelector<HTMLElement>("[data-member-agent-list]")!;
+  const empty = document.querySelector<HTMLElement>("[data-member-agent-empty]")!;
+  const template = document.querySelector<HTMLTemplateElement>("#member-agent-card-template")!;
+  const notice = document.querySelector<HTMLElement>("[data-editor-notice]")!;
+  const reviewNote = document.querySelector<HTMLElement>("[data-review-note]")!;
+  const editorReview = document.querySelector<HTMLElement>("[data-editor-review]")!;
+  const editorTitle = document.querySelector<HTMLElement>("[data-editor-title]")!;
+  const editorMode = document.querySelector<HTMLElement>("[data-editor-mode]")!;
+  const saveAutomation = document.querySelector<HTMLButtonElement>("[data-save-automation]")!;
+  const tagInput = document.querySelector<HTMLInputElement>("[data-auto-tag-input]")!;
+  const tagList = document.querySelector<HTMLElement>("[data-auto-tag-list]")!;
+  const temperature = form.elements.namedItem("temperature") as HTMLInputElement;
+  const temperatureOutput = document.querySelector<HTMLOutputElement>("[data-member-temperature-output]")!;
+  let agents = new Map<string, StudioAgent>();
+  let autoTags: string[] = [];
+
+  void load();
+
+  async function load(selectedId?: string) {
+    try {
+      const [member, result] = await Promise.all([
+        studioRequest<MemberSession>("/account/session", {}, { redirectOnUnauthorized: false }),
+        studioRequest<StudioAgentList>("/account/agents", {}, { redirectOnUnauthorized: false })
+      ]);
+      document.querySelector<HTMLElement>("[data-member-name]")!.textContent = `${member.displayName} · @${member.username}`;
+      guest.hidden = true;
+      sessionCard.hidden = false;
+      workspace.hidden = false;
+      pageError.hidden = true;
+      agents = new Map(result.items.map((agent) => [agent.id, agent]));
+      renderRoster();
+      if (selectedId && agents.has(selectedId)) selectAgent(agents.get(selectedId)!);
+      else if (!form.elements.namedItem("id") || agents.size === 0) resetForm();
+    } catch (error) {
+      if (error instanceof StudioClientError && (error.status === 401 || error.status === 403)) {
+        guest.hidden = false;
+        sessionCard.hidden = true;
+        workspace.hidden = true;
+        return;
+      }
+      pageError.textContent = error instanceof Error ? error.message : "会员 Agent 加载失败";
+      pageError.hidden = false;
+    }
+  }
+
+  function renderRoster() {
+    list.replaceChildren();
+    empty.hidden = agents.size > 0;
+    for (const agent of agents.values()) {
+      const card = template.content.firstElementChild!.cloneNode(true) as HTMLButtonElement;
+      card.dataset.agentId = agent.id;
+      card.querySelector<HTMLElement>("[data-card-name]")!.textContent = agent.displayName;
+      card.querySelector<HTMLElement>("[data-card-username]")!.textContent = `@${agent.username}`;
+      card.querySelector<HTMLElement>("[data-card-auto]")!.textContent = agent.autoCommentEnabled
+        ? agent.autoCommentAllPosts ? "自动评论 · 全部公开文章" : `自动评论 · ${agent.autoCommentTags.join(" / ")}`
+        : "自动评论已关闭";
+      const status = card.querySelector<HTMLElement>("[data-card-status]")!;
+      setStatus(status, agent.reviewStatus);
+      card.addEventListener("click", () => selectAgent(agent));
+      list.append(card);
+    }
+  }
+
+  function selectAgent(agent: StudioAgent) {
+    (form.elements.namedItem("id") as HTMLInputElement).value = agent.id;
+    (form.elements.namedItem("version") as HTMLInputElement).value = String(agent.version);
+    const username = form.elements.namedItem("username") as HTMLInputElement;
+    username.value = agent.username;
+    username.readOnly = true;
+    (form.elements.namedItem("displayName") as HTMLInputElement).value = agent.displayName;
+    (form.elements.namedItem("avatarUrl") as HTMLInputElement).value = agent.avatarUrl ?? "";
+    (form.elements.namedItem("systemPrompt") as HTMLTextAreaElement).value = agent.systemPrompt;
+    temperature.value = String(agent.temperature);
+    temperatureOutput.textContent = String(agent.temperature);
+    (form.elements.namedItem("autoCommentEnabled") as HTMLInputElement).checked = agent.autoCommentEnabled;
+    (form.elements.namedItem("autoCommentAllPosts") as HTMLInputElement).checked = agent.autoCommentAllPosts;
+    autoTags = [...agent.autoCommentTags];
+    renderTags();
+    editorMode.textContent = `EDITING · V${agent.version}`;
+    editorTitle.textContent = agent.displayName;
+    setStatus(editorReview, agent.reviewStatus);
+    reviewNote.textContent = agent.reviewNote ? `站长说明：${agent.reviewNote}` : "";
+    reviewNote.hidden = !agent.reviewNote;
+    saveAutomation.hidden = false;
+    notice.hidden = true;
+    for (const card of list.querySelectorAll<HTMLElement>("[data-agent-id]")) {
+      card.classList.toggle("active", card.dataset.agentId === agent.id);
+    }
+  }
+
+  function resetForm() {
+    form.reset();
+    (form.elements.namedItem("id") as HTMLInputElement).value = "";
+    (form.elements.namedItem("version") as HTMLInputElement).value = "1";
+    (form.elements.namedItem("username") as HTMLInputElement).readOnly = false;
+    temperature.value = "0.7";
+    temperatureOutput.textContent = "0.7";
+    autoTags = [];
+    renderTags();
+    editorMode.textContent = "NEW AGENT";
+    editorTitle.textContent = "创建一个角色";
+    editorReview.textContent = "待提交";
+    editorReview.className = "member-review-badge pending";
+    reviewNote.hidden = true;
+    notice.hidden = true;
+    saveAutomation.hidden = true;
+    for (const card of list.querySelectorAll<HTMLElement>("[data-agent-id]")) card.classList.remove("active");
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const id = (form.elements.namedItem("id") as HTMLInputElement).value;
+    const version = Number((form.elements.namedItem("version") as HTMLInputElement).value);
+    showNotice(id ? "正在提交修改并重新进入审核……" : "正在创建并提交审核……");
+    try {
+      let saved: StudioAgent;
+      if (id) {
+        const autoEnabled = checked("autoCommentEnabled");
+        const autoAll = checked("autoCommentAllPosts");
+        if (autoEnabled && !autoAll && autoTags.length === 0) {
+          throw new Error("开启自动评论时，请选择全部文章或至少添加一个标签。");
+        }
+        const payload: UpdateOwnedAgentPayload = {
+          displayName: value("displayName"),
+          avatarUrl: value("avatarUrl") || null,
+          systemPrompt: value("systemPrompt"),
+          temperature: Number(temperature.value),
+          version
+        };
+        saved = await studioRequest<StudioAgent>(`/account/agents/${encodeURIComponent(id)}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+        }, { redirectOnUnauthorized: false });
+        const automationPayload: ConfigureOwnedAgentPayload = {
+          enabled: true,
+          autoCommentEnabled: autoEnabled,
+          autoCommentAllPosts: autoAll,
+          autoCommentTags: autoTags,
+          version: saved.version
+        };
+        saved = await studioRequest<StudioAgent>(`/account/agents/${encodeURIComponent(id)}/automation`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(automationPayload)
+        }, { redirectOnUnauthorized: false });
+      } else {
+        const autoEnabled = checked("autoCommentEnabled");
+        const autoAll = checked("autoCommentAllPosts");
+        if (autoEnabled && !autoAll && autoTags.length === 0) {
+          throw new Error("开启自动评论时，请选择全部文章或至少添加一个标签。");
+        }
+        const payload: CreateOwnedAgentPayload = {
+          username: value("username"), displayName: value("displayName"),
+          avatarUrl: value("avatarUrl") || null, systemPrompt: value("systemPrompt"),
+          temperature: Number(temperature.value), autoCommentEnabled: autoEnabled,
+          autoCommentAllPosts: autoAll, autoCommentTags: autoTags
+        };
+        saved = await studioRequest<StudioAgent>("/account/agents", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+        }, { redirectOnUnauthorized: false });
+      }
+      showNotice("已提交，等待站长审核。", false, true);
+      await load(saved.id);
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Agent 保存失败", true);
+    }
+  });
+
+  saveAutomation.addEventListener("click", async () => {
+    const id = (form.elements.namedItem("id") as HTMLInputElement).value;
+    if (!id) return;
+    const autoEnabled = checked("autoCommentEnabled");
+    const autoAll = checked("autoCommentAllPosts");
+    if (autoEnabled && !autoAll && autoTags.length === 0) {
+      showNotice("开启自动评论时，请选择全部文章或至少添加一个标签。", true);
+      return;
+    }
+    try {
+      const payload: ConfigureOwnedAgentPayload = {
+        enabled: true, autoCommentEnabled: autoEnabled, autoCommentAllPosts: autoAll,
+        autoCommentTags: autoTags,
+        version: Number((form.elements.namedItem("version") as HTMLInputElement).value)
+      };
+      const saved = await studioRequest<StudioAgent>(`/account/agents/${encodeURIComponent(id)}/automation`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+      }, { redirectOnUnauthorized: false });
+      showNotice("运行偏好已保存，不会触发重新审核。", false, true);
+      await load(saved.id);
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "运行偏好保存失败", true);
+    }
+  });
+
+  tagInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const tag = tagInput.value.trim().toLowerCase();
+    if (!tag || autoTags.includes(tag) || autoTags.length >= 20) return;
+    autoTags.push(tag);
+    tagInput.value = "";
+    renderTags();
+  });
+
+  temperature.addEventListener("input", () => { temperatureOutput.textContent = temperature.value; });
+  document.querySelector("[data-member-new-agent]")?.addEventListener("click", resetForm);
+  document.querySelector("[data-member-logout]")?.addEventListener("click", async () => {
+    await studioRequest("/account/logout", { method: "POST" }, { redirectOnUnauthorized: false });
+    window.location.assign("/agents/login/");
+  });
+
+  function renderTags() {
+    tagList.replaceChildren(...autoTags.map((tag) => {
+      const chip = document.createElement("span");
+      chip.textContent = tag;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.setAttribute("aria-label", `移除标签 ${tag}`);
+      remove.textContent = "×";
+      remove.addEventListener("click", () => { autoTags = autoTags.filter((item) => item !== tag); renderTags(); });
+      chip.append(remove);
+      return chip;
+    }));
+  }
+
+  function value(name: string) { return (form.elements.namedItem(name) as HTMLInputElement).value.trim(); }
+  function checked(name: string) { return (form.elements.namedItem(name) as HTMLInputElement).checked; }
+  function setStatus(node: HTMLElement, status: StudioAgent["reviewStatus"]) {
+    const labels = { PENDING: "待审核", APPROVED: "已通过", REJECTED: "需修改" } as const;
+    node.textContent = labels[status];
+    node.className = `member-review-badge ${status.toLowerCase()}`;
+  }
+  function showNotice(message: string, error = false, success = false) {
+    notice.textContent = message;
+    notice.className = `notice${error ? " error" : success ? " success" : ""}`;
+    notice.hidden = false;
+  }
+</script>

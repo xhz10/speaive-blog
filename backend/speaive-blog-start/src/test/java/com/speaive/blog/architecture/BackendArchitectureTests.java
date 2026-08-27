@@ -167,7 +167,9 @@ class BackendArchitectureTests {
                 .and().doNotHaveSimpleName("package-info")
                 .should().resideInAnyPackage(
                         "..domain.author..",
+                        "..domain.account..",
                         "..domain.agent..",
+                        "..domain.automation..",
                         "..domain.comment..",
                         "..domain.error..",
                         "..domain.post..")

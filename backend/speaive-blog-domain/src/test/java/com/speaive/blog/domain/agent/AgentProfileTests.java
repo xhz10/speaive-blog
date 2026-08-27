@@ -6,6 +6,7 @@ import com.speaive.blog.domain.post.PostVisibility;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -62,6 +63,44 @@ class AgentProfileTests {
         assertInvalidAgent(() -> AgentProfile.create(
                 "agent-id", "reader", "读者", null, " ", null,
                 0.7, false, true, CREATED_AT));
+    }
+
+    @Test
+    void ownedAgentMustBeApprovedAndReturnsToPendingAfterPromptChanges() {
+        AgentProfile pending = AgentProfile.createOwned(
+                "owned-agent", "member-id", "night-reader", "夜班读者", null,
+                "认真阅读文章并指出一个具体细节。", 0.6, true, true, List.of(), CREATED_AT);
+
+        assertEquals(AgentReviewStatus.PENDING, pending.reviewStatus());
+        assertFalse(pending.enabled());
+        assertThrows(DomainException.class, () -> pending.ensureCanGenerate(PostVisibility.PUBLIC));
+
+        AgentProfile approved = pending.approve(CREATED_AT.plusSeconds(10));
+        assertEquals(AgentReviewStatus.APPROVED, approved.reviewStatus());
+        assertTrue(approved.enabled());
+        assertTrue(approved.matchesAutomaticTags(List.of("随记")));
+        approved.ensureCanGenerate(PostVisibility.PUBLIC);
+        assertThrows(DomainException.class, () -> approved.ensureCanGenerate(PostVisibility.ADMIN_ONLY));
+
+        AgentProfile changed = approved.updateOwnedProfile(
+                "member-id", "夜班读者", null, "修改后的系统提示词。", 0.5,
+                CREATED_AT.plusSeconds(20));
+        assertEquals(AgentReviewStatus.PENDING, changed.reviewStatus());
+        assertFalse(changed.enabled());
+    }
+
+    @Test
+    void rejectedOwnedAgentRequiresReasonAndCannotReadPrivateContent() {
+        AgentProfile pending = AgentProfile.createOwned(
+                "owned-agent", "member-id", "night-reader", "夜班读者", null,
+                "认真阅读文章。", 0.6, false, false, List.of(), CREATED_AT);
+
+        assertThrows(DomainException.class, () -> pending.reject(" ", CREATED_AT.plusSeconds(1)));
+        AgentProfile rejected = pending.reject("提示词需要写清楚评论边界。", CREATED_AT.plusSeconds(1));
+
+        assertEquals(AgentReviewStatus.REJECTED, rejected.reviewStatus());
+        assertEquals("提示词需要写清楚评论边界。", rejected.reviewNote());
+        assertFalse(rejected.canProcessPrivate());
     }
 
     @Test

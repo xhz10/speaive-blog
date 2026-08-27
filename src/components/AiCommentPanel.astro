@@ -1,5 +1,5 @@
 ---
-import { Sparkles } from "@lucide/astro";
+import { BookOpenText, RotateCcw, Sparkles, UsersRound } from "@lucide/astro";
 import type { StudioPostDetail } from "../lib/studio/types";
 
 interface Props {
@@ -13,14 +13,47 @@ const { post } = Astro.props;
   <div class="ai-comment-head">
     <div>
       <p class="studio-kicker">AI Comments</p>
-      <h2>Agent 评论</h2>
-      <p>选择角色后手动生成。新评论默认待审核，不会直接出现在博客上。</p>
+      <h2>Agent 评论室</h2>
+      <p>角色会参考文章摘要、同标签文章时间线和已有讨论。所有新评论仍需审核后才公开。</p>
     </div>
     <button class="button primary" type="button" data-generate-comments disabled>
       <Sparkles size={16} stroke-width={1.8} aria-hidden="true" />
       <span data-generate-label>生成评论</span>
     </button>
   </div>
+
+  <section class="ai-summary-card" data-ai-summary-card aria-labelledby="ai-summary-title">
+    <span class="ai-summary-icon" aria-hidden="true"><BookOpenText size={19} stroke-width={1.7} /></span>
+    <div class="ai-summary-copy">
+      <div class="ai-summary-title-line">
+        <strong id="ai-summary-title">文章记忆摘要</strong>
+        <span class="ai-summary-state" data-ai-summary-state>等待加载</span>
+      </div>
+      <p data-ai-summary-body>{post ? "正在读取这篇文章的摘要状态……" : "保存文章后即可生成摘要。"}</p>
+      <small data-ai-summary-coverage>相关文章摘要库正在加载。</small>
+    </div>
+    <div class="ai-summary-actions">
+      <button class="button secondary" type="button" data-refresh-summary disabled>生成摘要</button>
+      <button class="button ghost" type="button" data-backfill-summaries disabled>
+        <RotateCcw size={15} stroke-width={1.8} aria-hidden="true" />
+        补齐历史摘要
+      </button>
+    </div>
+  </section>
+
+  <section class="ai-community-policy-card" data-community-policy-card>
+    <span class="ai-summary-icon" aria-hidden="true"><UsersRound size={19} stroke-width={1.7} /></span>
+    <div>
+      <div class="ai-summary-title-line">
+        <strong>社区 Agent 自动评论</strong>
+        <span class="ai-summary-state" data-community-policy-state>等待加载</span>
+      </div>
+      <p data-community-policy-copy>只有你允许、会员 Agent 也关注这篇文章时，系统才会异步生成评论。</p>
+      <small>会员 Agent 永远不能读取仅自己可见文章；生成结果仍然进入待审核。</small>
+    </div>
+    <button class="button secondary" type="button" data-community-policy-toggle disabled>允许自动评论</button>
+  </section>
+
   <p class="notice" hidden data-ai-comment-notice></p>
   <div class="ai-agent-picker" data-ai-agent-picker>
     <p>{post ? "正在加载 Agent……" : "保存草稿后即可生成 Agent 评论。"}</p>
@@ -33,10 +66,13 @@ const { post } = Astro.props;
 <script>
   import { studioRequest } from "../lib/studio/client";
   import type {
+    AiSummaryCoverage,
     StudioAgent,
     StudioAgentList,
     StudioComment,
-    StudioCommentList
+    StudioCommentList,
+    StudioPostAiSummary,
+    PostCommunityPolicy
   } from "../lib/studio/types";
 
   const panel = document.querySelector<HTMLElement>("[data-ai-comment-panel]");
@@ -48,36 +84,65 @@ const { post } = Astro.props;
     const notice = root.querySelector<HTMLElement>("[data-ai-comment-notice]")!;
     const generateButton = root.querySelector<HTMLButtonElement>("[data-generate-comments]")!;
     const generateLabel = root.querySelector<HTMLElement>("[data-generate-label]")!;
+    const summaryState = root.querySelector<HTMLElement>("[data-ai-summary-state]")!;
+    const summaryBody = root.querySelector<HTMLElement>("[data-ai-summary-body]")!;
+    const summaryCoverage = root.querySelector<HTMLElement>("[data-ai-summary-coverage]")!;
+    const summaryButton = root.querySelector<HTMLButtonElement>("[data-refresh-summary]")!;
+    const backfillButton = root.querySelector<HTMLButtonElement>("[data-backfill-summaries]")!;
+    const communityState = root.querySelector<HTMLElement>("[data-community-policy-state]")!;
+    const communityCopy = root.querySelector<HTMLElement>("[data-community-policy-copy]")!;
+    const communityToggle = root.querySelector<HTMLButtonElement>("[data-community-policy-toggle]")!;
     let slug = root.dataset.initialSlug ?? "";
     let agents: StudioAgent[] = [];
+    let latestComments: StudioComment[] = [];
     let aiAvailable = false;
     let busy = false;
+    let communityPolicy: PostCommunityPolicy | null = null;
 
     if (slug) void load();
     document.addEventListener("studio:post-saved", (event) => {
       const savedSlug = (event as CustomEvent<{ slug?: string }>).detail?.slug;
-      if (!slug && savedSlug) {
-        slug = savedSlug;
-        void load();
-      }
+      if (savedSlug) slug = savedSlug;
+      if (slug) void Promise.all([refreshSummaryState(), refreshCommunityPolicy()]);
     });
 
     generateButton.addEventListener("click", () => void generateSelected());
+    summaryButton.addEventListener("click", () => void generateSummary());
+    backfillButton.addEventListener("click", () => void backfillSummaries());
+    communityToggle.addEventListener("click", () => void toggleCommunityPolicy());
+    document.querySelector("[data-visibility]")?.addEventListener("change", renderCommunityPolicy);
     list.addEventListener("click", (event) => {
-      const action = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-comment-action]");
-      if (action) void moderate(action);
+      const target = event.target as HTMLElement;
+      const replyButton = target.closest<HTMLButtonElement>("[data-generate-reply]");
+      if (replyButton) {
+        void generateReply(replyButton);
+        return;
+      }
+      const action = target.closest<HTMLButtonElement>("[data-comment-action]");
+      if (!action) return;
+      if (action.dataset.commentAction === "reply") {
+        toggleReplyComposer(action);
+      } else {
+        void moderate(action);
+      }
     });
 
     async function load() {
       try {
-        const [agentResult, commentResult] = await Promise.all([
+        const [agentResult, commentResult, summaryResult, coverageResult, policyResult] = await Promise.all([
           studioRequest<StudioAgentList>("/studio/agents"),
-          studioRequest<StudioCommentList>(`/studio/posts/${encodeURIComponent(slug)}/comments`)
+          studioRequest<StudioCommentList>(`/studio/posts/${encodeURIComponent(slug)}/comments`),
+          studioRequest<StudioPostAiSummary>(`/studio/posts/${encodeURIComponent(slug)}/ai-summary`),
+          studioRequest<AiSummaryCoverage>("/studio/ai-summaries"),
+          studioRequest<PostCommunityPolicy>(`/studio/posts/${encodeURIComponent(slug)}/community-agents`)
         ]);
         agents = agentResult.items;
         aiAvailable = agentResult.aiAvailable;
         renderAgents();
         renderComments(commentResult.items);
+        renderSummary(summaryResult, coverageResult);
+        communityPolicy = policyResult;
+        renderCommunityPolicy();
       } catch (error) {
         showNotice(error instanceof Error ? error.message : "AI 评论区域加载失败", true);
       }
@@ -85,7 +150,7 @@ const { post } = Astro.props;
 
     function renderAgents() {
       picker.replaceChildren();
-      const savedVisibility = document.querySelector<HTMLSelectElement>("[data-visibility]")?.value;
+      const savedVisibility = currentVisibility();
       const available = agents.filter((agent) => agent.enabled);
       if (available.length === 0) {
         const empty = document.createElement("p");
@@ -101,7 +166,7 @@ const { post } = Astro.props;
           input.type = "checkbox";
           input.value = agent.id;
           input.disabled = privateBlocked || !aiAvailable;
-          input.addEventListener("change", syncGenerateButton);
+          input.addEventListener("change", syncButtons);
           const copy = document.createElement("span");
           const name = document.createElement("strong");
           name.textContent = agent.displayName;
@@ -115,10 +180,11 @@ const { post } = Astro.props;
         }
       }
       if (!aiAvailable) showNotice("Agent 配置可以正常管理，但服务器尚未启用 AI 模型。", true);
-      syncGenerateButton();
+      syncButtons();
     }
 
     function renderComments(comments: StudioComment[]) {
+      latestComments = comments;
       list.replaceChildren();
       if (comments.length === 0) {
         const empty = document.createElement("p");
@@ -127,13 +193,21 @@ const { post } = Astro.props;
         list.append(empty);
         return;
       }
-      for (const comment of comments) list.append(createCommentCard(comment));
+      const byId = new Map(comments.map((comment) => [comment.id, comment]));
+      for (const comment of flattenThread(comments)) list.append(createCommentCard(comment, byId));
     }
 
-    function createCommentCard(comment: StudioComment): HTMLElement {
+    function createCommentCard(comment: StudioComment, byId: Map<string, StudioComment>): HTMLElement {
       const article = document.createElement("article");
-      article.className = "ai-review-comment";
+      article.className = `ai-review-comment${comment.parentCommentId ? " reply" : ""}`;
       article.dataset.commentId = comment.id;
+      const parent = comment.parentCommentId ? byId.get(comment.parentCommentId) : undefined;
+      if (parent) {
+        const relation = document.createElement("small");
+        relation.className = "ai-reply-relation";
+        relation.textContent = `回复 ${parent.author.displayName}`;
+        article.append(relation);
+      }
       const meta = document.createElement("div");
       meta.className = "ai-review-comment-meta";
       const author = document.createElement("strong");
@@ -146,17 +220,16 @@ const { post } = Astro.props;
       body.textContent = comment.body;
       const actions = document.createElement("div");
       actions.className = "button-row ai-review-actions";
-      if (comment.status === "PENDING") {
-        actions.append(actionButton("publish", "发布", comment.id));
-      }
+      if (comment.status === "PENDING") actions.append(actionButton("publish", "发布", comment.id));
       if (comment.status !== "HIDDEN") {
+        actions.append(actionButton("reply", "让 Agent 回复", comment.id));
         actions.append(actionButton("hide", "隐藏", comment.id));
       }
       article.append(meta, body, actions);
       return article;
     }
 
-    function actionButton(action: "publish" | "hide", label: string, id: string): HTMLButtonElement {
+    function actionButton(action: "publish" | "hide" | "reply", label: string, id: string): HTMLButtonElement {
       const button = document.createElement("button");
       button.type = "button";
       button.className = action === "publish" ? "button secondary" : "button ghost";
@@ -166,17 +239,52 @@ const { post } = Astro.props;
       return button;
     }
 
+    function toggleReplyComposer(button: HTMLButtonElement) {
+      const id = button.dataset.commentId;
+      const article = id ? list.querySelector<HTMLElement>(`[data-comment-id="${CSS.escape(id)}"]`) : null;
+      if (!id || !article || busy) return;
+      const existing = article.querySelector<HTMLElement>("[data-reply-composer]");
+      list.querySelectorAll<HTMLElement>("[data-reply-composer]").forEach((composer) => composer.remove());
+      if (existing) return;
+      const targetComment = latestComments.find((comment) => comment.id === id);
+      const eligible = agents.filter((agent) => agent.enabled
+        && agent.id !== targetComment?.author.id
+        && (currentVisibility() !== "ADMIN_ONLY" || agent.canProcessPrivate));
+      const composer = document.createElement("div");
+      composer.className = "ai-reply-composer";
+      composer.dataset.replyComposer = "";
+      if (eligible.length === 0) {
+        composer.textContent = "没有可用于回复的其他 Agent。";
+      } else {
+        const select = document.createElement("select");
+        select.setAttribute("aria-label", "选择回复角色");
+        for (const agent of eligible) {
+          const option = document.createElement("option");
+          option.value = agent.id;
+          option.textContent = `${agent.displayName} · @${agent.username}`;
+          select.append(option);
+        }
+        const submit = document.createElement("button");
+        submit.type = "button";
+        submit.className = "button primary";
+        submit.dataset.generateReply = "";
+        submit.dataset.commentId = id;
+        submit.textContent = "生成回复";
+        submit.disabled = !aiAvailable;
+        composer.append(select, submit);
+      }
+      article.append(composer);
+    }
+
     async function generateSelected() {
       const selected = Array.from(picker.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked'));
       if (!slug || selected.length === 0 || busy) return;
-      const editor = document.querySelector<HTMLFormElement>("#post-form");
-      if (editor?.dataset.dirty === "true") {
+      if (editorIsDirty()) {
         showNotice("请先保存当前文章修改，再生成评论。", true);
         return;
       }
-      busy = true;
+      setBusy(true);
       generateLabel.textContent = `正在生成 0/${selected.length}`;
-      syncGenerateButton();
       let completed = 0;
       let failed = 0;
       for (const input of selected) {
@@ -194,29 +302,98 @@ const { post } = Astro.props;
           generateLabel.textContent = `正在生成 ${completed}/${selected.length}`;
         }
       }
-      busy = false;
+      setBusy(false);
       generateLabel.textContent = "生成评论";
       if (failed === 0) showNotice(`${completed} 条评论已生成，审核后再发布。`);
-      await refreshComments();
+      await Promise.all([refreshComments(), refreshSummaryState()]);
       renderAgents();
+    }
+
+    async function generateReply(button: HTMLButtonElement) {
+      const id = button.dataset.commentId;
+      const select = button.parentElement?.querySelector<HTMLSelectElement>("select");
+      if (!id || !select?.value || busy) return;
+      if (editorIsDirty()) {
+        showNotice("请先保存当前文章修改，再生成回复。", true);
+        return;
+      }
+      setBusy(true);
+      button.textContent = "正在生成……";
+      try {
+        await studioRequest<StudioComment>(`/studio/comments/${encodeURIComponent(id)}/ai-replies`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentId: select.value })
+        });
+        showNotice("Agent 回复已生成，发布父评论后再按顺序审核回复。 ");
+        await refreshComments();
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "回复生成失败", true);
+      } finally {
+        setBusy(false);
+      }
     }
 
     async function moderate(button: HTMLButtonElement) {
       const action = button.dataset.commentAction;
       const id = button.dataset.commentId;
-      if (!action || !id || busy) return;
-      busy = true;
+      if ((action !== "publish" && action !== "hide") || !id || busy) return;
+      setBusy(true);
       button.disabled = true;
       try {
         await studioRequest<StudioComment>(`/studio/comments/${encodeURIComponent(id)}/${action}`, { method: "POST" });
-        showNotice(action === "publish" ? "评论已经公开。" : "评论已经隐藏。");
+        showNotice(action === "publish" ? "评论已经公开。" : "评论及其后续回复已经隐藏。");
         await refreshComments();
       } catch (error) {
         showNotice(error instanceof Error ? error.message : "评论状态更新失败", true);
         button.disabled = false;
       } finally {
-        busy = false;
-        syncGenerateButton();
+        setBusy(false);
+      }
+    }
+
+    async function generateSummary() {
+      if (!slug || busy || !aiAvailable) return;
+      if (editorIsDirty()) {
+        showNotice("请先保存当前文章修改，再生成摘要。", true);
+        return;
+      }
+      if (currentVisibility() === "ADMIN_ONLY"
+        && !window.confirm("生成摘要会把这篇仅自己可见文章的正文发送给你配置的 AI 服务，确定继续吗？")) return;
+      setBusy(true);
+      summaryButton.textContent = "正在生成……";
+      try {
+        const result = await studioRequest<StudioPostAiSummary>(
+          `/studio/posts/${encodeURIComponent(slug)}/ai-summary`, { method: "POST" });
+        const coverage = await studioRequest<AiSummaryCoverage>("/studio/ai-summaries");
+        renderSummary(result, coverage);
+        showNotice("文章记忆摘要已经更新。");
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "摘要生成失败", true);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function backfillSummaries() {
+      if (busy || !aiAvailable) return;
+      setBusy(true);
+      backfillButton.textContent = "正在补齐……";
+      try {
+        let coverage: AiSummaryCoverage;
+        do {
+          coverage = await studioRequest<AiSummaryCoverage>("/studio/ai-summaries/backfill-next", { method: "POST" });
+          summaryCoverage.textContent = coverageText(coverage);
+          backfillButton.textContent = `还剩 ${coverage.missing + coverage.stale} 篇`;
+        } while (coverage.missing + coverage.stale > 0);
+        showNotice("所有公开文章的记忆摘要都已补齐。");
+        await refreshSummaryState();
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "历史摘要补齐中断，可以稍后继续", true);
+      } finally {
+        backfillButton.replaceChildren();
+        backfillButton.textContent = "补齐历史摘要";
+        setBusy(false);
       }
     }
 
@@ -225,9 +402,121 @@ const { post } = Astro.props;
       renderComments(result.items);
     }
 
-    function syncGenerateButton() {
+    async function refreshSummaryState() {
+      const [summary, coverage] = await Promise.all([
+        studioRequest<StudioPostAiSummary>(`/studio/posts/${encodeURIComponent(slug)}/ai-summary`),
+        studioRequest<AiSummaryCoverage>("/studio/ai-summaries")
+      ]);
+      renderSummary(summary, coverage);
+    }
+
+    async function refreshCommunityPolicy() {
+      communityPolicy = await studioRequest<PostCommunityPolicy>(
+        `/studio/posts/${encodeURIComponent(slug)}/community-agents`);
+      renderCommunityPolicy();
+    }
+
+    async function toggleCommunityPolicy() {
+      if (!slug || !communityPolicy || busy) return;
+      if (currentVisibility() !== "PUBLIC") {
+        showNotice("仅公开文章可以开放给社区 Agent。", true);
+        return;
+      }
+      setBusy(true);
+      try {
+        const nextEnabled = !communityPolicy.enabled;
+        communityPolicy = await studioRequest<PostCommunityPolicy>(
+          `/studio/posts/${encodeURIComponent(slug)}/community-agents`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled: nextEnabled, version: communityPolicy.version })
+          });
+        renderCommunityPolicy();
+        showNotice(nextEnabled
+          ? `已允许社区 Agent 自动评论${communityPolicy.queuedAgents ? `，本次排队 ${communityPolicy.queuedAgents} 个角色` : "；符合条件的角色会在发布后排队"}。`
+          : "已关闭社区 Agent 自动评论；已经生成的评论不会被删除。");
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "社区 Agent 设置保存失败", true);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function renderCommunityPolicy() {
+      const publicPost = currentVisibility() === "PUBLIC";
+      communityState.className = `ai-summary-state ${communityPolicy?.enabled ? "current" : "missing"}`;
+      communityState.textContent = communityPolicy?.enabled ? "已允许" : "未开放";
+      communityCopy.textContent = !publicPost
+        ? "当前文章仅自己可见，社区 Agent 入口已强制关闭。"
+        : communityPolicy?.enabled
+          ? "符合关注规则且已经通过审核的会员 Agent，会在文章发布后异步排队。"
+          : "访客创建的 Agent 不会自动读取或评论这篇文章。";
+      communityToggle.textContent = communityPolicy?.enabled ? "关闭自动评论" : "允许自动评论";
+      communityToggle.disabled = busy || !slug || !communityPolicy || !publicPost;
+    }
+
+    function renderSummary(summary: StudioPostAiSummary, coverage: AiSummaryCoverage) {
+      summaryState.className = `ai-summary-state ${summary.state.toLowerCase()}`;
+      summaryState.textContent = summary.state === "CURRENT" ? "已同步"
+        : summary.state === "STALE" ? "文章更新后待重做" : "尚未生成";
+      summaryBody.textContent = summary.body ?? "还没有摘要。生成评论时会自动创建，也可以现在手动生成。";
+      summaryCoverage.textContent = coverageText(coverage);
+      summaryButton.textContent = summary.state === "MISSING" ? "生成摘要" : "更新摘要";
+      syncButtons();
+    }
+
+    function coverageText(coverage: AiSummaryCoverage) {
+      const remaining = coverage.missing + coverage.stale;
+      return `公开文章摘要库：${coverage.current}/${coverage.total} 已同步${remaining ? `，还有 ${remaining} 篇待补齐` : ""}`;
+    }
+
+    function flattenThread(comments: StudioComment[]) {
+      const byId = new Map(comments.map((comment) => [comment.id, comment]));
+      const children = new Map<string, StudioComment[]>();
+      const roots: StudioComment[] = [];
+      for (const comment of comments) {
+        if (comment.parentCommentId && byId.has(comment.parentCommentId)) {
+          const siblings = children.get(comment.parentCommentId) ?? [];
+          siblings.push(comment);
+          children.set(comment.parentCommentId, siblings);
+        } else {
+          roots.push(comment);
+        }
+      }
+      const result: StudioComment[] = [];
+      const visited = new Set<string>();
+      const visit = (comment: StudioComment) => {
+        if (visited.has(comment.id)) return;
+        visited.add(comment.id);
+        result.push(comment);
+        for (const child of children.get(comment.id) ?? []) visit(child);
+      };
+      for (const rootComment of roots) visit(rootComment);
+      for (const comment of comments) visit(comment);
+      return result;
+    }
+
+    function setBusy(value: boolean) {
+      busy = value;
+      syncButtons();
+      root.querySelectorAll<HTMLButtonElement>("[data-comment-action], [data-generate-reply]")
+        .forEach((button) => { button.disabled = value; });
+    }
+
+    function syncButtons() {
       const selected = picker.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked').length;
       generateButton.disabled = busy || !aiAvailable || selected === 0;
+      summaryButton.disabled = busy || !aiAvailable || !slug;
+      backfillButton.disabled = busy || !aiAvailable;
+      renderCommunityPolicy();
+    }
+
+    function currentVisibility() {
+      return document.querySelector<HTMLSelectElement>("[data-visibility]")?.value ?? "ADMIN_ONLY";
+    }
+
+    function editorIsDirty() {
+      return document.querySelector<HTMLFormElement>("#post-form")?.dataset.dirty === "true";
     }
 
     function showNotice(message: string, error = false) {

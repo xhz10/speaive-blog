@@ -32,6 +32,7 @@ public final class PostApplicationService implements PostUseCase {
     private final MarkdownPort markdown;
     private final TransactionRunner transactions;
     private final Clock clock;
+    private final CommunityAutomationPlanner communityAutomation;
 
     public PostApplicationService(
             PostRepository posts,
@@ -39,11 +40,22 @@ public final class PostApplicationService implements PostUseCase {
             MarkdownPort markdown,
             TransactionRunner transactions,
             Clock clock) {
+        this(posts, authors, markdown, transactions, clock, null);
+    }
+
+    public PostApplicationService(
+            PostRepository posts,
+            AuthorRepository authors,
+            MarkdownPort markdown,
+            TransactionRunner transactions,
+            Clock clock,
+            CommunityAutomationPlanner communityAutomation) {
         this.posts = Objects.requireNonNull(posts, "posts");
         this.authors = Objects.requireNonNull(authors, "authors");
         this.markdown = Objects.requireNonNull(markdown, "markdown");
         this.transactions = Objects.requireNonNull(transactions, "transactions");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.communityAutomation = communityAutomation;
     }
 
     @Override
@@ -138,6 +150,9 @@ public final class PostApplicationService implements PostUseCase {
                 case UNPUBLISH -> current.unpublish(version, clock.instant());
             };
             posts.save(change, mediaPaths(change.current()));
+            if (transition == Transition.PUBLISH && communityAutomation != null) {
+                communityAutomation.plan(change.current());
+            }
             return detail(change.current());
         }));
     }

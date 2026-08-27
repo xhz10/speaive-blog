@@ -70,6 +70,16 @@ public final class PostgresPostRepository implements PostRepository {
     }
 
     @Override
+    public Optional<Post> findById(String postId, PostQueryScope scope) {
+        BlogPostPo row = switch (Objects.requireNonNull(scope, "scope")) {
+            case STUDIO -> database.selectById(postId);
+            case PUBLISHED -> database.selectByIdAndStatusAndVisibility(
+                    postId, PostStatusPo.PUBLISHED, PostVisibilityPo.PUBLIC);
+        };
+        return Optional.ofNullable(row).map(this::rehydrate);
+    }
+
+    @Override
     public Optional<Post> lockBySlug(String slug) {
         return Optional.ofNullable(database.lockBySlug(slug)).map(this::rehydrate);
     }

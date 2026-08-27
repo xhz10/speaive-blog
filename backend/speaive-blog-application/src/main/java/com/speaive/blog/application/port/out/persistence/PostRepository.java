@@ -14,6 +14,8 @@ public interface PostRepository {
 
     Optional<Post> findBySlug(String slug, PostQueryScope scope);
 
+    Optional<Post> findById(String postId, PostQueryScope scope);
+
     Optional<Post> lockBySlug(String slug);
 
     void add(Post post, PostRevisionEventType eventType, Set<String> mediaPaths);

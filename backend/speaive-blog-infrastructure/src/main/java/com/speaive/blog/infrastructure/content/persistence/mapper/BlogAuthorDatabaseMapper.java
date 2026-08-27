@@ -21,6 +21,16 @@ public interface BlogAuthorDatabaseMapper extends BaseMapper<BlogAuthorPo> {
             """)
     int insertAgentAuthor(@Param("author") BlogAuthorPo author, @Param("createdAt") Instant createdAt);
 
+    @Insert("""
+            INSERT INTO blog_user (
+                id, username, display_name, type, status, avatar_url, created_at, updated_at
+            ) VALUES (
+                #{author.id}, #{author.username}, #{author.displayName}, #{author.type}, #{author.status},
+                #{author.avatarUrl}, #{createdAt}, #{createdAt}
+            )
+            """)
+    int insertMemberAuthor(@Param("author") BlogAuthorPo author, @Param("createdAt") Instant createdAt);
+
     @Update("""
             UPDATE blog_user
             SET display_name = #{author.displayName}, avatar_url = #{author.avatarUrl},

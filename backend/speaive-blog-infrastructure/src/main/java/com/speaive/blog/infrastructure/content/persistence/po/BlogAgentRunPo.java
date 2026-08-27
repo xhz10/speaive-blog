@@ -20,6 +20,8 @@ public class BlogAgentRunPo {
     @TableField("prompt_version")
     private long promptVersion;
     private String model;
+    @TableField("target_comment_id")
+    private String targetCommentId;
     private AgentRunStatusPo status;
     @TableField("comment_id")
     private String commentId;
@@ -46,6 +48,8 @@ public class BlogAgentRunPo {
     public void setPromptVersion(long promptVersion) { this.promptVersion = promptVersion; }
     public String getModel() { return model; }
     public void setModel(String model) { this.model = model; }
+    public String getTargetCommentId() { return targetCommentId; }
+    public void setTargetCommentId(String targetCommentId) { this.targetCommentId = targetCommentId; }
     public AgentRunStatusPo getStatus() { return status; }
     public void setStatus(AgentRunStatusPo status) { this.status = status; }
     public String getCommentId() { return commentId; }

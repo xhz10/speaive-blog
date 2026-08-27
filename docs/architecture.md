@@ -53,13 +53,15 @@ flowchart TB
 
 每个对外用例由 application input port 表达；数据库、文件、时钟以及 AI/向量服务由 output port 表达。HTTP、定时任务和后续消息消费者都属于入站适配器，只能调用 input port。
 
-当前 Spring AI `ChatModel` 适配器放在 `infrastructure`，Agent 评论生成和审核流程放在 `application`，Agent/评论状态规则放在 `domain`，没有改变现有前后端边界。向量存储尚未启用，后续检索功能仍应通过独立 output port 接入。
+当前 Spring AI `ChatModel` 适配器放在 `infrastructure`，文章摘要、Agent 评论生成和审核流程放在 `application`，摘要/Agent/评论状态规则放在 `domain`，没有改变现有前后端边界。相关文章第一版由 application 按共同标签筛选，向量存储尚未启用；后续实体或向量检索仍应通过独立 output port 或可替换检索策略接入。
 
 ## 数据边界
 
 PostgreSQL 是文章的唯一真源：
 
-- `blog_user` 保存可作为文章作者、评论者的内容身份；当前内置固定 `admin`，它不保存登录密码；
+- `blog_user` 保存可作为文章作者、评论者的内容身份；固定 `admin` 的密码仍来自部署环境，会员和 Agent 也分别复用该表作为身份；
+- `blog_account` 保存受邀会员的 BCrypt 登录凭证；它不代表文章阅读权限；
+- `blog_invitation` 只保存邀请码 SHA-256 摘要、有效期和使用次数，明文只在签发时返回一次；
 - `blog_post` 保存当前草稿或已发布文章；
 - `blog_post.visibility` 将“内容状态”和“谁可读取”分离，新文章默认仅管理员；
 - `blog_post_tag` 保存有序标签；
@@ -67,15 +69,19 @@ PostgreSQL 是文章的唯一真源：
 - `blog_media` 保存媒体路径、类型、大小和校验值；
 - `blog_post_media` 保存文章实际引用的媒体，用于阻止私密正文图片从匿名地址泄露；
 - `blog_markdown_import` 记录已导入文件的 SHA-256，避免重复导入。
-- `blog_agent` 保存 Agent 的系统提示词、模型参数、私密内容授权和配置版本；
-- `blog_comment` 保存由 Agent 创建、经管理员审核的文章评论；
-- `blog_agent_run` 保存每次模型调用的文章版本和执行结果，用于去重、失败记录与后续成本审计。
+- `blog_agent` 保存 Agent 的系统提示词、模型参数、所有者、审核状态、自动评论偏好和配置版本；
+- `blog_agent_auto_tag` 保存会员 Agent 的有序标签订阅；
+- `blog_post_community_policy` 保存文章是否允许社区 Agent 评论的显式开关；
+- `blog_community_comment_job` 保存按文章 revision 与 Agent 去重的持久自动评论任务；
+- `blog_post_ai_summary` 保存与文章 revision 对齐的 AI 资料摘要；
+- `blog_comment` 保存由 Agent 创建、经管理员审核的文章评论及父子回复关系；
+- `blog_agent_run` 保存每次模型调用的文章版本、回复目标和执行结果，用于去重、失败记录与后续成本审计。
 
 每次写操作都使用递增 revision 和 `id + slug + revision` 条件做数据库 CAS。创建、更新、发布、撤回和归档各推进一次 revision；两个页面同时编辑或归档后重用 slug 时，旧 version 会得到 `409 VERSION_CONFLICT`，不会覆盖新的正文或发布状态。HTML 不入库，由后端从 Markdown 实时渲染和过滤。
 
 文章主记录、标签、修订快照和归档删除属于同一个事务边界，任一步失败都必须回滚。数据库和媒体文件是双资源操作，上传失败时需要补偿已写文件，读取时继续校验 MIME、大小和 SHA-256。事务语义跟随 application 用例，具体 Spring 事务和补偿实现留在 infrastructure 或 `start`，不进入 domain。
 
-活动文章和每条修订快照都通过不可级联删除的 `author_id` 引用 `blog_user`。V2 迁移会把已有文章及仅剩修订记录的已归档文章统一回填给固定 `admin`。网页创建、Markdown 上传和后台投递箱导入都由服务端指定作者，请求正文和 Markdown frontmatter 不能冒充作者。AI Agent 复用 `blog_user` 作为公开身份，但不拥有登录凭证；后台仍只有管理员 Session。
+活动文章和每条修订快照都通过不可级联删除的 `author_id` 引用 `blog_user`。V2 迁移会把已有文章及仅剩修订记录的已归档文章统一回填给固定 `admin`。网页创建、Markdown 上传和后台投递箱导入都由服务端指定作者，请求正文和 Markdown frontmatter 不能冒充作者。AI Agent 复用 `blog_user` 作为公开身份，但不拥有登录凭证。受邀会员通过独立的 `blog_account` 登录，只能管理自己的 Agent，不能进入写作台或读取私密文章。
 
 PostgreSQL 镜像预装并启用 `pgvector` 扩展，当前 AI 评论不使用向量检索，也不创建向量业务表；后续需要文章检索时再独立迁移分块和 embedding 表。
 
@@ -96,9 +102,11 @@ SPEAIVE_DATA_DIR/
 - Compose 只将 Astro 的 `4321` 绑定到宿主机 `127.0.0.1`；后端和数据库没有宿主机端口；
 - 公网只经过 Nginx/Caddy 的 HTTPS 入口；
 - Astro BFF 限制请求体为 9 MiB、流式转发，并清洗后重建可信客户端 IP；
-- 写作台使用单管理员 Session、BCrypt、CSRF 和登录失败限流；
+- 写作台与会员控制台使用同源 Session、BCrypt、CSRF 和登录失败限流，并由 `ADMIN` / `MEMBER` 角色严格分路由；
+- 会员只能凭站长邀请码注册且不需要手机号/邮箱；会员 Agent 新建和内容修改都必须经过站长审核；
 - 公开文章查询必须同时满足 `PUBLISHED + PUBLIC`；私密文章和媒体只能从已认证的 Studio 接口读取；
-- AI 评论默认关闭；私密文章只有在 Agent 被单独授权后才能发送给外部模型，模型输出必须经管理员审核才公开；
+- AI 摘要与评论默认关闭；公开文章可由管理员批量补齐摘要，私密文章只允许显式手动确认或交给已授权的站长 Agent；会员 Agent 永远不能读取私密内容；公开评论上下文不得包含私密文章摘要，模型输出必须经管理员审核才公开；
+- 会员自动评论要求文章端和 Agent 端双重同意，任务执行前再次校验公开状态、revision 和审核状态；
 - 数据库结构只由 Flyway 迁移，MyBatis-Plus 不负责自动建表。
 
 Flyway 迁移只追加、不修改已发布版本；每次迁移同时验证空库安装和带真实旧数据升级。CAS、事务、迁移和 SQL 方言统一使用 PostgreSQL 17 Testcontainers 测试，不以 H2 替代。后端测试命令是：
@@ -110,7 +118,8 @@ env -u JAVA_HOME sh -c '. ../scripts/java-25.sh && use_java_25 && ./mvnw test'
 
 ## 已知取舍
 
-- 当前需求只有“公开”和“仅自己”，因此认证仍是单管理员后台，不提供注册、多用户登录、邀请码和审核流；`blog_user` 仅提供可扩展的内容身份；若以后增加指定读者，再引入由管理员发放邀请码的注册流程；
+- 文章阅读权限仍只有“公开”和“仅站长”。邀请码会员只用于创建社区 Agent，不是私密文章读者，也不能发表真人评论；
 - Session 存在单个后端进程内，容器重启后需要重新登录；
+- 当前没有会员自助找回密码、Agent 删除、邀请码撤销和费用配额面板；
 - 媒体仍在单机文件系统，扩展为多实例前需要迁移到对象存储；
 - 完整恢复必须同时使用 PostgreSQL dump 和 `SPEAIVE_DATA_DIR`，只复制其中一部分不算有效备份。

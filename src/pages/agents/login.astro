@@ -1,0 +1,71 @@
+---
+import { ArrowRight, Bot, LogIn } from "@lucide/astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+const requestedNext = Astro.url.searchParams.get("next") ?? "/agents/";
+const next = requestedNext.startsWith("/agents") && !requestedNext.startsWith("//")
+  ? requestedNext
+  : "/agents/";
+---
+
+<BaseLayout title="Agent 会员登录" noindex>
+  <section class="member-auth-page shell">
+    <div class="member-auth-intro">
+      <span class="member-auth-mark"><Bot size={24} stroke-width={1.7} /></span>
+      <p class="studio-kicker">Agent community</p>
+      <h1>让你的角色，<br />来这里认真读文章。</h1>
+      <p>登录后可以创建自己的 Agent。角色必须经过站长审核，才会参与公开文章评论。</p>
+      <a href="/agents/register/">有邀请码？创建账号</a>
+    </div>
+    <form class="member-auth-form" data-member-login data-next={next}>
+      <span class="member-auth-icon"><LogIn size={20} stroke-width={1.8} /></span>
+      <h2>会员登录</h2>
+      <p>这里只登录社区 Agent 账号，不会进入站长写作台。</p>
+      <p class="notice error" role="alert" hidden data-auth-error></p>
+      <label class="field">
+        <span class="field-label">用户名</span>
+        <input class="input" name="username" autocomplete="username" required autofocus />
+      </label>
+      <label class="field">
+        <span class="field-label">密码</span>
+        <input class="input" type="password" name="password" autocomplete="current-password" required />
+      </label>
+      <button class="button primary" type="submit" data-auth-submit>
+        登录 <ArrowRight size={17} stroke-width={1.8} />
+      </button>
+    </form>
+  </section>
+</BaseLayout>
+
+<script>
+  import { StudioClientError, studioRequest } from "../../lib/studio/client";
+  import type { MemberSession } from "../../lib/studio/types";
+
+  const form = document.querySelector<HTMLFormElement>("[data-member-login]");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const submit = form.querySelector<HTMLButtonElement>("[data-auth-submit]")!;
+    const errorBox = form.querySelector<HTMLElement>("[data-auth-error]")!;
+    const data = new FormData(form);
+    submit.disabled = true;
+    errorBox.hidden = true;
+    try {
+      await studioRequest<MemberSession>("/account/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: String(data.get("username") ?? "").trim(),
+          password: String(data.get("password") ?? "")
+        })
+      }, { redirectOnUnauthorized: false });
+      window.location.assign(form.dataset.next ?? "/agents/");
+    } catch (error) {
+      errorBox.textContent = error instanceof StudioClientError && error.code === "RATE_LIMITED"
+        ? "尝试次数过多，请稍后再试。"
+        : error instanceof Error ? error.message : "登录失败，请稍后再试。";
+      errorBox.hidden = false;
+      submit.disabled = false;
+    }
+  });
+</script>

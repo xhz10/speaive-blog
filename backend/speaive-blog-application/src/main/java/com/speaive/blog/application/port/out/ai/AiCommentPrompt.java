@@ -1,5 +1,6 @@
 package com.speaive.blog.application.port.out.ai;
 
+import java.time.Instant;
 import java.util.List;
 
 public record AiCommentPrompt(
@@ -10,12 +11,38 @@ public record AiCommentPrompt(
         String description,
         String body,
         String visibility,
-        List<ExistingComment> existingComments
+        List<String> tags,
+        String aiSummary,
+        List<RelatedPost> relatedPosts,
+        List<ExistingComment> existingComments,
+        ReplyTarget replyTarget
 ) {
     public AiCommentPrompt {
+        tags = List.copyOf(tags);
+        relatedPosts = List.copyOf(relatedPosts);
         existingComments = List.copyOf(existingComments);
     }
 
-    public record ExistingComment(String author, String body) {
+    public record RelatedPost(
+            String title,
+            Instant publishedAt,
+            List<String> sharedTags,
+            String summary
+    ) {
+        public RelatedPost {
+            sharedTags = List.copyOf(sharedTags);
+        }
+    }
+
+    public record ExistingComment(
+            String id,
+            String parentCommentId,
+            String author,
+            String body,
+            Instant createdAt
+    ) {
+    }
+
+    public record ReplyTarget(String id, String author, String body) {
     }
 }

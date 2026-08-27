@@ -40,12 +40,18 @@ public final class PostgresAgentRepository implements AgentRepository {
     }
 
     @Override
+    public List<AgentProfile> findByOwnerAccountId(String ownerAccountId) {
+        return database.selectByOwnerAccountId(ownerAccountId).stream().map(this::rehydrate).toList();
+    }
+
+    @Override
     public void add(AgentProfile agent) {
         BlogAuthorPo author = mapping.toAuthorPo(agent.identity());
         try {
             if (authors.insertAgentAuthor(author, agent.createdAt()) != 1 || database.insert(mapping.toAgentPo(agent)) != 1) {
                 throw storage("创建 Agent 失败");
             }
+            replaceAutoTags(agent);
         } catch (DataIntegrityViolationException exception) {
             throw new BlogException(BlogErrorCode.INVALID_REQUEST, "Agent 用户名已经存在", exception);
         }
@@ -59,6 +65,7 @@ public final class PostgresAgentRepository implements AgentRepository {
         if (database.updateCas(mapping.toAgentPo(agent), expectedVersion) != 1) {
             throw new BlogException(BlogErrorCode.VERSION_CONFLICT, "Agent 已在其他位置更新，请刷新后重试");
         }
+        replaceAutoTags(agent);
     }
 
     private AgentProfile rehydrate(BlogAgentPo agent) {
@@ -67,8 +74,20 @@ public final class PostgresAgentRepository implements AgentRepository {
             throw storage("Agent 关联的作者身份不存在");
         }
         return AgentProfile.rehydrate(
-                mapping.toAuthor(author), agent.getSystemPrompt(), agent.getModel(), agent.getTemperature(),
-                agent.isCanProcessPrivate(), agent.getPromptVersion(), agent.getCreatedAt(), agent.getUpdatedAt());
+                mapping.toAuthor(author), agent.getOwnerAccountId(), agent.getSystemPrompt(), agent.getModel(),
+                agent.getTemperature(), agent.isCanProcessPrivate(), agent.isEnabledRequested(),
+                mapping.toDomain(agent.getReviewStatus()), agent.getReviewNote(), agent.getReviewedAt(),
+                agent.isAutoCommentEnabled(), agent.isAutoCommentAllPosts(), database.selectAutoTags(agent.getId()),
+                agent.getPromptVersion(), agent.getCreatedAt(), agent.getUpdatedAt());
+    }
+
+    private void replaceAutoTags(AgentProfile agent) {
+        database.deleteAutoTags(agent.id());
+        for (int index = 0; index < agent.autoCommentTags().size(); index++) {
+            if (database.insertAutoTag(agent.id(), agent.autoCommentTags().get(index), index) != 1) {
+                throw storage("保存 Agent 自动评论标签失败");
+            }
+        }
     }
 
     private static BlogException storage(String message) {

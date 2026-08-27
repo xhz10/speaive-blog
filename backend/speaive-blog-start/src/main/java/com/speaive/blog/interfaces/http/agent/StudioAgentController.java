@@ -3,6 +3,7 @@ package com.speaive.blog.interfaces.http.agent;
 import com.speaive.blog.application.port.in.agent.AgentUseCase;
 import com.speaive.blog.interfaces.http.agent.AgentRequests.CreateAgentRequest;
 import com.speaive.blog.interfaces.http.agent.AgentRequests.UpdateAgentRequest;
+import com.speaive.blog.interfaces.http.agent.AgentRequests.ReviewAgentRequest;
 import com.speaive.blog.interfaces.http.agent.AgentResponses.AgentDetail;
 import com.speaive.blog.interfaces.http.agent.AgentResponses.AgentList;
 import jakarta.validation.Valid;
@@ -41,5 +42,15 @@ public class StudioAgentController {
     @PutMapping("/{id}")
     AgentDetail update(@PathVariable String id, @Valid @RequestBody UpdateAgentRequest request) {
         return mapper.toResponse(agents.updateAgent(id, mapper.toCommand(request)));
+    }
+
+    @PostMapping("/{id}/approve")
+    AgentDetail approve(@PathVariable String id, @Valid @RequestBody ReviewAgentRequest request) {
+        return mapper.toResponse(agents.approveAgent(id, request.version()));
+    }
+
+    @PostMapping("/{id}/reject")
+    AgentDetail reject(@PathVariable String id, @Valid @RequestBody ReviewAgentRequest request) {
+        return mapper.toResponse(agents.rejectAgent(id, request.version(), request.note()));
     }
 }

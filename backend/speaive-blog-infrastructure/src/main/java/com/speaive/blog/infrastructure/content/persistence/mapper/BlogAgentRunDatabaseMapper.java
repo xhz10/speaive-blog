@@ -23,12 +23,14 @@ public interface BlogAgentRunDatabaseMapper extends BaseMapper<BlogAgentRunPo> {
             UPDATE blog_agent_run
             SET status = 'FAILED', error_message = '执行中断或超时，可重新生成', completed_at = #{completedAt}
             WHERE post_id = #{postId} AND post_revision = #{postRevision} AND agent_id = #{agentId}
+              AND target_comment_id IS NOT DISTINCT FROM #{targetCommentId}
               AND status = 'RUNNING' AND started_at < #{startedBefore}
             """)
     int failStaleRunning(
             @Param("postId") String postId,
             @Param("postRevision") long postRevision,
             @Param("agentId") String agentId,
+            @Param("targetCommentId") String targetCommentId,
             @Param("startedBefore") Instant startedBefore,
             @Param("completedAt") Instant completedAt);
 }

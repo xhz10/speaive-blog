@@ -9,5 +9,11 @@ public interface AgentRunRepository {
 
     void save(AgentRun run);
 
-    void failStaleRunning(String postId, long postRevision, String agentId, Instant startedBefore, Instant completedAt);
+    void failStaleRunning(
+            String postId,
+            long postRevision,
+            String agentId,
+            String targetCommentId,
+            Instant startedBefore,
+            Instant completedAt);
 }

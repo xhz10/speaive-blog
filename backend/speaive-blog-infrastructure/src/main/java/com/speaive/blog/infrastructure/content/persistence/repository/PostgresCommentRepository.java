@@ -65,7 +65,7 @@ public final class PostgresCommentRepository implements CommentRepository {
             throw storage("评论关联的作者不存在");
         }
         return new Comment(
-                row.getId(), row.getPostId(), mapping.toAuthor(author), row.getBody(),
+                row.getId(), row.getPostId(), row.getParentCommentId(), mapping.toAuthor(author), row.getBody(),
                 mapping.toDomain(row.getStatus()), row.getCreatedAt(), row.getUpdatedAt());
     }
 

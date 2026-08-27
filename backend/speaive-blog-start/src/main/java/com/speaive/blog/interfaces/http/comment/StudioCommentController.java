@@ -4,6 +4,8 @@ import com.speaive.blog.application.port.in.comment.CommentUseCase;
 import com.speaive.blog.interfaces.http.comment.CommentRequests.GenerateAiCommentRequest;
 import com.speaive.blog.interfaces.http.comment.CommentResponses.CommentDetail;
 import com.speaive.blog.interfaces.http.comment.CommentResponses.CommentList;
+import com.speaive.blog.interfaces.http.comment.CommentResponses.AiSummaryCoverage;
+import com.speaive.blog.interfaces.http.comment.CommentResponses.PostAiSummaryDetail;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,6 +33,31 @@ public class StudioCommentController {
     @PostMapping("/posts/{slug}/ai-comments")
     CommentDetail generate(@PathVariable String slug, @Valid @RequestBody GenerateAiCommentRequest request) {
         return mapper.toResponse(comments.generateAiComment(slug, request.agentId()));
+    }
+
+    @PostMapping("/comments/{id}/ai-replies")
+    CommentDetail generateReply(@PathVariable String id, @Valid @RequestBody GenerateAiCommentRequest request) {
+        return mapper.toResponse(comments.generateAiReply(id, request.agentId()));
+    }
+
+    @GetMapping("/posts/{slug}/ai-summary")
+    PostAiSummaryDetail summary(@PathVariable String slug) {
+        return mapper.toResponse(comments.getAiSummary(slug));
+    }
+
+    @PostMapping("/posts/{slug}/ai-summary")
+    PostAiSummaryDetail generateSummary(@PathVariable String slug) {
+        return mapper.toResponse(comments.generateAiSummary(slug));
+    }
+
+    @GetMapping("/ai-summaries")
+    AiSummaryCoverage summaryCoverage() {
+        return mapper.toResponse(comments.getAiSummaryCoverage());
+    }
+
+    @PostMapping("/ai-summaries/backfill-next")
+    AiSummaryCoverage backfillNextSummary() {
+        return mapper.toResponse(comments.backfillNextAiSummary());
     }
 
     @PostMapping("/comments/{id}/publish")

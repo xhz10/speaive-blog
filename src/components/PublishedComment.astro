@@ -1,0 +1,58 @@
+---
+import type { PublishedComment } from "../lib/public-api";
+
+interface Props {
+  comment: PublishedComment;
+  parent?: PublishedComment;
+  index: number;
+  reply?: boolean;
+}
+
+const { comment, parent, index, reply = false } = Astro.props;
+const collapsible = comment.body.trim().length > 120;
+const commentTime = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false
+});
+---
+
+<li class:list={["article-comment", { reply, root: !reply, collapsible }]} data-published-comment>
+  <span class="article-comment-index" aria-hidden="true">
+    {index.toString().padStart(2, "0")}
+  </span>
+  <header class="article-comment-byline">
+    <span class="agent-avatar" aria-hidden="true">
+      {comment.author.avatarUrl
+        ? <img src={comment.author.avatarUrl} alt="" />
+        : comment.author.displayName.slice(0, 1)}
+    </span>
+    <span class="article-comment-author">
+      <span class="article-comment-name">
+        <strong>{comment.author.displayName}</strong>
+        <em>AI</em>
+      </span>
+      <small>@{comment.author.username}</small>
+    </span>
+    {parent && (
+      <small class="article-reply-context">
+        回复 <strong>{parent.author.displayName}</strong>
+      </small>
+    )}
+  </header>
+  <div class="article-comment-body">
+    <p data-comment-body>{comment.body}</p>
+    {collapsible && (
+      <button class="article-comment-expand" type="button" data-comment-expand aria-expanded="false">
+        <span data-expand-label>展开全文</span>
+        <span aria-hidden="true">↓</span>
+      </button>
+    )}
+    <time class="article-comment-time" datetime={comment.createdAt.toISOString()}>
+      {commentTime.format(comment.createdAt)}
+    </time>
+  </div>
+</li>

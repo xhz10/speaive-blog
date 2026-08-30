@@ -13,6 +13,7 @@ import com.speaive.blog.application.port.out.persistence.AgentRepository;
 import com.speaive.blog.application.port.out.persistence.AgentRunRepository;
 import com.speaive.blog.application.port.out.persistence.CommentRepository;
 import com.speaive.blog.application.port.out.persistence.PostRepository;
+import com.speaive.blog.application.port.out.persistence.NovelFragmentRepository;
 import com.speaive.blog.application.port.out.persistence.PostAiSummaryRepository;
 import com.speaive.blog.application.port.out.persistence.InvitationRepository;
 import com.speaive.blog.application.port.out.persistence.CommunityPostPolicyRepository;
@@ -21,6 +22,7 @@ import com.speaive.blog.application.port.out.transaction.TransactionRunner;
 import com.speaive.blog.application.service.MarkdownApplicationService;
 import com.speaive.blog.application.service.MediaApplicationService;
 import com.speaive.blog.application.service.PostApplicationService;
+import com.speaive.blog.application.service.NovelFragmentApplicationService;
 import com.speaive.blog.application.service.AgentApplicationService;
 import com.speaive.blog.application.service.CommentApplicationService;
 import com.speaive.blog.application.service.MemberAccountApplicationService;
@@ -36,6 +38,7 @@ import com.speaive.blog.infrastructure.content.persistence.mapper.BlogAgentRunDa
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogCommentDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogMediaDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogPostDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapper.BlogNovelFragmentDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogPostAiSummaryDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogAccountDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogInvitationDatabaseMapper;
@@ -43,12 +46,14 @@ import com.speaive.blog.infrastructure.content.persistence.mapper.BlogCommunityP
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogCommunityCommentJobDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.MarkdownImportDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapping.BlogPersistenceMapStructMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapping.NovelFragmentPersistenceMapStructMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapping.BlogAiPersistenceMapStructMapper;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAgentRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAgentRunRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresCommentRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAuthorRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresPostRepository;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresNovelFragmentRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresPostAiSummaryRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAccountRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresInvitationRepository;
@@ -90,6 +95,14 @@ public class BlogBackendConfiguration {
             BlogMediaDatabaseMapper media,
             BlogPersistenceMapStructMapper mapping) {
         return new PostgresPostRepository(posts, authors, media, mapping);
+    }
+
+    @Bean
+    NovelFragmentRepository novelFragmentRepository(
+            BlogNovelFragmentDatabaseMapper fragments,
+            BlogAuthorDatabaseMapper authors,
+            NovelFragmentPersistenceMapStructMapper mapping) {
+        return new PostgresNovelFragmentRepository(fragments, authors, mapping);
     }
 
     @Bean
@@ -189,6 +202,16 @@ public class BlogBackendConfiguration {
                 Clock.systemUTC(),
                 communityAutomation
         );
+    }
+
+    @Bean
+    NovelFragmentApplicationService novelFragmentApplicationService(
+            NovelFragmentRepository fragments,
+            AuthorRepository authors,
+            MarkdownPort markdown,
+            TransactionRunner transactions) {
+        return new NovelFragmentApplicationService(
+                fragments, authors, markdown, transactions, Clock.systemUTC());
     }
 
     @Bean

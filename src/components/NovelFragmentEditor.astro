@@ -1,0 +1,603 @@
+---
+import {
+  Bold,
+  Check,
+  CodeXml,
+  Eye,
+  Globe,
+  Heading2,
+  Italic,
+  Link2,
+  List,
+  LockKeyhole,
+  Quote,
+  Save,
+  Send,
+  TriangleAlert,
+  Undo2
+} from "@lucide/astro";
+import type { StudioNovelFragmentDetail } from "../lib/studio/types";
+
+interface Props {
+  fragment?: StudioNovelFragmentDetail;
+}
+
+const { fragment } = Astro.props;
+const initialState = JSON.stringify(fragment ?? null).replace(/</g, "\\u003c");
+---
+
+<form
+  id="novel-fragment-form"
+  class="studio-editor-form novel-editor-form"
+  novalidate
+  data-dirty="false"
+  data-studio-editor-form
+>
+  <div class="editor-commandbar">
+    <div class="editor-state-line">
+      <span class:list={["status-badge", { draft: !fragment || fragment.status === "DRAFT" }]} data-fragment-status>
+        {fragment?.status === "PUBLISHED" ? "已发布" : "灵感草稿"}
+      </span>
+      <span class:list={["visibility-badge", { private: !fragment || fragment.visibility === "ADMIN_ONLY" }]} data-fragment-visibility>
+        <span data-private-icon><LockKeyhole size={13} stroke-width={1.9} aria-hidden="true" /></span>
+        <span data-public-icon hidden><Globe size={13} stroke-width={1.9} aria-hidden="true" /></span>
+        <span data-fragment-visibility-label>{fragment?.visibility === "PUBLIC" ? "公开" : "仅自己"}</span>
+      </span>
+      <span class="save-indicator" data-save-indicator data-state={fragment ? "saved" : "dirty"} aria-live="polite">
+        <span class="save-indicator-dot" aria-hidden="true"></span>
+        <span data-save-label>{fragment ? "已保存" : "未保存"}</span>
+      </span>
+    </div>
+    <div class="button-row editor-actions">
+      <button class="button secondary" type="button" data-save-draft hidden={fragment?.status === "PUBLISHED"}>
+        <Save size={16} stroke-width={1.8} aria-hidden="true" />
+        保存灵感
+      </button>
+      <button class="button secondary" type="button" data-unpublish hidden={fragment?.status !== "PUBLISHED"}>
+        <Undo2 size={16} stroke-width={1.8} aria-hidden="true" />
+        撤回为私稿
+      </button>
+      <button class="button primary" type="button" data-publish>
+        <Send size={16} stroke-width={1.8} aria-hidden="true" />
+        <span data-publish-label>{fragment?.status === "PUBLISHED" ? "更新发布" : "发布片段"}</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="editor-alert" role="alert" hidden data-editor-error>
+    <TriangleAlert size={17} stroke-width={1.8} aria-hidden="true" />
+    <span data-editor-error-text></span>
+    <a class="button ghost" href="/studio/login" target="_blank" rel="noreferrer" hidden data-login-again>重新登录</a>
+    <button class="button ghost" type="button" hidden data-reload>重新加载</button>
+  </div>
+
+  <section class="editor-document-meta novel-document-meta" aria-label="小说片段信息">
+    <div class="novel-editor-eyebrow">Fiction fragment · 随手写，不必先想完整</div>
+    <label class="visually-hidden" for="fragment-title">片段标题</label>
+    <input
+      id="fragment-title"
+      class="editor-title-input"
+      type="text"
+      name="title"
+      value={fragment?.title ?? ""}
+      maxlength="200"
+      placeholder="给这段灵感一个名字"
+      required
+      data-title
+    />
+    <label class="visually-hidden" for="fragment-excerpt">片段简介</label>
+    <textarea
+      id="fragment-excerpt"
+      class="editor-description-input"
+      name="excerpt"
+      rows="2"
+      maxlength="500"
+      placeholder="一句话记下人物、场景或冲突（可以留空）"
+      data-excerpt
+    >{fragment?.excerpt ?? ""}</textarea>
+
+    <div class="editor-metadata-grid novel-metadata-grid">
+      <label class="field slug-field">
+        <span class="field-label">Slug</span>
+        <div class="slug-input-wrap">
+          <span>/novels/</span>
+          <input
+            type="text"
+            name="slug"
+            value={fragment?.slug ?? ""}
+            maxlength="100"
+            pattern="[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*"
+            required
+            readonly={Boolean(fragment)}
+            data-slug
+          />
+        </div>
+      </label>
+      <label class="field">
+        <span class="field-label">谁可以看</span>
+        <select class="input" name="visibility" data-visibility>
+          <option value="ADMIN_ONLY" selected={!fragment || fragment.visibility === "ADMIN_ONLY"}>仅自己（默认）</option>
+          <option value="PUBLIC" selected={fragment?.visibility === "PUBLIC"}>所有访客</option>
+        </select>
+        <span class="field-hint">草稿永不公开；发布后仍按这里的权限判断</span>
+      </label>
+    </div>
+  </section>
+
+  <div class="editor-workspace novel-editor-workspace">
+    <section class="editor-pane" aria-labelledby="novel-markdown-title">
+      <div class="editor-toolbar">
+        <div>
+          <strong id="novel-markdown-title">Markdown</strong>
+          <span>小说片段</span>
+        </div>
+        <span class="novel-autosave-note"><Check size={14} aria-hidden="true" /> 草稿自动保存</span>
+      </div>
+      <div class="markdown-toolbar" role="toolbar" aria-label="Markdown 格式工具">
+        <button type="button" title="二级标题" aria-label="插入二级标题" data-markdown-action="heading"><Heading2 size={16} aria-hidden="true" /></button>
+        <button type="button" title="加粗（⌘/Ctrl+B）" aria-label="加粗" data-markdown-action="bold"><Bold size={16} aria-hidden="true" /></button>
+        <button type="button" title="斜体（⌘/Ctrl+I）" aria-label="斜体" data-markdown-action="italic"><Italic size={16} aria-hidden="true" /></button>
+        <button type="button" title="链接" aria-label="插入链接" data-markdown-action="link"><Link2 size={16} aria-hidden="true" /></button>
+        <button type="button" title="无序列表" aria-label="插入无序列表" data-markdown-action="list"><List size={16} aria-hidden="true" /></button>
+        <button type="button" title="引用" aria-label="插入引用" data-markdown-action="quote"><Quote size={16} aria-hidden="true" /></button>
+        <button type="button" title="代码块" aria-label="插入代码块" data-markdown-action="code"><CodeXml size={16} aria-hidden="true" /></button>
+        <span class="markdown-toolbar-hint">⌘/Ctrl+F 搜索</span>
+      </div>
+      <textarea
+        class="editor-textarea"
+        name="body"
+        aria-label="小说片段 Markdown 正文"
+        placeholder="先写下眼前的画面，完整不重要……"
+        spellcheck="true"
+        data-body
+      >{fragment?.body ?? ""}</textarea>
+      <div class="markdown-editor-host" data-markdown-editor></div>
+      <div class="markdown-editor-status" aria-live="polite">
+        <span data-document-count>0 字 · 1 行</span>
+        <span>Markdown</span>
+      </div>
+    </section>
+
+    <section class="preview-pane prose novel-preview-pane" aria-label="小说片段预览">
+      <div class="editor-toolbar preview-toolbar">
+        <div><strong>沉浸预览</strong><span data-preview-state>{fragment ? "已同步" : "等待正文"}</span></div>
+        <button class="icon-button" type="button" title="立即刷新预览" aria-label="立即刷新预览" data-preview>
+          <Eye size={17} stroke-width={1.8} aria-hidden="true" />
+        </button>
+      </div>
+      <div class="preview-content novel-preview-content" data-preview-pane>
+        {fragment?.html
+          ? <Fragment set:html={fragment.html} />
+          : <div class="preview-placeholder"><span>写下一句，故事就会出现在这里</span></div>}
+      </div>
+    </section>
+  </div>
+</form>
+
+<script is:inline id="novel-editor-initial-state" type="application/json" set:html={initialState}></script>
+
+<script>
+  import type { EditorView } from "@codemirror/view";
+  import { StudioClientError, studioRequest } from "../lib/studio/client";
+  import { createDraftTabId } from "../lib/studio/draft-id";
+  import {
+    applyMarkdownAction,
+    createMarkdownEditor,
+    toContentSlug
+  } from "../lib/studio/markdown-editor";
+  import type {
+    CreateNovelFragmentPayload,
+    NovelFragmentVisibility,
+    NovelFragmentWritePayload,
+    StudioNovelFragmentDetail,
+    UpdateNovelFragmentPayload
+  } from "../lib/studio/types";
+
+  const DRAFT_KEY_PREFIX = "speaive:studio:novel-draft:v1:";
+  const DRAFT_TAB_KEY = "speaive:studio:novel-draft-tab:v1";
+  const form = document.querySelector<HTMLFormElement>("#novel-fragment-form");
+  const stateScript = document.querySelector<HTMLScriptElement>("#novel-editor-initial-state");
+  if (form && stateScript) {
+    const parsed = JSON.parse(stateScript.textContent || "null") as StudioNovelFragmentDetail | null;
+    void setupNovelEditor(form, parsed);
+  }
+
+  async function setupNovelEditor(
+    editorForm: HTMLFormElement,
+    initialFragment: StudioNovelFragmentDetail | null
+  ) {
+    const titleInput = editorForm.querySelector<HTMLInputElement>("[data-title]")!;
+    const excerptInput = editorForm.querySelector<HTMLTextAreaElement>("[data-excerpt]")!;
+    const slugInput = editorForm.querySelector<HTMLInputElement>("[data-slug]")!;
+    const visibilityInput = editorForm.querySelector<HTMLSelectElement>("[data-visibility]")!;
+    const bodyInput = editorForm.querySelector<HTMLTextAreaElement>("[data-body]")!;
+    const markdownHost = editorForm.querySelector<HTMLElement>("[data-markdown-editor]")!;
+    const documentCount = editorForm.querySelector<HTMLElement>("[data-document-count]")!;
+    const saveButton = editorForm.querySelector<HTMLButtonElement>("[data-save-draft]")!;
+    const publishButton = editorForm.querySelector<HTMLButtonElement>("[data-publish]")!;
+    const publishLabel = editorForm.querySelector<HTMLElement>("[data-publish-label]")!;
+    const unpublishButton = editorForm.querySelector<HTMLButtonElement>("[data-unpublish]")!;
+    const statusBadge = editorForm.querySelector<HTMLElement>("[data-fragment-status]")!;
+    const visibilityBadge = editorForm.querySelector<HTMLElement>("[data-fragment-visibility]")!;
+    const visibilityLabel = editorForm.querySelector<HTMLElement>("[data-fragment-visibility-label]")!;
+    const privateIcon = editorForm.querySelector<HTMLElement>("[data-private-icon]")!;
+    const publicIcon = editorForm.querySelector<HTMLElement>("[data-public-icon]")!;
+    const saveIndicator = editorForm.querySelector<HTMLElement>("[data-save-indicator]")!;
+    const saveLabel = editorForm.querySelector<HTMLElement>("[data-save-label]")!;
+    const errorBox = editorForm.querySelector<HTMLElement>("[data-editor-error]")!;
+    const errorText = editorForm.querySelector<HTMLElement>("[data-editor-error-text]")!;
+    const loginAgain = editorForm.querySelector<HTMLAnchorElement>("[data-login-again]")!;
+    const reloadButton = editorForm.querySelector<HTMLButtonElement>("[data-reload]")!;
+    const previewButton = editorForm.querySelector<HTMLButtonElement>("[data-preview]")!;
+    const previewPane = editorForm.querySelector<HTMLElement>("[data-preview-pane]")!;
+    const previewState = editorForm.querySelector<HTMLElement>("[data-preview-state]")!;
+
+    let fragment = initialFragment;
+    let status = initialFragment?.status ?? "DRAFT";
+    let version = initialFragment?.version ?? "";
+    let slugTouched = Boolean(initialFragment);
+    let dirty = false;
+    let busy = false;
+    let conflicted = false;
+    let autosaveTimer: number | undefined;
+    let previewTimer: number | undefined;
+    let previewController: AbortController | undefined;
+    let activeSave: Promise<StudioNovelFragmentDetail | null> | null = null;
+    let markdownView: EditorView | null = null;
+    const localDraftKey = resolveDraftKey();
+    let savedSnapshot = snapshot();
+    const request = <T = void,>(path: string, init: RequestInit = {}) =>
+      studioRequest<T>(path, init, { redirectOnUnauthorized: false });
+
+    loginAgain.href = `/studio/login?next=${encodeURIComponent(window.location.pathname)}`;
+    if (!fragment) restoreLocalDraft();
+    markdownView = await createMarkdownEditor(
+      markdownHost,
+      bodyInput,
+      (value) => {
+        bodyInput.value = value;
+        markDirty();
+        updateDocumentCount();
+        schedulePreview(350);
+      },
+      "先写下眼前的画面，完整不重要……"
+    );
+    updateDocumentCount();
+    savedSnapshot = fragment ? snapshot() : savedSnapshot;
+    if (snapshot() !== savedSnapshot) markDirty();
+    else syncDirtyFlag();
+    syncControls();
+    if (bodyInput.value.trim()) schedulePreview(0);
+
+    editorForm.addEventListener("submit", (event) => event.preventDefault());
+    editorForm.addEventListener("input", (event) => {
+      if (event.target === titleInput && !slugTouched && !slugInput.readOnly) {
+        slugInput.value = toContentSlug(titleInput.value);
+      }
+      if (event.target === slugInput) slugTouched = Boolean(slugInput.value);
+      markDirty();
+      if (event.target === bodyInput) schedulePreview(500);
+    });
+
+    for (const button of editorForm.querySelectorAll<HTMLButtonElement>("[data-markdown-action]")) {
+      button.addEventListener("click", () => {
+        if (markdownView) applyMarkdownAction(markdownView, button.dataset.markdownAction ?? "");
+      });
+    }
+
+    saveButton.addEventListener("click", () => void runCommand(async () => { await saveDraft(true); }));
+    publishButton.addEventListener("click", () => void runCommand(publish));
+    unpublishButton.addEventListener("click", () => void runCommand(unpublish));
+    reloadButton.addEventListener("click", () => window.location.reload());
+    previewButton.addEventListener("click", () => void refreshPreview());
+    window.addEventListener("beforeunload", (event) => {
+      if (!dirty) return;
+      event.preventDefault();
+    });
+
+    function collectPayload(): NovelFragmentWritePayload {
+      return {
+        title: titleInput.value.trim(),
+        excerpt: excerptInput.value.trim(),
+        visibility: visibilityInput.value as NovelFragmentVisibility,
+        body: bodyInput.value
+      };
+    }
+
+    function snapshot(): string {
+      return JSON.stringify({ slug: slugInput.value.trim(), ...collectPayload() });
+    }
+
+    function markDirty() {
+      syncVisibilityBadge();
+      dirty = snapshot() !== savedSnapshot;
+      syncDirtyFlag();
+      clearError();
+      if (!dirty) {
+        window.clearTimeout(autosaveTimer);
+        setSaveState("saved", "已保存");
+        return;
+      }
+      setSaveState("dirty", status === "PUBLISHED" ? "有未发布修改" : "正在记录");
+      if (!fragment) persistLocalDraft();
+      scheduleAutosave();
+    }
+
+    async function saveDraft(explicit: boolean): Promise<StudioNovelFragmentDetail | null> {
+      window.clearTimeout(autosaveTimer);
+      while (activeSave) await activeSave;
+      if (conflicted || (status === "PUBLISHED" && !explicit)) return fragment;
+      if (!dirty && fragment) return fragment;
+      if (!validateDocument(explicit)) return null;
+      const operation = performSave(explicit);
+      activeSave = operation;
+      try {
+        return await operation;
+      } finally {
+        if (activeSave === operation) activeSave = null;
+      }
+    }
+
+    async function performSave(explicit: boolean): Promise<StudioNovelFragmentDetail | null> {
+      setSaveState("saving", "正在保存");
+      try {
+        const payload = collectPayload();
+        const requestSnapshot = snapshot();
+        const saved = fragment
+          ? await request<StudioNovelFragmentDetail>(`/studio/novels/${encodeURIComponent(fragment.slug)}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...payload, version } satisfies UpdateNovelFragmentPayload)
+            })
+          : await request<StudioNovelFragmentDetail>("/studio/novels", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ slug: slugInput.value.trim(), ...payload } satisfies CreateNovelFragmentPayload)
+            });
+        applyServerFragment(saved, requestSnapshot);
+        return saved;
+      } catch (error) {
+        handleRequestError(error, explicit ? "保存失败" : "自动保存失败");
+        return null;
+      }
+    }
+
+    function scheduleAutosave() {
+      window.clearTimeout(autosaveTimer);
+      if (!dirty || busy || conflicted || status !== "DRAFT" || !validateDocument(false)) return;
+      autosaveTimer = window.setTimeout(() => void saveDraft(false), 1_500);
+    }
+
+    async function publish() {
+      if (!validateDocument(true)) return;
+      if (status === "PUBLISHED") {
+        if (dirty) {
+          const scope = visibilityInput.value === "PUBLIC" ? "公开给所有访客" : "改为仅自己可见";
+          if (!window.confirm(`保存后会${scope}，确定更新吗？`)) return;
+          await saveDraft(true);
+        }
+        return;
+      }
+      const message = visibilityInput.value === "PUBLIC"
+        ? "发布后这个片段会出现在公开小说页，确定继续吗？"
+        : "发布后仍然只有你能看到，可以作为一份定稿私藏。确定继续吗？";
+      if (!window.confirm(message)) return;
+      const saved = await saveDraft(true);
+      if (!saved || conflicted) return;
+      const published = await request<StudioNovelFragmentDetail>(
+        `/studio/novels/${encodeURIComponent(saved.slug)}/publish`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ version })
+        }
+      );
+      applyServerFragment(published);
+      setSaveState("saved", published.visibility === "PUBLIC" ? "已公开" : "仅自己可见");
+    }
+
+    async function unpublish() {
+      if (!fragment || status !== "PUBLISHED") return;
+      if (!window.confirm("撤回后片段会回到草稿，并立即从公开小说页消失。")) return;
+      const draft = await request<StudioNovelFragmentDetail>(
+        `/studio/novels/${encodeURIComponent(fragment.slug)}/unpublish`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ version })
+        }
+      );
+      applyServerFragment(draft);
+      setSaveState("saved", "已撤回");
+    }
+
+    async function runCommand(command: () => Promise<void>) {
+      if (busy || conflicted) return;
+      busy = true;
+      window.clearTimeout(autosaveTimer);
+      syncDisabledState();
+      try {
+        await command();
+      } catch (error) {
+        handleRequestError(error, "操作失败");
+      } finally {
+        busy = false;
+        syncDisabledState();
+        scheduleAutosave();
+      }
+    }
+
+    async function refreshPreview() {
+      window.clearTimeout(previewTimer);
+      previewController?.abort();
+      previewController = new AbortController();
+      previewButton.disabled = true;
+      previewState.textContent = "正在生成";
+      try {
+        const result = await request<{ html: string }>("/studio/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body: bodyInput.value }),
+          signal: previewController.signal
+        });
+        previewPane.innerHTML = result.html
+          || '<div class="preview-placeholder"><span>写下一句，故事就会出现在这里</span></div>';
+        previewState.textContent = "已同步";
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        previewState.textContent = "预览失败";
+        showError(error instanceof Error ? error.message : "预览失败");
+      } finally {
+        previewButton.disabled = false;
+      }
+    }
+
+    function schedulePreview(delay: number) {
+      window.clearTimeout(previewTimer);
+      previewState.textContent = "等待更新";
+      previewTimer = window.setTimeout(() => void refreshPreview(), delay);
+    }
+
+    function applyServerFragment(next: StudioNovelFragmentDetail, persistedSnapshot?: string) {
+      fragment = next;
+      status = next.status;
+      version = next.version;
+      slugInput.value = next.slug;
+      slugInput.readOnly = true;
+      slugTouched = true;
+      conflicted = false;
+      savedSnapshot = persistedSnapshot ?? snapshot();
+      dirty = snapshot() !== savedSnapshot;
+      syncDirtyFlag();
+      localStorage.removeItem(localDraftKey);
+      const editPath = `/studio/novels/edit/${encodeURIComponent(next.slug)}/`;
+      if (window.location.pathname !== editPath) window.history.replaceState({}, "", editPath);
+      loginAgain.href = `/studio/login?next=${encodeURIComponent(editPath)}`;
+      const context = document.querySelector<HTMLElement>("[data-editor-context]");
+      if (context) context.textContent = next.slug;
+      document.title = `小说：${next.title}｜Speaive`;
+      syncControls();
+      if (dirty) setSaveState("dirty", "有未保存修改");
+      else setSaveState("saved", "已保存");
+      clearError();
+    }
+
+    function syncControls() {
+      const published = status === "PUBLISHED";
+      statusBadge.textContent = published ? "已发布" : "灵感草稿";
+      statusBadge.classList.toggle("draft", !published);
+      saveButton.hidden = published;
+      unpublishButton.hidden = !published;
+      publishLabel.textContent = published ? "更新发布" : "发布片段";
+      syncVisibilityBadge();
+      syncDisabledState();
+    }
+
+    function syncVisibilityBadge() {
+      const privateFragment = visibilityInput.value === "ADMIN_ONLY";
+      visibilityBadge.classList.toggle("private", privateFragment);
+      visibilityLabel.textContent = privateFragment ? "仅自己" : "公开";
+      privateIcon.hidden = !privateFragment;
+      publicIcon.hidden = privateFragment;
+    }
+
+    function syncDisabledState() {
+      for (const button of [saveButton, publishButton, unpublishButton]) {
+        button.disabled = busy || conflicted;
+      }
+    }
+
+    function updateDocumentCount() {
+      const characters = Array.from(bodyInput.value.replace(/\s/g, "")).length;
+      const lines = bodyInput.value.split("\n").length;
+      documentCount.textContent = `${characters} 字 · ${lines} 行`;
+    }
+
+    function validateDocument(interactive: boolean): boolean {
+      const valid = interactive ? editorForm.reportValidity() : editorForm.checkValidity();
+      if (!valid) return false;
+      if (!slugInput.value.trim()) {
+        if (interactive) slugInput.focus();
+        return false;
+      }
+      return true;
+    }
+
+    function handleRequestError(error: unknown, fallback: string) {
+      if (error instanceof StudioClientError && error.status === 401) {
+        setSaveState("error", "登录已过期");
+        showError("登录已过期。重新登录前，当前输入仍保留在页面中。", false, true);
+        return;
+      }
+      if (error instanceof StudioClientError && error.status === 409) {
+        conflicted = true;
+        setSaveState("conflict", "版本冲突");
+        showError("这个片段已在其他页面更新，请重新加载后继续。", true);
+        syncDisabledState();
+        return;
+      }
+      setSaveState("error", "保存失败");
+      showError(error instanceof Error ? error.message : fallback);
+    }
+
+    function setSaveState(state: string, label: string) {
+      saveIndicator.dataset.state = state;
+      saveLabel.textContent = label;
+    }
+
+    function showError(message: string, allowReload = false, allowLogin = false) {
+      errorText.textContent = message;
+      reloadButton.hidden = !allowReload;
+      loginAgain.hidden = !allowLogin;
+      errorBox.hidden = false;
+    }
+
+    function clearError() {
+      if (!conflicted) errorBox.hidden = true;
+    }
+
+    function syncDirtyFlag() {
+      editorForm.dataset.dirty = String(dirty);
+    }
+
+    function persistLocalDraft() {
+      try {
+        localStorage.setItem(localDraftKey, snapshot());
+      } catch {
+        // Local recovery is optional; server saves remain authoritative.
+      }
+    }
+
+    function restoreLocalDraft() {
+      try {
+        const raw = localStorage.getItem(localDraftKey);
+        if (!raw) return;
+        const draft = JSON.parse(raw) as Partial<CreateNovelFragmentPayload>;
+        titleInput.value = draft.title ?? "";
+        excerptInput.value = draft.excerpt ?? "";
+        slugInput.value = draft.slug ?? "";
+        visibilityInput.value = draft.visibility ?? "ADMIN_ONLY";
+        bodyInput.value = draft.body ?? "";
+        slugTouched = Boolean(slugInput.value);
+        dirty = true;
+        syncDirtyFlag();
+        setSaveState("dirty", "已恢复本地灵感");
+      } catch {
+        localStorage.removeItem(localDraftKey);
+      }
+    }
+
+    function resolveDraftKey(): string {
+      try {
+        let tabId = sessionStorage.getItem(DRAFT_TAB_KEY);
+        if (!tabId) {
+          tabId = createDraftTabId();
+          sessionStorage.setItem(DRAFT_TAB_KEY, tabId);
+        }
+        return `${DRAFT_KEY_PREFIX}${tabId}`;
+      } catch {
+        return `${DRAFT_KEY_PREFIX}${createDraftTabId()}`;
+      }
+    }
+  }
+</script>

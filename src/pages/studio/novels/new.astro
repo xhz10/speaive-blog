@@ -1,0 +1,16 @@
+---
+import { ArrowLeft } from "@lucide/astro";
+import NovelFragmentEditor from "../../../components/NovelFragmentEditor.astro";
+import StudioLayout from "../../../layouts/StudioLayout.astro";
+---
+
+<StudioLayout title="新建小说片段">
+  <header class="studio-editor-head">
+    <a class="editor-back" href="/studio/novels/">
+      <ArrowLeft size={16} stroke-width={1.8} aria-hidden="true" />
+      所有小说片段
+    </a>
+    <span data-editor-context>新灵感</span>
+  </header>
+  <NovelFragmentEditor />
+</StudioLayout>

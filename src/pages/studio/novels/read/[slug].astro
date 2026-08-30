@@ -1,0 +1,56 @@
+---
+import { ArrowLeft, LockKeyhole, Pencil } from "@lucide/astro";
+import BaseLayout from "../../../../layouts/BaseLayout.astro";
+import { formatDateTime } from "../../../../lib/date-time";
+import { fetchStudioApi, isStudioApiError } from "../../../../lib/studio/server";
+import type { StudioNovelFragmentDetail } from "../../../../lib/studio/types";
+
+const slug = Astro.params.slug ?? "";
+let fragment: StudioNovelFragmentDetail | undefined;
+let loadError: string | undefined;
+try {
+  fragment = await fetchStudioApi<StudioNovelFragmentDetail>(
+    Astro.request,
+    `/api/v1/studio/novels/${encodeURIComponent(slug)}`
+  );
+} catch (error) {
+  Astro.response.status = isStudioApiError(error) && error.status === 404 ? 404 : 502;
+  loadError = error instanceof Error ? error.message : "小说片段加载失败";
+}
+---
+
+<BaseLayout title={fragment ? `私密小说：${fragment.title}` : "小说片段不存在"} noindex>
+  {fragment ? (
+    <article class="novel-reading-page studio-novel-reading">
+      <div class:list={["studio-reading-banner", { private: fragment.visibility === "ADMIN_ONLY" }]}>
+        <div class="shell studio-reading-banner-inner">
+          <span>
+            <LockKeyhole size={16} stroke-width={1.9} aria-hidden="true" />
+            {fragment.visibility === "ADMIN_ONLY" ? "仅管理员可见" : "管理员预览"}
+            {fragment.status === "DRAFT" && " · 灵感草稿"}
+          </span>
+          <div class="button-row">
+            <a class="button secondary" href="/studio/novels/"><ArrowLeft size={15} aria-hidden="true" />返回片段库</a>
+            <a class="button primary" href={`/studio/novels/edit/${encodeURIComponent(fragment.slug)}/`}><Pencil size={15} aria-hidden="true" />继续写</a>
+          </div>
+        </div>
+      </div>
+      <header class="novel-reading-header">
+        <div class="novel-reading-width">
+          <p class="novel-reading-kicker">Private fiction fragment</p>
+          <h1>{fragment.title}</h1>
+          {fragment.excerpt && <p class="novel-reading-deck">{fragment.excerpt}</p>}
+          <div class="novel-reading-meta">
+            <span>{fragment.author.displayName}</span>
+            <span>更新于 {formatDateTime(new Date(fragment.updatedAt))}</span>
+          </div>
+        </div>
+      </header>
+      <div class="novel-reading-width novel-reading-body prose" set:html={fragment.html} />
+    </article>
+  ) : (
+    <section class="not-found">
+      <div><h1>无法打开小说片段</h1><p>{loadError ?? "小说片段不存在。"}</p><a class="button primary" href="/studio/novels/">返回片段库</a></div>
+    </section>
+  )}
+</BaseLayout>

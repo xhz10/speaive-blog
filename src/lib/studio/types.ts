@@ -73,6 +73,45 @@ export interface UpdatePostPayload extends PostWritePayload {
   version: string;
 }
 
+export type NovelFragmentStatus = "DRAFT" | "PUBLISHED";
+export type NovelFragmentVisibility = "PUBLIC" | "ADMIN_ONLY";
+
+export interface StudioNovelFragmentSummary {
+  slug: string;
+  title: string;
+  excerpt: string;
+  publishedAt: string | null;
+  updatedAt: string;
+  author: PostAuthor;
+  status: NovelFragmentStatus;
+  visibility: NovelFragmentVisibility;
+  version: string;
+}
+
+export interface StudioNovelFragmentDetail extends StudioNovelFragmentSummary {
+  body: string;
+  html: string;
+}
+
+export interface StudioNovelFragmentList {
+  items: StudioNovelFragmentSummary[];
+}
+
+export interface NovelFragmentWritePayload {
+  title: string;
+  excerpt: string;
+  visibility: NovelFragmentVisibility;
+  body: string;
+}
+
+export interface CreateNovelFragmentPayload extends NovelFragmentWritePayload {
+  slug: string;
+}
+
+export interface UpdateNovelFragmentPayload extends NovelFragmentWritePayload {
+  version: string;
+}
+
 export interface StudioAgent {
   id: string;
   username: string;

@@ -1,0 +1,59 @@
+---
+import { ArrowUpRight, Feather } from "@lucide/astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { formatDateTime } from "../../lib/date-time";
+import { listPublishedNovelFragments } from "../../lib/public-api";
+
+const fragments = await listPublishedNovelFragments();
+---
+
+<BaseLayout
+  title="小说片段"
+  description="Speaive 偶尔写下的小说片段：人物、场景、对话，以及尚未长成完整故事的灵感。"
+>
+  <header class="novel-library-hero">
+    <div class="shell novel-library-hero-grid">
+      <div>
+        <p class="section-label">Fiction fragments</p>
+        <h1>未完待续，<br />也可以先被看见。</h1>
+      </div>
+      <div class="novel-library-note">
+        <Feather size={24} stroke-width={1.5} aria-hidden="true" />
+        <p>这里保存突然出现的人物、场景和句子。它们未必已经准备好成为一本书，但被写下来时，都曾经真实地发生在想象里。</p>
+        <span>{fragments.length.toString().padStart(2, "0")} 份公开片段</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="novel-library-section">
+    <div class="shell">
+      {fragments.length > 0 ? (
+        <ol class="novel-public-list">
+          {fragments.map((fragment, index) => (
+            <li>
+              <a href={`/novels/${encodeURIComponent(fragment.slug)}/`}>
+                <span class="novel-public-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                <div class="novel-public-copy">
+                  <span class="novel-public-label">Fragment</span>
+                  <h2>{fragment.title}</h2>
+                  <p>{fragment.excerpt || "一段尚未被解释的故事。"}</p>
+                  <div>
+                    <span>{fragment.author.displayName}</span>
+                    <time datetime={fragment.publishedAt.toISOString()}>{formatDateTime(fragment.publishedAt)}</time>
+                  </div>
+                </div>
+                <span class="novel-public-open" aria-hidden="true"><ArrowUpRight size={20} stroke-width={1.5} /></span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <div class="novel-public-empty">
+          <Feather size={30} stroke-width={1.3} aria-hidden="true" />
+          <h2>故事还在暗处生长</h2>
+          <p>暂时没有公开片段。等它愿意被看见时，会出现在这里。</p>
+        </div>
+      )}
+    </div>
+  </main>
+</BaseLayout>

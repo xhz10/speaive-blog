@@ -1,6 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /studio/
-Disallow: /api/v1/studio/
-
-Sitemap: https://speaive.cn/sitemap.xml

@@ -1,0 +1,54 @@
+---
+import { ArrowLeft } from "@lucide/astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { formatDateTime } from "../../lib/date-time";
+import { getPublishedNovelFragment } from "../../lib/public-api";
+
+const slug = Astro.params.slug ?? "";
+const fragment = await getPublishedNovelFragment(slug);
+if (!fragment) Astro.response.status = 404;
+---
+
+{fragment ? (
+  <BaseLayout
+    title={fragment.title}
+    description={fragment.excerpt || `Speaive 的小说片段《${fragment.title}》。`}
+    type="fiction"
+    publishedAt={fragment.publishedAt}
+    updatedAt={fragment.updatedAt}
+    author={fragment.author}
+  >
+    <article class="novel-reading-page">
+      <header class="novel-reading-header">
+        <div class="novel-reading-width">
+          <a class="novel-reading-back" href="/novels/">
+            <ArrowLeft size={15} stroke-width={1.7} aria-hidden="true" />
+            返回小说片段
+          </a>
+          <p class="novel-reading-kicker">Fiction fragment</p>
+          <h1>{fragment.title}</h1>
+          {fragment.excerpt && <p class="novel-reading-deck">{fragment.excerpt}</p>}
+          <div class="novel-reading-meta">
+            <span>Written by {fragment.author.displayName}</span>
+            <time datetime={fragment.publishedAt.toISOString()}>{formatDateTime(fragment.publishedAt)}</time>
+            {fragment.updatedAt > fragment.publishedAt && <span>修订于 {formatDateTime(fragment.updatedAt)}</span>}
+          </div>
+        </div>
+      </header>
+      <div class="novel-reading-width novel-reading-body prose" set:html={fragment.html} />
+      <footer class="novel-reading-end">
+        <div class="novel-reading-width">
+          <span aria-hidden="true">∗</span>
+          <p>这个片段暂时写到这里。</p>
+          <a href="/novels/">继续看其他片段</a>
+        </div>
+      </footer>
+    </article>
+  </BaseLayout>
+) : (
+  <BaseLayout title="小说片段不存在" noindex>
+    <section class="not-found">
+      <div><h1>这个故事没有公开</h1><p>它可能仍在草稿里，或已经被作者收回。</p><a class="button primary" href="/novels/">返回小说片段</a></div>
+    </section>
+  </BaseLayout>
+)}

@@ -1,5 +1,5 @@
 ---
-import { Bot, ExternalLink, LogOut, ShieldCheck } from "@lucide/astro";
+import { BookOpenText, Bot, ExternalLink, LogOut, ShieldCheck } from "@lucide/astro";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Props {
@@ -18,6 +18,10 @@ const { title } = Astro.props;
           Speaive <span>写作台</span>
         </a>
         <div class="studio-nav-actions">
+          <a class="button ghost" href="/studio/novels/">
+            <BookOpenText size={16} stroke-width={1.8} aria-hidden="true" />
+            小说
+          </a>
           <a class="button ghost" href="/studio/community/">
             <ShieldCheck size={16} stroke-width={1.8} aria-hidden="true" />
             社区审核
@@ -48,7 +52,7 @@ const { title } = Astro.props;
   document.querySelector<HTMLButtonElement>("[data-logout]")?.addEventListener("click", async (event) => {
     const button = event.currentTarget;
     if (!(button instanceof HTMLButtonElement)) return;
-    const editor = document.querySelector<HTMLFormElement>("#post-form");
+    const editor = document.querySelector<HTMLFormElement>("[data-studio-editor-form]");
     if (editor?.dataset.dirty === "true" && !window.confirm("还有未保存的修改，确定退出写作台吗？")) return;
     button.disabled = true;
     try {

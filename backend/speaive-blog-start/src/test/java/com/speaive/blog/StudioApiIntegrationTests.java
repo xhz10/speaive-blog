@@ -131,6 +131,8 @@ class StudioApiIntegrationTests {
 
     @BeforeEach
     void clearContent() throws Exception {
+        jdbc.update("DELETE FROM blog_novel_fragment_revision");
+        jdbc.update("DELETE FROM blog_novel_fragment");
         jdbc.update("DELETE FROM blog_post_revision_tag");
         jdbc.update("DELETE FROM blog_post_revision");
         jdbc.update("DELETE FROM blog_markdown_import");
@@ -760,6 +762,113 @@ class StudioApiIntegrationTests {
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM blog_post_revision WHERE slug = ?", Integer.class, "writing-flow"))
                 .isEqualTo(6);
+    }
+
+    @Test
+    void novelFragmentsStayPrivateUntilExplicitlyPublishedForVisitors() throws Exception {
+        Client client = login();
+
+        mockMvc.perform(get("/api/v1/studio/novels"))
+                .andExpect(status().isUnauthorized());
+
+        MvcResult created = mockMvc.perform(post("/api/v1/studio/novels")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "slug":"rainy-platform",
+                                  "title":"雨夜站台",
+                                  "excerpt":"她没有登上最后一班车。",
+                                  "body":"雨落在站台上。\\n\\n<script>alert(1)</script>"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.visibility").value("ADMIN_ONLY"))
+                .andExpect(jsonPath("$.author.id").value(ADMIN_ID))
+                .andExpect(jsonPath("$.version", endsWith(":1")))
+                .andExpect(jsonPath("$.html", not(containsString("<script"))))
+                .andReturn();
+        String draftVersion = JsonPath.read(created.getResponse().getContentAsString(), "$.version");
+
+        MvcResult privatePublished = mockMvc.perform(post("/api/v1/studio/novels/rainy-platform/publish")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":\"" + draftVersion + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.visibility").value("ADMIN_ONLY"))
+                .andExpect(jsonPath("$.version", endsWith(":2")))
+                .andReturn();
+        String privateVersion = JsonPath.read(privatePublished.getResponse().getContentAsString(), "$.version");
+
+        mockMvc.perform(get("/api/v1/public/novels"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(0)));
+        mockMvc.perform(get("/api/v1/public/novels/rainy-platform"))
+                .andExpect(status().isNotFound());
+
+        MvcResult publicUpdate = mockMvc.perform(put("/api/v1/studio/novels/rainy-platform")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title":"雨夜站台",
+                                  "excerpt":"她没有登上最后一班车。",
+                                  "visibility":"PUBLIC",
+                                  "body":"雨落在站台上。",
+                                  "version":"%s"
+                                }
+                                """.formatted(privateVersion)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.visibility").value("PUBLIC"))
+                .andExpect(jsonPath("$.version", endsWith(":3")))
+                .andReturn();
+        String publicVersion = JsonPath.read(publicUpdate.getResponse().getContentAsString(), "$.version");
+
+        mockMvc.perform(get("/api/v1/public/novels"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].slug").value("rainy-platform"));
+        mockMvc.perform(get("/api/v1/public/novels/rainy-platform"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.body").value("雨落在站台上。"));
+
+        mockMvc.perform(put("/api/v1/studio/novels/rainy-platform")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title":"旧页面",
+                                  "excerpt":"",
+                                  "visibility":"PUBLIC",
+                                  "body":"不应覆盖",
+                                  "version":"%s"
+                                }
+                                """.formatted(privateVersion)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("VERSION_CONFLICT"));
+
+        mockMvc.perform(post("/api/v1/studio/novels/rainy-platform/unpublish")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":\"" + publicVersion + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.version", endsWith(":4")));
+
+        mockMvc.perform(get("/api/v1/public/novels/rainy-platform"))
+                .andExpect(status().isNotFound());
+        assertThat(jdbc.queryForList(
+                "SELECT event_type FROM blog_novel_fragment_revision WHERE slug = ? ORDER BY revision",
+                String.class, "rainy-platform"))
+                .containsExactly("CREATE", "PUBLISH", "UPDATE", "UNPUBLISH");
     }
 
     @Test

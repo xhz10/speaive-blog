@@ -26,6 +26,20 @@ export interface PublishedComment {
   createdAt: Date;
 }
 
+export interface PublishedNovelFragmentSummary {
+  slug: string;
+  title: string;
+  excerpt: string;
+  publishedAt: Date;
+  updatedAt: Date;
+  author: PostAuthor;
+}
+
+export interface PublishedNovelFragment extends PublishedNovelFragmentSummary {
+  body: string;
+  html: string;
+}
+
 interface PostListResponse {
   items: PostSummaryResponse[];
 }
@@ -48,6 +62,21 @@ interface PostDetailResponse extends PostSummaryResponse {
 
 interface CommentListResponse {
   items: CommentResponse[];
+}
+
+interface NovelFragmentListResponse {
+  items: NovelFragmentResponse[];
+}
+
+interface NovelFragmentResponse {
+  slug: string;
+  title: string;
+  excerpt: string;
+  publishedAt: string;
+  updatedAt: string;
+  author: PostAuthor;
+  body?: string;
+  html?: string;
 }
 
 interface CommentResponse {
@@ -89,6 +118,23 @@ export async function listPublishedComments(slug: string): Promise<PublishedComm
   }));
 }
 
+export async function listPublishedNovelFragments(): Promise<PublishedNovelFragmentSummary[]> {
+  const response = await request("/api/v1/public/novels");
+  const payload = await response.json() as NovelFragmentListResponse;
+  return payload.items.map(toNovelFragmentSummary);
+}
+
+export async function getPublishedNovelFragment(slug: string): Promise<PublishedNovelFragment | null> {
+  const response = await request(`/api/v1/public/novels/${encodeURIComponent(slug)}`, true);
+  if (response.status === 404) return null;
+  const fragment = await response.json() as NovelFragmentResponse;
+  return {
+    ...toNovelFragmentSummary(fragment),
+    body: fragment.body ?? "",
+    html: fragment.html ?? ""
+  };
+}
+
 export function backendUrl(path: string): URL {
   const base = process.env.SPEAIVE_BACKEND_URL ?? DEFAULT_BACKEND_URL;
   return new URL(path, base.endsWith("/") ? base : `${base}/`);
@@ -115,6 +161,17 @@ function toSummary(post: PostSummaryResponse): PublishedPostSummary {
     tags: [...post.tags],
     cover: post.cover ?? undefined,
     author: { ...post.author }
+  };
+}
+
+function toNovelFragmentSummary(fragment: NovelFragmentResponse): PublishedNovelFragmentSummary {
+  return {
+    slug: fragment.slug,
+    title: fragment.title,
+    excerpt: fragment.excerpt,
+    publishedAt: parseDate(fragment.publishedAt),
+    updatedAt: parseDate(fragment.updatedAt),
+    author: { ...fragment.author }
   };
 }
 

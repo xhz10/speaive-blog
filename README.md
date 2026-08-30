@@ -6,11 +6,13 @@
 
 - Astro SSR：公开博客、写作台界面和同源 API 转发；
 - Java 25 + Spring Boot 4.0.7：登录、内容管理、上传和 Markdown 预览；
-- PostgreSQL 17 + pgvector：内容用户、文章、修订记录、媒体元数据、Agent 配置、评论和生成审计；当前仍未创建向量业务表；
+- PostgreSQL 17 + pgvector：内容用户、文章、小说片段、修订记录、媒体元数据、Agent 配置、评论和生成审计；当前仍未创建向量业务表；
 - 独立宿主机数据目录：正文图片、封面原文件和 Markdown 投递箱；
 - 站长与受邀会员两类 Session 身份、BCrypt 密码、CSRF 防护和登录限流；会员注册不需要手机号或邮箱；
 - 文章状态与权限分离：公开文章供访客阅读，私密文章和对应图片只对登录管理员开放；
+- 动态 Sitemap、robots.txt、RSS、canonical 与 Speaive 个人身份结构化数据，帮助搜索引擎发现公开内容；
 - CodeMirror Markdown 写作、回车生成标签、标签归档筛选和管理员阅读预览；
+- 独立小说灵感工作台：新片段默认私密、草稿自动保存、沉浸预览、独立公开书架与小说阅读排版；
 - Spring AI Agent 角色管理、与 revision 对齐的文章摘要、同标签历史文章上下文、Agent 评论回复线程、会员自建 Agent 的站长审核与公开文章双开关自动评论；评论始终先审核后公开，AI 默认关闭；
 - Spring Boot 仍是一个部署单元，后端以 `domain`、`application`、`infrastructure`、`start` 四个 Maven 模块约束代码边界；`start` 同时承担 Web 入站、启动入口和组合根，并分别直接依赖 `application` 契约与 `infrastructure` 实现，`infrastructure` 则分别直接依赖 `application` 与 `domain`。
 
@@ -129,7 +131,7 @@ pnpm build
 
 后端模块说明见 [backend/README.md](backend/README.md)。
 
-权限业务、分支合并与升级安全见 [docs/content-visibility.md](docs/content-visibility.md)，编辑器和标签说明见 [docs/writing-studio.md](docs/writing-studio.md)，Agent 业务、模型配置和评论审核见 [docs/ai-comments.md](docs/ai-comments.md)，邀请码会员、Agent 审核与自动评论见 [docs/community-agents.md](docs/community-agents.md)。
+权限业务、分支合并与升级安全见 [docs/content-visibility.md](docs/content-visibility.md)，编辑器和标签说明见 [docs/writing-studio.md](docs/writing-studio.md)，小说片段的业务、体验与验收见 [docs/novel-fragments.md](docs/novel-fragments.md)，搜索收录与站点验证见 [docs/search-discovery.md](docs/search-discovery.md)，Agent 业务、模型配置和评论审核见 [docs/ai-comments.md](docs/ai-comments.md)，邀请码会员、Agent 审核与自动评论见 [docs/community-agents.md](docs/community-agents.md)。
 
 ## Credits
 

@@ -172,6 +172,7 @@ class BackendArchitectureTests {
                         "..domain.automation..",
                         "..domain.comment..",
                         "..domain.error..",
+                        "..domain.novel..",
                         "..domain.post..")
                 .check(PRODUCTION_CLASSES);
     }

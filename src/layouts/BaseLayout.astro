@@ -2,6 +2,7 @@
 import { PenLine } from "@lucide/astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import type { PostAuthor } from "../lib/post-author";
+import { buildStructuredData, getSearchVerificationTags } from "../lib/seo";
 import { site } from "../site";
 import "../styles/global.css";
 
@@ -11,7 +12,7 @@ interface Props {
   canonical?: string | URL;
   image?: string | URL;
   imageAlt?: string;
-  type?: "website" | "article";
+  type?: "website" | "article" | "fiction";
   publishedAt?: Date | string;
   updatedAt?: Date | string;
   author?: PostAuthor;
@@ -34,7 +35,7 @@ const {
 } = Astro.props;
 
 const pageTitle = title ? `${title}｜${site.name}` : site.title;
-const configuredSite = process.env.SPEAIVE_SITE_URL ?? Astro.site?.href ?? Astro.url.origin;
+const configuredSite = new URL(process.env.SPEAIVE_SITE_URL ?? Astro.site?.href ?? Astro.url.origin);
 const canonicalUrl = new URL(canonical ?? Astro.url.pathname, configuredSite);
 const imageUrl = image ? new URL(image, configuredSite) : undefined;
 const toIso = (value?: Date | string) => {
@@ -44,29 +45,19 @@ const toIso = (value?: Date | string) => {
 };
 const publishedIso = toIso(publishedAt);
 const updatedIso = toIso(updatedAt);
-const schema = type === "article"
-  ? {
-      "@context": "https://schema.org",
-      "@type": "BlogPosting",
-      headline: title,
-      description,
-      url: canonicalUrl.href,
-      image: imageUrl?.href,
-      datePublished: publishedIso,
-      dateModified: updatedIso,
-      inLanguage: site.locale,
-      author: author
-        ? { "@type": author.type === "SYSTEM" ? "Organization" : "Person", name: author.displayName }
-        : undefined
-    }
-  : {
-      "@context": "https://schema.org",
-      "@type": "Blog",
-      name: site.name,
-      description: site.description,
-      url: new URL("/", configuredSite).href,
-      inLanguage: site.locale
-    };
+const schema = buildStructuredData({
+  canonicalUrl,
+  configuredSite,
+  title,
+  description,
+  imageUrl,
+  publishedAt: publishedIso,
+  updatedAt: updatedIso,
+  author,
+  type
+});
+const searchVerificationTags = getSearchVerificationTags();
+const openGraphType = type === "fiction" ? "article" : type;
 const serializedSchema = JSON.stringify(schema).replace(/</g, "\\u003c");
 ---
 
@@ -77,18 +68,19 @@ const serializedSchema = JSON.stringify(schema).replace(/</g, "\\u003c");
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <meta name="robots" content={noindex ? "noindex, nofollow" : "index, follow"} />
+    {searchVerificationTags.map((tag) => <meta name={tag.name} content={tag.content} />)}
     <link rel="canonical" href={canonicalUrl} />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
-    <meta property="og:type" content={type} />
+    <meta property="og:type" content={openGraphType} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:site_name" content={site.name} />
     <meta property="og:locale" content="zh_CN" />
     {imageUrl && <meta property="og:image" content={imageUrl} />}
     {imageUrl && <meta property="og:image:alt" content={imageAlt ?? title ?? site.name} />}
-    {type === "article" && publishedIso && <meta property="article:published_time" content={publishedIso} />}
-    {type === "article" && updatedIso && <meta property="article:modified_time" content={updatedIso} />}
-    {type === "article" && author && <meta name="author" content={author.displayName} />}
+    {(type === "article" || type === "fiction") && publishedIso && <meta property="article:published_time" content={publishedIso} />}
+    {(type === "article" || type === "fiction") && updatedIso && <meta property="article:modified_time" content={updatedIso} />}
+    {(type === "article" || type === "fiction") && author && <meta name="author" content={author.displayName} />}
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="alternate" type="application/rss+xml" title={`${site.name} RSS`} href="/rss.xml" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />

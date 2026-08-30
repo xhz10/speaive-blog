@@ -1,0 +1,163 @@
+---
+import { Eye, ExternalLink, Feather, Globe, LockKeyhole, Pencil, Plus, Search } from "@lucide/astro";
+import StudioLayout from "../../../layouts/StudioLayout.astro";
+import { fetchStudioApi } from "../../../lib/studio/server";
+import type { StudioNovelFragmentList } from "../../../lib/studio/types";
+
+let result: StudioNovelFragmentList = { items: [] };
+let loadError: string | undefined;
+try {
+  result = await fetchStudioApi<StudioNovelFragmentList>(Astro.request, "/api/v1/studio/novels");
+} catch (error) {
+  loadError = error instanceof Error ? error.message : "小说片段加载失败";
+}
+
+const draftCount = result.items.filter((item) => item.status === "DRAFT").length;
+const publicCount = result.items.filter((item) => item.status === "PUBLISHED" && item.visibility === "PUBLIC").length;
+const privateCount = result.items.filter((item) => item.visibility === "ADMIN_ONLY").length;
+const formatDate = (value: string) => new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false
+}).format(new Date(value));
+---
+
+<StudioLayout title="小说片段">
+  <header class="studio-page-head novel-studio-head">
+    <div>
+      <p class="studio-kicker">Fiction notebook</p>
+      <h1>小说片段</h1>
+      <p>{draftCount} 份灵感草稿，{publicCount} 份公开，{privateCount} 份仅自己可见</p>
+    </div>
+    <a class="button primary" href="/studio/novels/new/">
+      <Plus size={17} stroke-width={1.8} aria-hidden="true" />
+      捕捉灵感
+    </a>
+  </header>
+
+  {loadError && <p class="notice error">{loadError}</p>}
+
+  <section class="novel-studio-library" aria-labelledby="novel-fragments-title">
+    <div class="novel-studio-intro">
+      <div>
+        <Feather size={21} stroke-width={1.6} aria-hidden="true" />
+        <h2 id="novel-fragments-title">不必先成为一本书</h2>
+      </div>
+      <p>先保存人物、场景和突然出现的一句话。新片段默认私密，只有你明确发布并选择公开后，才会出现在访客页面。</p>
+    </div>
+
+    <div class="studio-list-toolbar novel-list-toolbar">
+      <div class="status-tabs" role="group" aria-label="按状态筛选小说片段">
+        <button class="status-tab active" type="button" data-novel-status="ALL" aria-pressed="true">全部 <span>{result.items.length}</span></button>
+        <button class="status-tab" type="button" data-novel-status="DRAFT" aria-pressed="false">草稿 <span>{draftCount}</span></button>
+        <button class="status-tab" type="button" data-novel-status="PUBLISHED" aria-pressed="false">已发布 <span>{result.items.length - draftCount}</span></button>
+      </div>
+      <label class="studio-search">
+        <Search size={16} stroke-width={1.8} aria-hidden="true" />
+        <span class="visually-hidden">搜索小说片段</span>
+        <input type="search" placeholder="搜索标题、简介或 slug" autocomplete="off" data-novel-search />
+      </label>
+    </div>
+
+    <ul class="novel-studio-grid" data-novel-list>
+      {result.items.map((fragment, index) => (
+        <li
+          class="novel-studio-card"
+          data-novel-item
+          data-status={fragment.status}
+          data-search={`${fragment.title} ${fragment.excerpt} ${fragment.slug}`.toLocaleLowerCase("zh-CN")}
+        >
+          <a class="novel-studio-card-main" href={`/studio/novels/edit/${encodeURIComponent(fragment.slug)}/`}>
+            <span class="novel-card-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+            <div>
+              <strong>{fragment.title}</strong>
+              <small>/novels/{fragment.slug}</small>
+              <p>{fragment.excerpt || "还没有简介，先让正文替你记住它。"}</p>
+            </div>
+          </a>
+          <footer>
+            <div class="novel-card-badges">
+              <span class:list={["status-badge", { draft: fragment.status === "DRAFT" }]}>
+                {fragment.status === "DRAFT" ? "灵感草稿" : "已发布"}
+              </span>
+              <span class:list={["visibility-badge", { private: fragment.visibility === "ADMIN_ONLY" }]}>
+                {fragment.visibility === "PUBLIC"
+                  ? <Globe size={12} aria-hidden="true" />
+                  : <LockKeyhole size={12} aria-hidden="true" />}
+                {fragment.visibility === "PUBLIC" ? "公开" : "仅自己"}
+              </span>
+            </div>
+            <time datetime={fragment.updatedAt}>{formatDate(fragment.updatedAt)}</time>
+            <div class="button-row">
+              <a
+                class="icon-button"
+                href={fragment.status === "PUBLISHED" && fragment.visibility === "PUBLIC"
+                  ? `/novels/${encodeURIComponent(fragment.slug)}/`
+                  : `/studio/novels/read/${encodeURIComponent(fragment.slug)}/`}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`预览 ${fragment.title}`}
+                title="预览"
+              >
+                {fragment.status === "PUBLISHED" && fragment.visibility === "PUBLIC"
+                  ? <ExternalLink size={15} aria-hidden="true" />
+                  : <Eye size={15} aria-hidden="true" />}
+              </a>
+              <a class="icon-button" href={`/studio/novels/edit/${encodeURIComponent(fragment.slug)}/`} aria-label={`编辑 ${fragment.title}`} title="编辑">
+                <Pencil size={15} aria-hidden="true" />
+              </a>
+            </div>
+          </footer>
+        </li>
+      ))}
+    </ul>
+
+    <div class="studio-empty novel-empty" hidden={result.items.length > 0} data-novel-empty>
+      <Feather size={28} stroke-width={1.4} aria-hidden="true" />
+      <p>{result.items.length > 0 ? "没有符合条件的小说片段。" : "这里还没有灵感，但它迟早会来的。"}</p>
+      <a class="button primary" href="/studio/novels/new/">写下第一个片段</a>
+    </div>
+  </section>
+</StudioLayout>
+
+<script>
+  const search = document.querySelector<HTMLInputElement>("[data-novel-search]");
+  const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-novel-status]"));
+  const items = Array.from(document.querySelectorAll<HTMLElement>("[data-novel-item]"));
+  const empty = document.querySelector<HTMLElement>("[data-novel-empty]");
+  let activeStatus = "ALL";
+
+  function applyFilters() {
+    const query = search?.value.trim().toLocaleLowerCase("zh-CN") ?? "";
+    let visible = 0;
+    for (const item of items) {
+      const matchesStatus = activeStatus === "ALL" || item.dataset.status === activeStatus;
+      const matchesSearch = !query || item.dataset.search?.includes(query);
+      item.hidden = !matchesStatus || !matchesSearch;
+      if (!item.hidden) visible += 1;
+    }
+    if (empty) {
+      empty.hidden = visible > 0;
+      const message = empty.querySelector("p");
+      if (message) message.textContent = items.length > 0
+        ? "没有符合条件的小说片段。"
+        : "这里还没有灵感，但它迟早会来的。";
+    }
+  }
+
+  search?.addEventListener("input", applyFilters);
+  for (const tab of tabs) {
+    tab.addEventListener("click", () => {
+      activeStatus = tab.dataset.novelStatus ?? "ALL";
+      for (const item of tabs) {
+        const selected = item === tab;
+        item.classList.toggle("active", selected);
+        item.setAttribute("aria-pressed", String(selected));
+      }
+      applyFilters();
+    });
+  }
+</script>

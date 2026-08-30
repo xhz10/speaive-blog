@@ -53,6 +53,10 @@ status = PUBLISHED AND visibility = PUBLIC
 
 所以私密文章不会进入首页、归档、RSS、Sitemap，也不能通过猜测 `/blog/{slug}` 读取。公开接口对“私密文章”和“不存在的文章”都返回 404，避免泄露 slug 是否存在。
 
+### 小说片段
+
+小说片段复用相同的状态与权限语义，但保存在独立的 `blog_novel_fragment` 和修订表中。新片段同样默认 `ADMIN_ONLY`；只有 `PUBLISHED + PUBLIC` 才会进入 `/novels/`、公开详情和 Sitemap。私密预览只存在于受管理员 Session 保护的 Studio 路由。完整业务与写作体验见 [novel-fragments.md](novel-fragments.md)。
+
 ### 图片
 
 只隐藏正文是不够的；私密文章中的图片也必须受保护。

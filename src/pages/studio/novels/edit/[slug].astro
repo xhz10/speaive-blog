@@ -1,0 +1,33 @@
+---
+import { ArrowLeft } from "@lucide/astro";
+import NovelFragmentEditor from "../../../../components/NovelFragmentEditor.astro";
+import StudioLayout from "../../../../layouts/StudioLayout.astro";
+import { fetchStudioApi, isStudioApiError } from "../../../../lib/studio/server";
+import type { StudioNovelFragmentDetail } from "../../../../lib/studio/types";
+
+const slug = Astro.params.slug ?? "";
+let fragment: StudioNovelFragmentDetail | undefined;
+let loadError: string | undefined;
+try {
+  fragment = await fetchStudioApi<StudioNovelFragmentDetail>(
+    Astro.request,
+    `/api/v1/studio/novels/${encodeURIComponent(slug)}`
+  );
+} catch (error) {
+  Astro.response.status = isStudioApiError(error) && error.status === 404 ? 404 : 502;
+  loadError = error instanceof Error ? error.message : "小说片段加载失败";
+}
+---
+
+<StudioLayout title={fragment ? `小说：${fragment.title}` : "小说片段不存在"}>
+  <header class="studio-editor-head">
+    <a class="editor-back" href="/studio/novels/">
+      <ArrowLeft size={16} stroke-width={1.8} aria-hidden="true" />
+      所有小说片段
+    </a>
+    <span data-editor-context>{fragment?.slug ?? "无法打开"}</span>
+  </header>
+  {fragment
+    ? <NovelFragmentEditor fragment={fragment} />
+    : <p class="notice error">{loadError ?? "小说片段不存在。"}</p>}
+</StudioLayout>

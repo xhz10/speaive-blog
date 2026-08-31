@@ -1,0 +1,235 @@
+---
+import { Archive, ArrowUpRight, BookMarked, Dice5, Lightbulb, Pin, Save, Sparkles } from "@lucide/astro";
+import StudioLayout from "../../../layouts/StudioLayout.astro";
+import { fetchStudioApi } from "../../../lib/studio/server";
+import type { ResurfacingResult, StudioInspirationList } from "../../../lib/studio/types";
+
+let inspirations: StudioInspirationList = { items: [] };
+let resurfacing: ResurfacingResult = { items: [] };
+let loadError: string | undefined;
+try {
+  [inspirations, resurfacing] = await Promise.all([
+    fetchStudioApi<StudioInspirationList>(Astro.request, "/api/v1/studio/creative/inspirations"),
+    fetchStudioApi<ResurfacingResult>(Astro.request, "/api/v1/studio/creative/resurfacing")
+  ]);
+} catch (error) {
+  loadError = error instanceof Error ? error.message : "创作中心加载失败";
+}
+
+const activeIdeas = inspirations.items.filter((item) => item.status === "INBOX" || item.status === "DEVELOPING");
+const kindLabels = { IDEA: "想法", SCENE: "场景", DIALOGUE: "对话", CHARACTER: "人物", QUESTION: "问题" } as const;
+const statusLabels = { INBOX: "刚记下", DEVELOPING: "生长中", CONVERTED: "已成稿", ARCHIVED: "已收起" } as const;
+const formatDate = (value: string) => new Intl.DateTimeFormat("zh-CN", {
+  month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false
+}).format(new Date(value));
+---
+
+<StudioLayout title="创作中心">
+  <header class="studio-page-head creative-page-head">
+    <div>
+      <p class="studio-kicker">Creative greenhouse</p>
+      <h1>灵感温室</h1>
+      <p>{activeIdeas.length} 条灵感仍在生长。先记下来，再决定它最后会变成什么。</p>
+    </div>
+    <div class="button-row studio-page-actions">
+      <button class="button secondary" type="button" data-random-idea>
+        <Dice5 size={16} stroke-width={1.8} aria-hidden="true" />翻一条旧灵感
+      </button>
+      <a class="button primary" href="/studio/works/">
+        <BookMarked size={16} stroke-width={1.8} aria-hidden="true" />编排作品集
+      </a>
+    </div>
+  </header>
+
+  {loadError && <p class="notice error">{loadError}</p>}
+  <p class="notice" role="status" hidden data-creative-page-notice></p>
+
+  <section class="inspiration-capture" aria-labelledby="capture-title">
+    <div class="inspiration-capture-copy">
+      <span><Sparkles size={20} stroke-width={1.6} aria-hidden="true" /></span>
+      <div><p class="studio-kicker">Quick capture</p><h2 id="capture-title">三秒钟，先抓住它</h2><p>标题可以不填，会自动使用正文第一行。</p></div>
+    </div>
+    <form data-inspiration-create>
+      <label class="visually-hidden" for="idea-body">灵感内容</label>
+      <textarea id="idea-body" rows="4" maxlength="10000" placeholder="一句对话、一个场景、一个突然冒出来的问题……" required data-idea-body></textarea>
+      <div class="inspiration-capture-meta">
+        <input class="input" type="text" maxlength="120" placeholder="标题（可选）" data-idea-title />
+        <select class="input" aria-label="灵感类型" data-idea-kind>
+          <option value="IDEA">想法</option><option value="SCENE">场景</option><option value="DIALOGUE">对话</option><option value="CHARACTER">人物</option><option value="QUESTION">问题</option>
+        </select>
+        <label class="compact-checkbox"><input type="checkbox" data-idea-pinned />置顶</label>
+        <button class="button primary" type="submit"><Lightbulb size={16} stroke-width={1.8} aria-hidden="true" />收进灵感箱</button>
+      </div>
+    </form>
+  </section>
+
+  <div class="creative-dashboard-grid">
+    <section class="inspiration-board" aria-labelledby="ideas-title">
+      <div class="creative-section-head"><div><p class="studio-kicker">Inbox</p><h2 id="ideas-title">灵感箱</h2></div><span>{inspirations.items.length.toString().padStart(2, "0")}</span></div>
+      <div class="inspiration-list" data-inspiration-list>
+        {inspirations.items.map((item) => (
+          <article class:list={["inspiration-card", { pinned: item.pinned, archived: item.status === "ARCHIVED" }]} data-inspiration-card={item.id} data-status={item.status}>
+            <header>
+              <span>{kindLabels[item.kind]}</span>
+              <small>{statusLabels[item.status]} · {formatDate(item.updatedAt)}</small>
+              {item.pinned && <Pin size={14} stroke-width={1.8} aria-label="已置顶" />}
+            </header>
+            <input type="text" maxlength="120" value={item.title} aria-label="灵感标题" data-card-title />
+            <textarea rows="5" maxlength="10000" aria-label="灵感正文" data-card-body>{item.body}</textarea>
+            <div class="inspiration-card-meta">
+              <select aria-label="灵感类型" data-card-kind>
+                {Object.entries(kindLabels).map(([value, label]) => <option value={value} selected={item.kind === value}>{label}</option>)}
+              </select>
+              <label><input type="checkbox" checked={item.pinned} data-card-pinned />置顶</label>
+            </div>
+            {item.targetType && item.targetSlug && (
+              <a class="inspiration-target" href={item.targetType === "POST" ? `/studio/edit/${item.targetSlug}/` : `/studio/novels/edit/${item.targetSlug}/`}>
+                已关联 {item.targetType === "POST" ? "文章" : "小说"}：{item.targetSlug}<ArrowUpRight size={14} stroke-width={1.7} />
+              </a>
+            )}
+            <footer>
+              <button class="button ghost" type="button" data-save-idea data-id={item.id} data-revision={item.revision}><Save size={14} />保存</button>
+              {item.status === "INBOX" && <button class="button ghost" type="button" data-transition="DEVELOPING" data-id={item.id} data-revision={item.revision}>开始发展</button>}
+              {item.status !== "ARCHIVED" && (
+                <details class="inspiration-convert">
+                  <summary>关联成稿</summary>
+                  <div><select data-target-type><option value="POST">文章</option><option value="NOVEL">小说</option></select><input type="text" placeholder="内容 slug" data-target-slug /><button type="button" data-convert-idea data-id={item.id} data-revision={item.revision}>完成</button></div>
+                </details>
+              )}
+              {item.status !== "ARCHIVED" && <button class="button ghost danger" type="button" data-transition="ARCHIVED" data-id={item.id} data-revision={item.revision}><Archive size={14} />收起</button>}
+            </footer>
+          </article>
+        ))}
+        {inspirations.items.length === 0 && <div class="studio-empty"><p>灵感箱还是空的。先写下一句话，不必等它完整。</p></div>}
+      </div>
+    </section>
+
+    <aside class="resurfacing-board" aria-labelledby="resurfacing-title">
+      <div class="creative-section-head"><div><p class="studio-kicker">Resurface</p><h2 id="resurfacing-title">旧内容复活</h2></div></div>
+      <p class="resurfacing-intro">只用标签和时间计算，不调用模型。</p>
+      <div class="resurfacing-list">
+        {resurfacing.items.map((item) => (
+          <a href={item.href} class={`resurfacing-card ${item.kind.toLowerCase()}`}>
+            <span>{item.kind === "THEME" ? "主题线索" : item.kind === "UNFINISHED" ? "未完待续" : "回看旧文"}</span>
+            <strong>{item.title}</strong>
+            <p>{item.description}</p>
+            <small>{item.relatedSlugs.length} 条相关内容</small>
+          </a>
+        ))}
+        {resurfacing.items.length === 0 && <p class="creative-tool-empty">内容再多一些后，这里会主动提醒值得重看的线索。</p>}
+      </div>
+    </aside>
+  </div>
+</StudioLayout>
+
+<script>
+  import { studioRequest } from "../../../lib/studio/client";
+  import type { StudioInspiration } from "../../../lib/studio/types";
+
+  const notice = document.querySelector<HTMLElement>("[data-creative-page-notice]");
+  const createForm = document.querySelector<HTMLFormElement>("[data-inspiration-create]");
+  createForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = createForm.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const body = createForm.querySelector<HTMLTextAreaElement>("[data-idea-body]");
+    const title = createForm.querySelector<HTMLInputElement>("[data-idea-title]");
+    const kind = createForm.querySelector<HTMLSelectElement>("[data-idea-kind]");
+    const pinned = createForm.querySelector<HTMLInputElement>("[data-idea-pinned]");
+    if (!body?.value.trim() || !kind || !submit) return;
+    submit.disabled = true;
+    try {
+      await studioRequest<StudioInspiration>("/studio/creative/inspirations", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: title?.value.trim() || null, body: body.value, kind: kind.value, pinned: pinned?.checked ?? false })
+      });
+      window.location.reload();
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "灵感保存失败", true);
+      submit.disabled = false;
+    }
+  });
+
+  document.addEventListener("click", async (event) => {
+    const target = event.target as HTMLElement;
+    const save = target.closest<HTMLButtonElement>("[data-save-idea]");
+    if (save) return void saveIdea(save);
+    const transition = target.closest<HTMLButtonElement>("[data-transition]");
+    if (transition) return void transitionIdea(transition, transition.dataset.transition ?? "");
+    const convert = target.closest<HTMLButtonElement>("[data-convert-idea]");
+    if (convert) return void convertIdea(convert);
+  });
+
+  document.querySelector<HTMLButtonElement>("[data-random-idea]")?.addEventListener("click", () => {
+    const cards = Array.from(document.querySelectorAll<HTMLElement>(
+      '[data-inspiration-card][data-status="INBOX"], [data-inspiration-card][data-status="DEVELOPING"]'
+    ));
+    const card = cards[Math.floor(Math.random() * cards.length)];
+    if (!card) return showNotice("灵感箱里还没有可以翻看的内容。", true);
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    card.classList.remove("idea-highlight");
+    requestAnimationFrame(() => card.classList.add("idea-highlight"));
+  });
+
+  async function saveIdea(button: HTMLButtonElement) {
+    const card = button.closest<HTMLElement>("[data-inspiration-card]");
+    if (!card || !button.dataset.id || !button.dataset.revision) return;
+    button.disabled = true;
+    try {
+      await studioRequest(`/studio/creative/inspirations/${button.dataset.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: card.querySelector<HTMLInputElement>("[data-card-title]")?.value,
+          body: card.querySelector<HTMLTextAreaElement>("[data-card-body]")?.value,
+          kind: card.querySelector<HTMLSelectElement>("[data-card-kind]")?.value,
+          pinned: card.querySelector<HTMLInputElement>("[data-card-pinned]")?.checked,
+          revision: Number(button.dataset.revision)
+        })
+      });
+      window.location.reload();
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "灵感更新失败", true);
+      button.disabled = false;
+    }
+  }
+
+  async function transitionIdea(button: HTMLButtonElement, status: string) {
+    if (!button.dataset.id || !button.dataset.revision) return;
+    button.disabled = true;
+    try {
+      await transition(button.dataset.id, Number(button.dataset.revision), status, null, null);
+      window.location.reload();
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "灵感状态更新失败", true);
+      button.disabled = false;
+    }
+  }
+
+  async function convertIdea(button: HTMLButtonElement) {
+    const container = button.closest<HTMLElement>(".inspiration-convert");
+    const type = container?.querySelector<HTMLSelectElement>("[data-target-type]")?.value;
+    const slug = container?.querySelector<HTMLInputElement>("[data-target-slug]")?.value.trim();
+    if (!button.dataset.id || !button.dataset.revision || !type || !slug) return showNotice("请填写已经保存的内容 slug。", true);
+    button.disabled = true;
+    try {
+      await transition(button.dataset.id, Number(button.dataset.revision), "CONVERTED", type, slug);
+      window.location.reload();
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "关联成稿失败", true);
+      button.disabled = false;
+    }
+  }
+
+  function transition(id: string, revision: number, status: string, targetType: string | null, targetSlug: string | null) {
+    return studioRequest(`/studio/creative/inspirations/${id}/transition`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, targetType, targetSlug, revision })
+    });
+  }
+
+  function showNotice(message: string, error = false) {
+    if (!notice) return;
+    notice.textContent = message;
+    notice.classList.toggle("error", error);
+    notice.hidden = false;
+  }
+</script>

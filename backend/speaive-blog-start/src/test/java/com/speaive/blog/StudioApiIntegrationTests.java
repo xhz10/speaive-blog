@@ -131,6 +131,12 @@ class StudioApiIntegrationTests {
 
     @BeforeEach
     void clearContent() throws Exception {
+        jdbc.update("DELETE FROM blog_discussion_digest");
+        jdbc.update("DELETE FROM blog_editorial_review");
+        jdbc.update("DELETE FROM blog_share_grant");
+        jdbc.update("DELETE FROM blog_work_collection_item");
+        jdbc.update("DELETE FROM blog_work_collection");
+        jdbc.update("DELETE FROM blog_inspiration");
         jdbc.update("DELETE FROM blog_novel_fragment_revision");
         jdbc.update("DELETE FROM blog_novel_fragment");
         jdbc.update("DELETE FROM blog_post_revision_tag");
@@ -869,6 +875,243 @@ class StudioApiIntegrationTests {
                 "SELECT event_type FROM blog_novel_fragment_revision WHERE slug = ? ORDER BY revision",
                 String.class, "rainy-platform"))
                 .containsExactly("CREATE", "PUBLISH", "UPDATE", "UNPUBLISH");
+    }
+
+    @Test
+    void creativeWorkspaceRequiresAdminAndSupportsAnInspirationLifecycle() throws Exception {
+        mockMvc.perform(get("/api/v1/studio/creative/inspirations"))
+                .andExpect(status().isUnauthorized());
+
+        Client client = login();
+        MvcResult created = mockMvc.perform(post("/api/v1/studio/creative/inspirations")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title":"雨夜里的陌生人",
+                                  "body":"一个人把伞留在空站台。",
+                                  "kind":"SCENE",
+                                  "pinned":true
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("INBOX"))
+                .andExpect(jsonPath("$.kind").value("SCENE"))
+                .andExpect(jsonPath("$.pinned").value(true))
+                .andExpect(jsonPath("$.revision").value(1))
+                .andReturn();
+        String inspirationId = JsonPath.read(created.getResponse().getContentAsString(), "$.id");
+
+        mockMvc.perform(put("/api/v1/studio/creative/inspirations/" + inspirationId)
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"缺少版本","body":"正文","kind":"IDEA","pinned":false}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        mockMvc.perform(put("/api/v1/studio/creative/inspirations/" + inspirationId)
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title":"雨夜里的陌生人",
+                                  "body":"一个人把伞留在末班车后的空站台。",
+                                  "kind":"SCENE",
+                                  "pinned":false,
+                                  "revision":1
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revision").value(2));
+
+        posts.createDraft(new PostWriteCommand(
+                "rainy-stranger", "雨夜里的陌生人", "", java.time.Instant.parse("2026-08-30T08:00:00Z"),
+                List.of("小说"), null, "ADMIN_ONLY", "一个人把伞留在末班车后的空站台。"));
+        mockMvc.perform(post("/api/v1/studio/creative/inspirations/" + inspirationId + "/transition")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status":"CONVERTED",
+                                  "targetType":"POST",
+                                  "targetSlug":"rainy-stranger",
+                                  "revision":2
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONVERTED"))
+                .andExpect(jsonPath("$.targetType").value("POST"))
+                .andExpect(jsonPath("$.targetSlug").value("rainy-stranger"))
+                .andExpect(jsonPath("$.revision").value(3));
+    }
+
+    @Test
+    void revisionRestoreAndExpiringShareKeepPrivateContentControlled() throws Exception {
+        Client client = login();
+        PostDetailResult created = posts.createDraft(new PostWriteCommand(
+                "private-time-machine", "只给自己看的初稿", "", java.time.Instant.parse("2026-08-20T08:00:00Z"),
+                List.of("秘密"), null, "ADMIN_ONLY", "第一版秘密正文"));
+        PostDetailResult updated = posts.update(created.slug(), created.version(), new PostWriteCommand(
+                created.slug(), "只给自己看的改稿", "", created.publishedAt(), List.of("秘密"), null,
+                "ADMIN_ONLY", "第二版秘密正文"));
+        PostDetailResult published = posts.publish(updated.slug(), updated.version());
+
+        mockMvc.perform(post("/api/v1/studio/creative/POST/private-time-machine/revisions/1/restore")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentVersion\":\"" + published.version() + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(4)));
+        assertThat(jdbc.queryForList(
+                "SELECT event_type FROM blog_post_revision WHERE slug = ? ORDER BY revision",
+                String.class, created.slug()))
+                .containsExactly("CREATE", "UPDATE", "PUBLISH", "RESTORE");
+
+        mockMvc.perform(get("/api/v1/studio/posts/private-time-machine").session(client.session()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("只给自己看的初稿"))
+                .andExpect(jsonPath("$.body").value("第一版秘密正文"))
+                .andExpect(jsonPath("$.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.visibility").value("ADMIN_ONLY"));
+        mockMvc.perform(get("/api/v1/public/posts/private-time-machine"))
+                .andExpect(status().isNotFound());
+
+        MvcResult shared = mockMvc.perform(post("/api/v1/studio/creative/shares")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"contentType":"POST","contentSlug":"private-time-machine","validDays":7}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.active").value(true))
+                .andReturn();
+        String shareBody = shared.getResponse().getContentAsString();
+        String shareId = JsonPath.read(shareBody, "$.id");
+        String token = JsonPath.read(shareBody, "$.token");
+        String storedHash = jdbc.queryForObject(
+                "SELECT token_hash FROM blog_share_grant WHERE id = ?", String.class, shareId);
+        assertThat(storedHash).isNotEqualTo(token).hasSize(64);
+
+        mockMvc.perform(get("/api/v1/public/shares/" + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.body").value("第一版秘密正文"))
+                .andExpect(jsonPath("$.authorDisplayName").value("Speaive"));
+        assertThat(jdbc.queryForObject(
+                "SELECT last_accessed_at IS NOT NULL FROM blog_share_grant WHERE id = ?", Boolean.class, shareId))
+                .isTrue();
+
+        mockMvc.perform(post("/api/v1/studio/creative/shares/" + shareId + "/revoke")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+        mockMvc.perform(get("/api/v1/public/shares/" + token))
+                .andExpect(status().isNotFound());
+
+        MvcResult expiring = mockMvc.perform(post("/api/v1/studio/creative/shares")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"contentType":"POST","contentSlug":"private-time-machine","validDays":1}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String expiredId = JsonPath.read(expiring.getResponse().getContentAsString(), "$.id");
+        String expiredToken = JsonPath.read(expiring.getResponse().getContentAsString(), "$.token");
+        jdbc.update("""
+                UPDATE blog_share_grant
+                SET created_at = CURRENT_TIMESTAMP - INTERVAL '2 days',
+                    expires_at = CURRENT_TIMESTAMP - INTERVAL '1 day'
+                WHERE id = ?
+                """, expiredId);
+        mockMvc.perform(get("/api/v1/public/shares/" + expiredToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void publicWorksSkipPrivateItemsAndBuildAContinuousReadingPath() throws Exception {
+        Client client = login();
+        PostDetailResult opening = posts.createDraft(new PostWriteCommand(
+                "work-opening", "故事的开头", "第一章", java.time.Instant.parse("2026-08-01T08:00:00Z"),
+                List.of("连载"), null, "PUBLIC", "开头正文"));
+        posts.publish(opening.slug(), opening.version());
+        PostDetailResult privateMiddle = posts.createDraft(new PostWriteCommand(
+                "work-private-middle", "还不能公开的中段", "", java.time.Instant.parse("2026-08-02T08:00:00Z"),
+                List.of("连载"), null, "ADMIN_ONLY", "私密中段"));
+        posts.publish(privateMiddle.slug(), privateMiddle.version());
+        PostDetailResult ending = posts.createDraft(new PostWriteCommand(
+                "work-ending", "故事的结尾", "终章", java.time.Instant.parse("2026-08-03T08:00:00Z"),
+                List.of("连载"), null, "PUBLIC", "结尾正文"));
+        posts.publish(ending.slug(), ending.version());
+
+        mockMvc.perform(post("/api/v1/studio/creative/works")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "slug":"night-story",
+                                  "title":"夜行故事",
+                                  "description":"一条可连续阅读的路径",
+                                  "cover":null,
+                                  "visibility":"PUBLIC",
+                                  "items":[
+                                    {"contentType":"POST","contentSlug":"work-opening"},
+                                    {"contentType":"POST","contentSlug":"work-private-middle"},
+                                    {"contentType":"POST","contentSlug":"work-ending"}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.items", hasSize(3)));
+
+        mockMvc.perform(post("/api/v1/studio/creative/works")
+                        .session(client.session()).cookie(client.csrfCookie())
+                        .header(client.csrfHeader(), client.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "slug":"alternate-path",
+                                  "title":"另一条阅读路径",
+                                  "description":"相同文章，不同顺序",
+                                  "cover":null,
+                                  "visibility":"PUBLIC",
+                                  "items":[
+                                    {"contentType":"POST","contentSlug":"work-ending"},
+                                    {"contentType":"POST","contentSlug":"work-opening"}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/v1/public/works/night-story"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(2)))
+                .andExpect(jsonPath("$.items[0].contentSlug").value("work-opening"))
+                .andExpect(jsonPath("$.items[1].contentSlug").value("work-ending"));
+        mockMvc.perform(get("/api/v1/public/works/navigation")
+                        .param("contentType", "POST")
+                        .param("contentSlug", "work-opening")
+                        .param("workSlug", "night-story"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.previous").value(nullValue()))
+                .andExpect(jsonPath("$.next.contentSlug").value("work-ending"));
+        mockMvc.perform(get("/api/v1/public/works/navigation")
+                        .param("contentType", "POST")
+                        .param("contentSlug", "work-ending")
+                        .param("workSlug", "night-story"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.previous.contentSlug").value("work-opening"))
+                .andExpect(jsonPath("$.next").value(nullValue()));
     }
 
     @Test

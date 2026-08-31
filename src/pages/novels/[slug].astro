@@ -2,10 +2,12 @@
 import { ArrowLeft } from "@lucide/astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { formatDateTime } from "../../lib/date-time";
-import { getPublishedNovelFragment } from "../../lib/public-api";
+import { getPublishedNovelFragment, getPublishedWorkNavigation } from "../../lib/public-api";
 
 const slug = Astro.params.slug ?? "";
+const workSlug = Astro.url.searchParams.get("work") || undefined;
 const fragment = await getPublishedNovelFragment(slug);
+const navigation = fragment ? await getPublishedWorkNavigation("NOVEL", slug, workSlug) : null;
 if (!fragment) Astro.response.status = 404;
 ---
 
@@ -36,6 +38,15 @@ if (!fragment) Astro.response.status = 404;
         </div>
       </header>
       <div class="novel-reading-width novel-reading-body prose" set:html={fragment.html} />
+      {navigation && (
+        <nav class="content-work-navigation novel-reading-width" aria-label="作品集连续阅读">
+          <a class="content-work-home" href={`/works/${encodeURIComponent(navigation.workSlug)}/`}>收录于《{navigation.workTitle}》</a>
+          <div>
+            {navigation.previous ? <a href={`${navigation.previous.href}?work=${encodeURIComponent(navigation.workSlug)}`}><small>上一篇</small><strong>{navigation.previous.title}</strong></a> : <span></span>}
+            {navigation.next ? <a href={`${navigation.next.href}?work=${encodeURIComponent(navigation.workSlug)}`}><small>下一篇</small><strong>{navigation.next.title}</strong></a> : <span></span>}
+          </div>
+        </nav>
+      )}
       <footer class="novel-reading-end">
         <div class="novel-reading-width">
           <span aria-hidden="true">∗</span>

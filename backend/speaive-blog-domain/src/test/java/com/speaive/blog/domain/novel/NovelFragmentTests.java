@@ -70,6 +70,24 @@ class NovelFragmentTests {
         assertEquals(DomainErrorCode.VERSION_CONFLICT, exception.code());
     }
 
+    @Test
+    void restoreKeepsCurrentPublicationStateAndCreatesARevision() {
+        NovelFragment published = NovelFragment.createDraft(
+                        "fragment-id", NovelFragmentSlug.of("rainy-platform"), content("当前版本"), AUTHOR, CREATED_AT)
+                .publish("fragment-id:1", CREATED_AT.plusSeconds(1)).current();
+
+        NovelFragmentChange restored = published.restore(
+                content("旧版本"), NovelFragmentVisibility.ADMIN_ONLY,
+                published.version(), CREATED_AT.plusSeconds(2));
+
+        assertAll(
+                () -> assertEquals(NovelFragmentRevisionEventType.RESTORE, restored.eventType()),
+                () -> assertEquals(NovelFragmentStatus.PUBLISHED, restored.current().status()),
+                () -> assertEquals(NovelFragmentVisibility.ADMIN_ONLY, restored.current().visibility()),
+                () -> assertEquals("旧版本", restored.current().title()),
+                () -> assertEquals("fragment-id:3", restored.current().version()));
+    }
+
     private static NovelFragmentContent content(String title) {
         return new NovelFragmentContent(title, "一句话简介", "雨落在站台上。\n\n她没有上车。");
     }

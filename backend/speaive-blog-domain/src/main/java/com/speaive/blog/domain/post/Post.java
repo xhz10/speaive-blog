@@ -87,6 +87,16 @@ public final class Post {
                 requireNextTime(now), PostRevisionEventType.UNPUBLISH);
     }
 
+    public PostChange restore(
+            PostContent restoredContent,
+            PostVisibility restoredVisibility,
+            String expectedVersion,
+            Instant now) {
+        assertMutable(expectedVersion);
+        return change(requireContent(restoredContent), status(), requireVisibility(restoredVisibility), false,
+                requireNextTime(now), PostRevisionEventType.RESTORE);
+    }
+
     public PostChange archive(String expectedVersion, Instant now) {
         assertMutable(expectedVersion);
         return change(content(), status(), visibility(), true,

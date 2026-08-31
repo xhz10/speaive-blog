@@ -20,6 +20,7 @@ import {
 import { formatDateTimeInput } from "../lib/date-time";
 import type { StudioPostDetail } from "../lib/studio/types";
 import AiCommentPanel from "./AiCommentPanel.astro";
+import CreativeToolsPanel from "./CreativeToolsPanel.astro";
 
 interface Props {
   post?: StudioPostDetail;
@@ -220,6 +221,7 @@ const previewHtml = post?.html.replace(
     </section>
   </div>
   <AiCommentPanel post={post} />
+  <CreativeToolsPanel contentType="POST" slug={post?.slug} version={post?.version} />
 </form>
 
 <script is:inline id="editor-initial-state" type="application/json" set:html={initialState}></script>
@@ -324,6 +326,19 @@ const previewHtml = post?.html.replace(
       markDirty();
       updateDocumentCount();
       schedulePreview(450);
+    });
+    document.addEventListener("studio:request-editor-selection", (event) => {
+      if (!markdownView) return;
+      const request = (event as CustomEvent<{
+        respond?: (selection: { text: string; prefix: string; suffix: string }) => void;
+      }>).detail;
+      if (!request?.respond) return;
+      const { from, to } = markdownView.state.selection.main;
+      request.respond({
+        text: markdownView.state.sliceDoc(from, to),
+        prefix: markdownView.state.sliceDoc(Math.max(0, from - 240), from),
+        suffix: markdownView.state.sliceDoc(to, Math.min(markdownView.state.doc.length, to + 240))
+      });
     });
     dropZone.dataset.editorEnhanced = "true";
     updateDocumentCount();
@@ -768,6 +783,9 @@ const previewHtml = post?.html.replace(
     function applyServerPost(next: StudioPostDetail, updateFields = false, persistedSnapshot?: string) {
       post = next;
       version = next.version;
+      document.dispatchEvent(new CustomEvent("studio:content-saved", {
+        detail: { contentType: "POST", slug: next.slug, version: next.version }
+      }));
       status = next.status;
       slugInput.value = next.slug;
       slugInput.readOnly = true;

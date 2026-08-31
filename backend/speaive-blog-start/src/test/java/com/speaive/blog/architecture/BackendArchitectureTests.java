@@ -171,6 +171,7 @@ class BackendArchitectureTests {
                         "..domain.agent..",
                         "..domain.automation..",
                         "..domain.comment..",
+                        "..domain.creative..",
                         "..domain.error..",
                         "..domain.novel..",
                         "..domain.post..")

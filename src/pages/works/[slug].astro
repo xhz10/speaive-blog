@@ -1,0 +1,28 @@
+---
+import { ArrowLeft, ArrowUpRight } from "@lucide/astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { formatDateTime } from "../../lib/date-time";
+import { getPublishedWork } from "../../lib/public-api";
+
+const slug = Astro.params.slug ?? "";
+const work = await getPublishedWork(slug);
+if (!work) Astro.response.status = 404;
+---
+
+{work ? <BaseLayout title={work.title} description={work.description || `Speaive 的作品集《${work.title}》。`} image={work.cover}>
+  <article class="work-reading-page">
+    <header class="work-reading-header"><div class="shell">
+      <a class="back-link" href="/works/"><ArrowLeft size={16} />返回作品集</a>
+      <p class="article-kicker">Curated by Speaive</p><h1>{work.title}</h1>
+      {work.description && <p>{work.description}</p>}
+      <span>{work.items.length} 篇内容 · 更新于 {formatDateTime(work.updatedAt)}</span>
+    </div></header>
+    <main class="shell work-reading-list"><ol>{work.items.map((item, index) => (
+      <li><a href={`${item.href}?work=${encodeURIComponent(work.slug)}`}>
+        <span>{String(index + 1).padStart(2, "0")}</span>
+        <div><small>{item.contentType === "POST" ? "Writing" : "Fiction"}</small><h2>{item.title}</h2><p>{item.summary || "继续阅读这段文字。"}</p></div>
+        <ArrowUpRight size={20} stroke-width={1.5} />
+      </a></li>
+    ))}</ol></main>
+  </article>
+</BaseLayout> : <BaseLayout title="作品集不存在" noindex><section class="not-found"><div><h1>这组作品没有公开</h1><p>它可能仍在编排，或者已经被作者收回。</p><a class="button primary" href="/works/">返回作品集</a></div></section></BaseLayout>}

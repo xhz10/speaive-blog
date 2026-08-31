@@ -247,3 +247,137 @@ export interface AiSummaryCoverage {
   stale: number;
   generatedSlug: string | null;
 }
+
+export type CreativeContentType = "POST" | "NOVEL";
+export type InspirationKind = "IDEA" | "SCENE" | "DIALOGUE" | "CHARACTER" | "QUESTION";
+export type InspirationStatus = "INBOX" | "DEVELOPING" | "CONVERTED" | "ARCHIVED";
+
+export interface StudioInspiration {
+  id: string;
+  title: string;
+  body: string;
+  kind: InspirationKind;
+  status: InspirationStatus;
+  pinned: boolean;
+  targetType: CreativeContentType | null;
+  targetSlug: string | null;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StudioInspirationList {
+  items: StudioInspiration[];
+}
+
+export interface ContentRevision {
+  contentType: CreativeContentType;
+  revision: number;
+  eventType: "CREATE" | "IMPORT" | "UPDATE" | "PUBLISH" | "UNPUBLISH" | "ARCHIVE" | "RESTORE";
+  slug: string;
+  title: string;
+  summary: string;
+  body: string;
+  publishedAt: string | null;
+  tags: string[];
+  cover: string | null;
+  status: PostStatus | NovelFragmentStatus;
+  visibility: PostVisibility | NovelFragmentVisibility;
+  updatedAt: string;
+  recordedAt: string;
+}
+
+export interface ContentRevisionList {
+  items: ContentRevision[];
+}
+
+export interface WorkItem {
+  contentType: CreativeContentType;
+  contentSlug: string;
+  position: number;
+  title: string;
+  summary: string;
+  href: string;
+  publishedAt: string | null;
+}
+
+export interface WorkCollection {
+  slug: string;
+  title: string;
+  description: string;
+  cover: string | null;
+  visibility: "PUBLIC" | "ADMIN_ONLY";
+  revision: number;
+  updatedAt: string;
+  items: WorkItem[];
+}
+
+export interface WorkCollectionList {
+  items: WorkCollection[];
+}
+
+export interface WorkWritePayload {
+  slug: string;
+  title: string;
+  description: string;
+  cover: string | null;
+  visibility: "PUBLIC" | "ADMIN_ONLY";
+  items: Array<Pick<WorkItem, "contentType" | "contentSlug">>;
+  revision?: number;
+}
+
+export interface ShareGrant {
+  id: string;
+  contentType: CreativeContentType;
+  contentSlug: string;
+  token: string | null;
+  expiresAt: string;
+  revokedAt: string | null;
+  lastAccessedAt: string | null;
+  createdAt: string;
+  active: boolean;
+}
+
+export interface ShareGrantList {
+  items: ShareGrant[];
+}
+
+export interface EditorialReview {
+  id: string;
+  postRevision: number;
+  agentId: string;
+  agentDisplayName: string;
+  quoteText: string | null;
+  quotePrefix: string | null;
+  quoteSuffix: string | null;
+  body: string;
+  model: string | null;
+  createdAt: string;
+  stale: boolean;
+}
+
+export interface EditorialReviewList {
+  items: EditorialReview[];
+}
+
+export interface DiscussionDigest {
+  postSlug: string;
+  body: string | null;
+  model: string | null;
+  state: "MISSING" | "STALE" | "CURRENT";
+  commentCount: number;
+  updatedAt: string | null;
+}
+
+export interface ResurfacingItem {
+  kind: "THEME" | "UNFINISHED" | "OLD_POST";
+  title: string;
+  description: string;
+  href: string;
+  tags: string[];
+  relatedSlugs: string[];
+}
+
+export interface ResurfacingResult {
+  items: ResurfacingItem[];
+}

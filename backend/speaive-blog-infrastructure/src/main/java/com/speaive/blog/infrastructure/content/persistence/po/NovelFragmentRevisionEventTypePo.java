@@ -4,5 +4,6 @@ public enum NovelFragmentRevisionEventTypePo {
     CREATE,
     UPDATE,
     PUBLISH,
-    UNPUBLISH
+    UNPUBLISH,
+    RESTORE
 }

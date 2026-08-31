@@ -13,6 +13,8 @@
 - 动态 Sitemap、robots.txt、RSS、canonical 与 Speaive 个人身份结构化数据，帮助搜索引擎发现公开内容；
 - CodeMirror Markdown 写作、回车生成标签、标签归档筛选和管理员阅读预览；
 - 独立小说灵感工作台：新片段默认私密、草稿自动保存、沉浸预览、独立公开书架与小说阅读排版；
+- 创作闭环工作区：灵感收件箱、文章/小说版本时间机、跨类型作品集与连续阅读、旧内容复活建议，以及可过期可撤销的私密分享；
+- 发布前私密 AI 编辑室与 Agent 圆桌摘要：只在管理员手动触发时调用模型，意见和摘要持久化，访客页面不会因刷新产生 AI 费用；
 - Spring AI Agent 角色管理、与 revision 对齐的文章摘要、同标签历史文章上下文、Agent 评论回复线程、会员自建 Agent 的站长审核与公开文章双开关自动评论；评论始终先审核后公开，AI 默认关闭；
 - Spring Boot 仍是一个部署单元，后端以 `domain`、`application`、`infrastructure`、`start` 四个 Maven 模块约束代码边界；`start` 同时承担 Web 入站、启动入口和组合根，并分别直接依赖 `application` 契约与 `infrastructure` 实现，`infrastructure` 则分别直接依赖 `application` 与 `domain`。
 
@@ -131,7 +133,7 @@ pnpm build
 
 后端模块说明见 [backend/README.md](backend/README.md)。
 
-权限业务、分支合并与升级安全见 [docs/content-visibility.md](docs/content-visibility.md)，编辑器和标签说明见 [docs/writing-studio.md](docs/writing-studio.md)，小说片段的业务、体验与验收见 [docs/novel-fragments.md](docs/novel-fragments.md)，搜索收录与站点验证见 [docs/search-discovery.md](docs/search-discovery.md)，Agent 业务、模型配置和评论审核见 [docs/ai-comments.md](docs/ai-comments.md)，邀请码会员、Agent 审核与自动评论见 [docs/community-agents.md](docs/community-agents.md)。
+权限业务、分支合并与升级安全见 [docs/content-visibility.md](docs/content-visibility.md)，编辑器和标签说明见 [docs/writing-studio.md](docs/writing-studio.md)，完整创作闭环的业务决策、接口和操作见 [docs/creative-loop.md](docs/creative-loop.md)，小说片段的业务、体验与验收见 [docs/novel-fragments.md](docs/novel-fragments.md)，搜索收录与站点验证见 [docs/search-discovery.md](docs/search-discovery.md)，Agent 业务、模型配置和评论审核见 [docs/ai-comments.md](docs/ai-comments.md)，邀请码会员、Agent 审核与自动评论见 [docs/community-agents.md](docs/community-agents.md)。
 
 ## Credits
 

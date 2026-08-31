@@ -1,0 +1,169 @@
+---
+import { ArrowDown, ArrowLeft, ArrowUp, BookMarked, Plus, Save, Trash2 } from "@lucide/astro";
+import StudioLayout from "../../../layouts/StudioLayout.astro";
+import { fetchStudioApi } from "../../../lib/studio/server";
+import type { StudioNovelFragmentList, StudioPostList, WorkCollectionList } from "../../../lib/studio/types";
+
+let works: WorkCollectionList = { items: [] };
+let posts: StudioPostList = { items: [], errors: [] };
+let novels: StudioNovelFragmentList = { items: [] };
+let loadError: string | undefined;
+try {
+  [works, posts, novels] = await Promise.all([
+    fetchStudioApi<WorkCollectionList>(Astro.request, "/api/v1/studio/creative/works"),
+    fetchStudioApi<StudioPostList>(Astro.request, "/api/v1/studio/posts"),
+    fetchStudioApi<StudioNovelFragmentList>(Astro.request, "/api/v1/studio/novels")
+  ]);
+} catch (error) {
+  loadError = error instanceof Error ? error.message : "作品集加载失败";
+}
+
+const choices = [
+  ...posts.items.map((item) => ({ type: "POST", slug: item.slug, title: item.title, label: "文章" })),
+  ...novels.items.map((item) => ({ type: "NOVEL", slug: item.slug, title: item.title, label: "小说" }))
+];
+---
+
+<StudioLayout title="作品集">
+  <header class="studio-page-head">
+    <div>
+      <a class="editor-back" href="/studio/creative/"><ArrowLeft size={15} stroke-width={1.8} />返回灵感温室</a>
+      <p class="studio-kicker">Works</p>
+      <h1>作品集与阅读路径</h1>
+      <p>同一个作品集可以混排文章和小说；公开作品集不会绕过条目自身的可见性。</p>
+    </div>
+  </header>
+  {loadError && <p class="notice error">{loadError}</p>}
+  <p class="notice" role="status" hidden data-work-notice></p>
+
+  <section class="work-editor-list" aria-label="作品集编辑">
+    <details class="work-editor-card" open>
+      <summary><span><Plus size={18} /><strong>创建新的作品集</strong></span><small>先从一个短阅读路径开始</small></summary>
+      <form class="work-editor-form" data-work-form data-new="true" data-initial="[]">
+        <div class="work-meta-grid">
+          <label>标题<input class="input" name="title" maxlength="200" required placeholder="例如：在北京生活的几年" /></label>
+          <label>Slug<input class="input" name="slug" maxlength="100" required placeholder="beijing-years" /></label>
+          <label>谁可以看<select class="input" name="visibility"><option value="ADMIN_ONLY">仅自己</option><option value="PUBLIC">所有访客</option></select></label>
+          <label class="work-description-field">简介<textarea class="input" name="description" rows="3" maxlength="800" placeholder="告诉读者为什么这些内容应该一起读"></textarea></label>
+        </div>
+        <div class="work-item-builder">
+          <div><select class="input" data-work-choice>{choices.map((item) => <option value={`${item.type}:${item.slug}`}>{item.label} · {item.title}</option>)}</select><button class="button secondary" type="button" data-add-work-item>加入路径</button></div>
+          <ol data-work-items><li class="work-item-empty">还没有内容。按阅读顺序逐个加入。</li></ol>
+        </div>
+        <button class="button primary" type="submit"><Save size={16} />创建作品集</button>
+      </form>
+    </details>
+
+    {works.items.map((work) => (
+      <details class="work-editor-card">
+        <summary><span><BookMarked size={18} /><strong>{work.title}</strong></span><small>{work.items.length} 条内容 · {work.visibility === "PUBLIC" ? "公开" : "仅自己"}</small></summary>
+        <form class="work-editor-form" data-work-form data-slug={work.slug} data-revision={work.revision} data-initial={JSON.stringify(work.items.map((item) => ({ contentType: item.contentType, contentSlug: item.contentSlug, title: item.title })))}>
+          <div class="work-meta-grid">
+            <label>标题<input class="input" name="title" maxlength="200" required value={work.title} /></label>
+            <label>Slug<input class="input" name="slug" maxlength="100" value={work.slug} readonly /></label>
+            <label>谁可以看<select class="input" name="visibility"><option value="ADMIN_ONLY" selected={work.visibility === "ADMIN_ONLY"}>仅自己</option><option value="PUBLIC" selected={work.visibility === "PUBLIC"}>所有访客</option></select></label>
+            <label class="work-description-field">简介<textarea class="input" name="description" rows="3" maxlength="800">{work.description}</textarea></label>
+          </div>
+          <div class="work-item-builder">
+            <div><select class="input" data-work-choice>{choices.map((item) => <option value={`${item.type}:${item.slug}`}>{item.label} · {item.title}</option>)}</select><button class="button secondary" type="button" data-add-work-item>加入路径</button></div>
+            <ol data-work-items></ol>
+          </div>
+          <button class="button primary" type="submit"><Save size={16} />保存编排</button>
+        </form>
+      </details>
+    ))}
+  </section>
+
+  <template data-work-item-template>
+    <li class="work-builder-item">
+      <span data-work-item-type></span><strong data-work-item-title></strong><code data-work-item-slug></code>
+      <div><button type="button" data-move-up aria-label="上移"><ArrowUp size={14} /></button><button type="button" data-move-down aria-label="下移"><ArrowDown size={14} /></button><button type="button" data-remove aria-label="移除"><Trash2 size={14} /></button></div>
+    </li>
+  </template>
+</StudioLayout>
+
+<script>
+  import { studioRequest } from "../../../lib/studio/client";
+  import type { CreativeContentType, WorkCollection, WorkWritePayload } from "../../../lib/studio/types";
+
+  interface BuilderItem { contentType: CreativeContentType; contentSlug: string; title: string }
+  const notice = document.querySelector<HTMLElement>("[data-work-notice]");
+  const template = document.querySelector<HTMLTemplateElement>("[data-work-item-template]");
+
+  for (const form of document.querySelectorAll<HTMLFormElement>("[data-work-form]")) {
+    let items: BuilderItem[] = JSON.parse(form.dataset.initial || "[]") as BuilderItem[];
+    const list = required<HTMLOListElement>(form, "[data-work-items]");
+    const choice = required<HTMLSelectElement>(form, "[data-work-choice]");
+    form.querySelector<HTMLButtonElement>("[data-add-work-item]")?.addEventListener("click", () => {
+      const separator = choice.value.indexOf(":");
+      const contentType = choice.value.slice(0, separator) as CreativeContentType;
+      const contentSlug = choice.value.slice(separator + 1);
+      if (!contentSlug || items.some((item) => item.contentType === contentType && item.contentSlug === contentSlug)) return;
+      const label = choice.selectedOptions[0]?.textContent ?? contentSlug;
+      items.push({ contentType, contentSlug, title: label.replace(/^[^·]+·\s*/, "") });
+      render();
+    });
+    list.addEventListener("click", (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button");
+      const row = button?.closest<HTMLElement>("[data-index]");
+      if (!button || !row) return;
+      const index = Number(row.dataset.index);
+      if (button.hasAttribute("data-remove")) items.splice(index, 1);
+      if (button.hasAttribute("data-move-up") && index > 0) [items[index - 1], items[index]] = [items[index], items[index - 1]];
+      if (button.hasAttribute("data-move-down") && index + 1 < items.length) [items[index], items[index + 1]] = [items[index + 1], items[index]];
+      render();
+    });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+      if (!submit) return;
+      const data = new FormData(form);
+      const payload: WorkWritePayload = {
+        slug: String(data.get("slug") ?? ""), title: String(data.get("title") ?? ""),
+        description: String(data.get("description") ?? ""), cover: null,
+        visibility: String(data.get("visibility")) as WorkWritePayload["visibility"],
+        items: items.map(({ contentType, contentSlug }) => ({ contentType, contentSlug }))
+      };
+      if (form.dataset.revision) payload.revision = Number(form.dataset.revision);
+      submit.disabled = true;
+      try {
+        const isNew = form.dataset.new === "true";
+        const path = isNew ? "/studio/creative/works" : `/studio/creative/works/${encodeURIComponent(form.dataset.slug ?? "")}`;
+        await studioRequest<WorkCollection>(path, {
+          method: isNew ? "POST" : "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+        });
+        window.location.reload();
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "作品集保存失败", true);
+        submit.disabled = false;
+      }
+    });
+    render();
+
+    function render() {
+      list.replaceChildren();
+      if (items.length === 0) {
+        const empty = document.createElement("li"); empty.className = "work-item-empty"; empty.textContent = "还没有内容。按阅读顺序逐个加入。"; list.append(empty); return;
+      }
+      items.forEach((item, index) => {
+        const row = template?.content.firstElementChild?.cloneNode(true) as HTMLElement | undefined;
+        if (!row) return;
+        row.dataset.index = String(index);
+        required<HTMLElement>(row, "[data-work-item-type]").textContent = item.contentType === "POST" ? "文章" : "小说";
+        required<HTMLElement>(row, "[data-work-item-title]").textContent = item.title;
+        required<HTMLElement>(row, "[data-work-item-slug]").textContent = item.contentSlug;
+        required<HTMLButtonElement>(row, "[data-move-up]").disabled = index === 0;
+        required<HTMLButtonElement>(row, "[data-move-down]").disabled = index + 1 === items.length;
+        list.append(row);
+      });
+    }
+  }
+
+  function required<T extends Element>(root: ParentNode, selector: string): T {
+    const value = root.querySelector<T>(selector); if (!value) throw new Error(`Missing ${selector}`); return value;
+  }
+  function showNotice(message: string, error = false) {
+    if (!notice) return; notice.textContent = message; notice.classList.toggle("error", error); notice.hidden = false;
+  }
+</script>

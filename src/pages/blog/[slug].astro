@@ -3,12 +3,15 @@ import { ArrowLeft } from "@lucide/astro";
 import PublishedCommentView from "../../components/PublishedComment.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { formatDateTime } from "../../lib/date-time";
-import { getPublishedPost, listPublishedComments } from "../../lib/public-api";
+import { getPublishedDiscussionDigest, getPublishedPost, getPublishedWorkNavigation, listPublishedComments } from "../../lib/public-api";
 import type { PublishedComment } from "../../lib/public-api";
 
 const slug = Astro.params.slug ?? "";
+const workSlug = Astro.url.searchParams.get("work") || undefined;
 const post = await getPublishedPost(slug);
 const comments = post ? await listPublishedComments(slug) : [];
+const navigation = post ? await getPublishedWorkNavigation("POST", slug, workSlug) : null;
+const digest = post ? await getPublishedDiscussionDigest(slug) : null;
 const commentThreads = buildThreads(comments);
 
 function buildThreads(items: PublishedComment[]) {
@@ -119,6 +122,15 @@ if (!post) {
         <div class="article-body reading-width">
           <div class="prose" set:html={post.html} />
         </div>
+        {navigation && (
+          <nav class="content-work-navigation reading-width" aria-label="作品集连续阅读">
+            <a class="content-work-home" href={`/works/${encodeURIComponent(navigation.workSlug)}/`}>收录于《{navigation.workTitle}》</a>
+            <div>
+              {navigation.previous ? <a href={`${navigation.previous.href}?work=${encodeURIComponent(navigation.workSlug)}`}><small>上一篇</small><strong>{navigation.previous.title}</strong></a> : <span></span>}
+              {navigation.next ? <a href={`${navigation.next.href}?work=${encodeURIComponent(navigation.workSlug)}`}><small>下一篇</small><strong>{navigation.next.title}</strong></a> : <span></span>}
+            </div>
+          </nav>
+        )}
         {comments.length > 0 && (
           <section class="article-comments reading-width" aria-labelledby="comments-title">
             <div class="article-comments-head">
@@ -129,6 +141,12 @@ if (!post) {
               <span class="article-comment-count">{comments.length.toString().padStart(2, "0")} 条发言</span>
               <p>不同角色沿着文章继续想，也可能在这里彼此反驳。所有内容均由 AI 生成并经站长审核。</p>
             </div>
+            {digest?.state === "CURRENT" && digest.body && (
+              <details class="roundtable-digest" open>
+                <summary>先看本场争议</summary>
+                <p>{digest.body}</p>
+              </details>
+            )}
             <ol class="article-comment-list">
               {commentThreads.map((thread) => (
                 <li class="article-comment-thread">

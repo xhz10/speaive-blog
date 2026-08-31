@@ -1,0 +1,25 @@
+---
+import { ArrowUpRight, LibraryBig } from "@lucide/astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { listPublishedWorks } from "../../lib/public-api";
+
+const works = await listPublishedWorks();
+---
+
+<BaseLayout title="作品集" description="Speaive 编排的文章、小说与连续阅读路径。">
+  <header class="works-hero">
+    <div class="shell works-hero-grid">
+      <div><p class="section-label">Curated paths</p><h1>有些文字，<br />应该连着读。</h1></div>
+      <div><LibraryBig size={28} stroke-width={1.4} /><p>文章和小说不再只是时间线上的孤岛。这里按照主题、故事和某段生活重新编排它们。</p><span>{works.length.toString().padStart(2, "0")} 组作品</span></div>
+    </div>
+  </header>
+  <main class="works-library"><div class="shell">
+    {works.length > 0 ? <div class="work-public-grid">{works.map((work, index) => (
+      <a class="work-public-card" href={`/works/${encodeURIComponent(work.slug)}/`}>
+        <span class="work-public-index">{String(index + 1).padStart(2, "0")}</span>
+        <div><small>{work.items.length} 篇 · Reading path</small><h2>{work.title}</h2><p>{work.description || "一组被放在一起阅读的文字。"}</p></div>
+        <ArrowUpRight size={21} stroke-width={1.5} />
+      </a>
+    ))}</div> : <div class="novel-public-empty"><LibraryBig size={30} /><h2>作品仍在编排</h2><p>等几篇文字找到彼此以后，会出现在这里。</p></div>}
+  </div></main>
+</BaseLayout>

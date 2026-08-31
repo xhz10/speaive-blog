@@ -1,0 +1,517 @@
+---
+import { Clock3, Link2, MessagesSquare, WandSparkles } from "@lucide/astro";
+
+interface Props {
+  contentType: "POST" | "NOVEL";
+  slug?: string;
+  version?: string;
+}
+
+const { contentType, slug = "", version = "" } = Astro.props;
+const supportsEditorial = contentType === "POST";
+---
+
+<section
+  class="creative-tools"
+  data-creative-tools
+  data-content-type={contentType}
+  data-content-slug={slug}
+  data-content-version={version}
+>
+  <header class="creative-tools-head">
+    <div>
+      <p class="studio-kicker">Creative tools</p>
+      <h2>写作时间机与发布辅助</h2>
+    </div>
+    <p>这些工具按需加载，不会打断正文编辑，也不会在页面打开时调用 AI。</p>
+  </header>
+
+  <p class="notice" role="status" hidden data-creative-notice></p>
+
+  <div class="creative-tool-grid">
+    <details class="creative-tool-card" data-revision-tool>
+      <summary>
+        <span class="creative-tool-icon"><Clock3 size={18} stroke-width={1.7} aria-hidden="true" /></span>
+        <span><strong>写作时间机</strong><small>查看、展开或恢复服务端版本</small></span>
+        <em data-revision-count>—</em>
+      </summary>
+      <div class="creative-tool-body">
+        <div class="creative-version-list" data-revision-list>
+          <p class="creative-tool-empty">首次保存后就会开始记录版本。</p>
+        </div>
+      </div>
+    </details>
+
+    <details class="creative-tool-card" data-share-tool>
+      <summary>
+        <span class="creative-tool-icon"><Link2 size={18} stroke-width={1.7} aria-hidden="true" /></span>
+        <span><strong>临时私密分享</strong><small>无需注册，可过期并随时撤销</small></span>
+        <em data-share-count>—</em>
+      </summary>
+      <div class="creative-tool-body">
+        <div class="creative-share-create">
+          <label>有效期
+            <select class="input" data-share-days>
+              <option value="1">1 天</option>
+              <option value="7" selected>7 天</option>
+              <option value="30">30 天</option>
+              <option value="90">90 天</option>
+            </select>
+          </label>
+          <button class="button secondary" type="button" data-create-share>生成只读链接</button>
+        </div>
+        <div class="creative-share-created" hidden data-created-share>
+          <input class="input" type="text" readonly data-created-share-url />
+          <button class="button primary" type="button" data-copy-share>复制链接</button>
+        </div>
+        <div class="creative-share-list" data-share-list>
+          <p class="creative-tool-empty">还没有临时分享。</p>
+        </div>
+      </div>
+    </details>
+
+    {supportsEditorial && (
+      <details class="creative-tool-card creative-tool-wide" data-editorial-tool>
+        <summary>
+          <span class="creative-tool-icon"><WandSparkles size={18} stroke-width={1.7} aria-hidden="true" /></span>
+          <span><strong>私密 AI 编辑室</strong><small>意见只留在写作台，不会成为公开评论</small></span>
+          <em data-review-count>—</em>
+        </summary>
+        <div class="creative-tool-body">
+          <div class="creative-review-compose">
+            <label>编辑角色
+              <select class="input" data-review-agent><option value="">正在读取 Agent…</option></select>
+            </label>
+            <label class="creative-review-selection">重点原文
+              <textarea class="input" rows="3" maxlength="4000" placeholder="可留空审阅全文；也可以先在正文中选中文字" data-review-quote></textarea>
+            </label>
+            <div class="button-row">
+              <button class="button ghost" type="button" data-use-selection>使用正文选区</button>
+              <button class="button primary" type="button" data-generate-review>请它审一遍</button>
+            </div>
+          </div>
+          <div class="creative-review-list" data-review-list>
+            <p class="creative-tool-empty">还没有私密编辑意见。</p>
+          </div>
+        </div>
+      </details>
+    )}
+
+    {supportsEditorial && (
+      <details class="creative-tool-card creative-tool-wide" data-digest-tool>
+        <summary>
+          <span class="creative-tool-icon"><MessagesSquare size={18} stroke-width={1.7} aria-hidden="true" /></span>
+          <span><strong>Agent 圆桌摘要</strong><small>先看共识、分歧和未决问题，再决定是否展开全文</small></span>
+          <em data-digest-state>—</em>
+        </summary>
+        <div class="creative-tool-body creative-digest-body">
+          <p data-digest-copy>至少有两条已发布评论后，可以手动生成一份摘要。</p>
+          <button class="button secondary" type="button" data-generate-digest>生成或更新摘要</button>
+        </div>
+      </details>
+    )}
+  </div>
+</section>
+
+<script>
+  import { studioRequest } from "../lib/studio/client";
+  import type {
+    ContentRevisionList,
+    DiscussionDigest,
+    EditorialReview,
+    EditorialReviewList,
+    ShareGrant,
+    ShareGrantList,
+    StudioAgentList
+  } from "../lib/studio/types";
+
+  const EVENT_LABELS: Record<string, string> = {
+    CREATE: "创建",
+    IMPORT: "导入",
+    UPDATE: "保存",
+    PUBLISH: "发布",
+    UNPUBLISH: "撤回",
+    ARCHIVE: "归档",
+    RESTORE: "恢复"
+  };
+
+  for (const root of document.querySelectorAll<HTMLElement>("[data-creative-tools]:not([data-bound])")) {
+    root.dataset.bound = "true";
+    let contentType = root.dataset.contentType as "POST" | "NOVEL";
+    let slug = root.dataset.contentSlug ?? "";
+    let version = root.dataset.contentVersion ?? "";
+    let loadedRevisions = false;
+    let loadedShares = false;
+    let loadedReviews = false;
+    let loadedDigest = false;
+
+    const notice = required<HTMLElement>(root, "[data-creative-notice]");
+    const revisionList = required<HTMLElement>(root, "[data-revision-list]");
+    const revisionCount = required<HTMLElement>(root, "[data-revision-count]");
+    const shareList = required<HTMLElement>(root, "[data-share-list]");
+    const shareCount = required<HTMLElement>(root, "[data-share-count]");
+    const createShareButton = required<HTMLButtonElement>(root, "[data-create-share]");
+    const shareDays = required<HTMLSelectElement>(root, "[data-share-days]");
+    const createdShare = required<HTMLElement>(root, "[data-created-share]");
+    const createdShareUrl = required<HTMLInputElement>(root, "[data-created-share-url]");
+    const copyShareButton = required<HTMLButtonElement>(root, "[data-copy-share]");
+
+    root.querySelector("[data-revision-tool]")?.addEventListener("toggle", (event) => {
+      if ((event.currentTarget as HTMLDetailsElement).open && !loadedRevisions) void loadRevisions();
+    });
+    root.querySelector("[data-share-tool]")?.addEventListener("toggle", (event) => {
+      if ((event.currentTarget as HTMLDetailsElement).open && !loadedShares) void loadShares();
+    });
+    root.querySelector("[data-editorial-tool]")?.addEventListener("toggle", (event) => {
+      if ((event.currentTarget as HTMLDetailsElement).open && !loadedReviews) {
+        void Promise.all([loadAgents(), loadReviews()]);
+      }
+    });
+    root.querySelector("[data-digest-tool]")?.addEventListener("toggle", (event) => {
+      if ((event.currentTarget as HTMLDetailsElement).open && !loadedDigest) void loadDigest();
+    });
+
+    createShareButton.addEventListener("click", () => void createShare());
+    copyShareButton.addEventListener("click", () => void copyShare());
+    root.querySelector("[data-use-selection]")?.addEventListener("click", useEditorSelection);
+    root.querySelector("[data-generate-review]")?.addEventListener("click", () => void generateReview());
+    root.querySelector("[data-generate-digest]")?.addEventListener("click", () => void generateDigest());
+
+    root.addEventListener("click", (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-restore-revision], [data-revoke-share]");
+      if (!button) return;
+      if (button.dataset.restoreRevision) void restoreRevision(Number(button.dataset.restoreRevision), button);
+      if (button.dataset.revokeShare) void revokeShare(button.dataset.revokeShare, button);
+    });
+
+    document.addEventListener("studio:content-saved", (event) => {
+      const detail = (event as CustomEvent<{ contentType: string; slug: string; version: string }>).detail;
+      if (!detail || detail.contentType !== contentType) return;
+      slug = detail.slug;
+      version = detail.version;
+      root.dataset.contentSlug = slug;
+      root.dataset.contentVersion = version;
+      loadedRevisions = false;
+      if ((root.querySelector("[data-revision-tool]") as HTMLDetailsElement | null)?.open) void loadRevisions();
+    });
+
+    async function loadRevisions() {
+      if (!slug) {
+        revisionList.innerHTML = '<p class="creative-tool-empty">首次保存后就会开始记录版本。</p>';
+        return;
+      }
+      revisionList.innerHTML = '<p class="creative-tool-empty">正在读取版本…</p>';
+      try {
+        const payload = await studioRequest<ContentRevisionList>(
+          `/studio/creative/${contentType.toLowerCase()}/${encodeURIComponent(slug)}/revisions`
+        );
+        loadedRevisions = true;
+        revisionCount.textContent = `${payload.items.length} 版`;
+        revisionList.replaceChildren(...payload.items.map((item, index) => {
+          const article = document.createElement("article");
+          article.className = "creative-version-item";
+          const current = index === 0;
+          article.innerHTML = `
+            <header><span>v${item.revision} · ${EVENT_LABELS[item.eventType] ?? item.eventType}</span><time>${formatTime(item.recordedAt)}</time></header>
+            <strong>${escapeHtml(item.title)}</strong>
+            <p>${escapeHtml(item.summary || preview(item.body))}</p>
+            <details><summary>查看这一版正文</summary><pre>${escapeHtml(item.body)}</pre></details>
+          `;
+          if (!current) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "button ghost";
+            button.dataset.restoreRevision = String(item.revision);
+            button.textContent = "恢复成新版本";
+            article.append(button);
+          } else {
+            const mark = document.createElement("em");
+            mark.className = "creative-current-mark";
+            mark.textContent = "当前版本";
+            article.append(mark);
+          }
+          return article;
+        }));
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "版本历史加载失败", true);
+      }
+    }
+
+    async function restoreRevision(revision: number, button: HTMLButtonElement) {
+      if (!slug || !version || !window.confirm(`确定把第 ${revision} 版恢复成一个新版本吗？当前版本不会丢失。`)) return;
+      button.disabled = true;
+      try {
+        await studioRequest<ContentRevisionList>(
+          `/studio/creative/${contentType.toLowerCase()}/${encodeURIComponent(slug)}/revisions/${revision}/restore`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentVersion: version }) }
+        );
+        showNotice("历史版本已恢复，正在重新载入编辑器。");
+        window.setTimeout(() => window.location.reload(), 500);
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "恢复失败", true);
+        button.disabled = false;
+      }
+    }
+
+    async function loadShares() {
+      if (!slug) {
+        shareList.innerHTML = '<p class="creative-tool-empty">首次保存后才能生成分享链接。</p>';
+        createShareButton.disabled = true;
+        return;
+      }
+      try {
+        const payload = await studioRequest<ShareGrantList>(
+          `/studio/creative/shares?contentType=${contentType}&contentSlug=${encodeURIComponent(slug)}`
+        );
+        loadedShares = true;
+        renderShares(payload.items);
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "分享记录加载失败", true);
+      }
+    }
+
+    function renderShares(items: ShareGrant[]) {
+      shareCount.textContent = `${items.filter((item) => item.active).length} 个有效`;
+      shareList.replaceChildren();
+      if (items.length === 0) {
+        shareList.innerHTML = '<p class="creative-tool-empty">还没有临时分享。</p>';
+        return;
+      }
+      for (const item of items) {
+        const row = document.createElement("article");
+        row.className = `creative-share-item${item.active ? "" : " inactive"}`;
+        row.innerHTML = `<div><strong>${item.active ? "有效至" : item.revokedAt ? "已撤销" : "已过期"}</strong><time>${formatTime(item.expiresAt)}</time>${item.lastAccessedAt ? `<small>最近访问 ${formatTime(item.lastAccessedAt)}</small>` : ""}</div>`;
+        if (item.active) {
+          const revoke = document.createElement("button");
+          revoke.type = "button";
+          revoke.className = "button ghost";
+          revoke.dataset.revokeShare = item.id;
+          revoke.textContent = "撤销";
+          row.append(revoke);
+        }
+        shareList.append(row);
+      }
+    }
+
+    async function createShare() {
+      if (!slug) return showNotice("请先保存内容。", true);
+      createShareButton.disabled = true;
+      try {
+        const grant = await studioRequest<ShareGrant>("/studio/creative/shares", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contentType, contentSlug: slug, validDays: Number(shareDays.value) })
+        });
+        if (!grant.token) throw new Error("服务器没有返回一次性分享令牌");
+        createdShareUrl.value = `${window.location.origin}/s/${grant.token}/`;
+        createdShare.hidden = false;
+        loadedShares = false;
+        await loadShares();
+        showNotice("链接已生成。原始令牌只会显示这一次，请立即复制。");
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "生成分享链接失败", true);
+      } finally {
+        createShareButton.disabled = false;
+      }
+    }
+
+    async function copyShare() {
+      try {
+        await navigator.clipboard.writeText(createdShareUrl.value);
+        copyShareButton.textContent = "已复制";
+      } catch {
+        createdShareUrl.select();
+        showNotice("浏览器禁止自动复制，链接已经选中。", true);
+      }
+    }
+
+    async function revokeShare(id: string, button: HTMLButtonElement) {
+      if (!window.confirm("撤销后，这个链接会立即失效。确定继续吗？")) return;
+      button.disabled = true;
+      try {
+        await studioRequest(`/studio/creative/shares/${encodeURIComponent(id)}/revoke`, { method: "POST" });
+        loadedShares = false;
+        await loadShares();
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "撤销失败", true);
+        button.disabled = false;
+      }
+    }
+
+    async function loadAgents() {
+      const select = root.querySelector<HTMLSelectElement>("[data-review-agent]");
+      if (!select) return;
+      try {
+        const payload = await studioRequest<StudioAgentList>("/studio/agents");
+        select.replaceChildren();
+        for (const agent of payload.items.filter((item) => item.enabled)) {
+          const option = document.createElement("option");
+          option.value = agent.id;
+          option.textContent = `${agent.displayName} · @${agent.username}`;
+          select.append(option);
+        }
+        if (select.options.length === 0) select.innerHTML = '<option value="">没有启用的 Agent</option>';
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "Agent 加载失败", true);
+      }
+    }
+
+    async function loadReviews() {
+      const list = root.querySelector<HTMLElement>("[data-review-list]");
+      const count = root.querySelector<HTMLElement>("[data-review-count]");
+      if (!list || !count || !slug) return;
+      try {
+        const payload = await studioRequest<EditorialReviewList>(
+          `/studio/creative/posts/${encodeURIComponent(slug)}/reviews`
+        );
+        loadedReviews = true;
+        count.textContent = `${payload.items.length} 条`;
+        renderReviews(list, payload.items);
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "编辑意见加载失败", true);
+      }
+    }
+
+    function renderReviews(list: HTMLElement, items: EditorialReview[]) {
+      list.replaceChildren();
+      if (items.length === 0) {
+        list.innerHTML = '<p class="creative-tool-empty">还没有私密编辑意见。</p>';
+        return;
+      }
+      for (const item of items) {
+        const card = document.createElement("article");
+        card.className = `creative-review-item${item.stale ? " stale" : ""}`;
+        card.innerHTML = `
+          <header><strong>${escapeHtml(item.agentDisplayName)}</strong><span>${item.stale ? "旧版本意见" : `针对 v${item.postRevision}`}</span><time>${formatTime(item.createdAt)}</time></header>
+          ${item.quoteText ? `<blockquote>${escapeHtml(preview(item.quoteText, 180))}</blockquote>` : ""}
+          <p>${escapeHtml(item.body)}</p>
+        `;
+        list.append(card);
+      }
+    }
+
+    function useEditorSelection() {
+      const input = document.querySelector<HTMLTextAreaElement>("[data-body]");
+      const quote = root.querySelector<HTMLTextAreaElement>("[data-review-quote]");
+      if (!quote) return;
+      let selection = { text: "", prefix: "", suffix: "" };
+      document.dispatchEvent(new CustomEvent("studio:request-editor-selection", {
+        detail: { respond: (value: typeof selection) => { selection = value; } }
+      }));
+      if (!selection.text && input) {
+        selection = {
+          text: input.value.slice(input.selectionStart, input.selectionEnd),
+          prefix: input.value.slice(Math.max(0, input.selectionStart - 240), input.selectionStart),
+          suffix: input.value.slice(input.selectionEnd, input.selectionEnd + 240)
+        };
+      }
+      const selected = selection.text.trim();
+      if (!selected) return showNotice("请先在 Markdown 正文中选中一段文字。", true);
+      quote.value = selected.slice(0, 4000);
+      quote.dataset.quotePrefix = selection.prefix.slice(-240);
+      quote.dataset.quoteSuffix = selection.suffix.slice(0, 240);
+      quote.focus();
+    }
+
+    async function generateReview() {
+      const agent = root.querySelector<HTMLSelectElement>("[data-review-agent]");
+      const quote = root.querySelector<HTMLTextAreaElement>("[data-review-quote]");
+      const button = root.querySelector<HTMLButtonElement>("[data-generate-review]");
+      if (!slug || !agent?.value || !button) return showNotice("请先保存文章并选择编辑角色。", true);
+      if (document.querySelector<HTMLFormElement>("[data-studio-editor-form]")?.dataset.dirty === "true") {
+        return showNotice("请先保存当前修改，AI 才能审阅正确版本。", true);
+      }
+      button.disabled = true;
+      button.textContent = "正在审阅…";
+      try {
+        await studioRequest(`/studio/creative/posts/${encodeURIComponent(slug)}/reviews`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agentId: agent.value,
+            quoteText: quote?.value.trim() || null,
+            quotePrefix: quote?.dataset.quotePrefix || null,
+            quoteSuffix: quote?.dataset.quoteSuffix || null
+          })
+        });
+        if (quote) {
+          quote.value = "";
+          delete quote.dataset.quotePrefix;
+          delete quote.dataset.quoteSuffix;
+        }
+        loadedReviews = false;
+        await loadReviews();
+        showNotice("私密编辑意见已生成，没有发布到评论区。");
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "AI 编辑失败", true);
+      } finally {
+        button.disabled = false;
+        button.textContent = "请它审一遍";
+      }
+    }
+
+    async function loadDigest() {
+      const state = root.querySelector<HTMLElement>("[data-digest-state]");
+      const copy = root.querySelector<HTMLElement>("[data-digest-copy]");
+      if (!state || !copy || !slug) return;
+      try {
+        const digest = await studioRequest<DiscussionDigest>(
+          `/studio/creative/posts/${encodeURIComponent(slug)}/discussion-digest`
+        );
+        loadedDigest = true;
+        state.textContent = digest.state === "CURRENT" ? "已同步" : digest.state === "STALE" ? "待更新" : "未生成";
+        copy.textContent = digest.body || `${digest.commentCount} 条已发布评论；至少两条后可以生成摘要。`;
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "圆桌摘要加载失败", true);
+      }
+    }
+
+    async function generateDigest() {
+      const button = root.querySelector<HTMLButtonElement>("[data-generate-digest]");
+      if (!slug || !button) return;
+      button.disabled = true;
+      button.textContent = "正在整理圆桌…";
+      try {
+        await studioRequest(`/studio/creative/posts/${encodeURIComponent(slug)}/discussion-digest`, { method: "POST" });
+        loadedDigest = false;
+        await loadDigest();
+        showNotice("圆桌摘要已更新。只有评论再次变化时才会过期。");
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "圆桌摘要生成失败", true);
+      } finally {
+        button.disabled = false;
+        button.textContent = "生成或更新摘要";
+      }
+    }
+
+    function showNotice(message: string, error = false) {
+      notice.textContent = message;
+      notice.classList.toggle("error", error);
+      notice.hidden = false;
+    }
+  }
+
+  function required<T extends Element>(root: ParentNode, selector: string): T {
+    const value = root.querySelector<T>(selector);
+    if (!value) throw new Error(`Creative tools missing ${selector}`);
+    return value;
+  }
+
+  function formatTime(value: string): string {
+    const date = new Date(value);
+    return Number.isNaN(date.valueOf()) ? "-" : new Intl.DateTimeFormat("zh-CN", {
+      year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false
+    }).format(date);
+  }
+
+  function preview(value: string, max = 90): string {
+    const normalized = value.replace(/\s+/g, " ").trim();
+    return normalized.length <= max ? normalized : `${normalized.slice(0, max)}…`;
+  }
+
+  function escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+    })[character] ?? character);
+  }
+</script>

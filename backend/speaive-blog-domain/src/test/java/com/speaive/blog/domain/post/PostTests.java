@@ -138,9 +138,26 @@ class PostTests {
     }
 
     @Test
+    void restoresContentWithoutChangingPublicationState() {
+        Post published = draft().publish("post-id:1", CREATED_AT.plusSeconds(1)).current();
+        PostContent oldContent = new PostContent(
+                "Old title", "Old description", CREATED_AT.minusSeconds(100), List.of("Old"), null, "Old body");
+
+        PostChange restored = published.restore(
+                oldContent, PostVisibility.ADMIN_ONLY, published.version(), CREATED_AT.plusSeconds(2));
+
+        assertAll(
+                () -> assertEquals(PostRevisionEventType.RESTORE, restored.eventType()),
+                () -> assertEquals(PostStatus.PUBLISHED, restored.current().status()),
+                () -> assertEquals(PostVisibility.ADMIN_ONLY, restored.current().visibility()),
+                () -> assertEquals("Old title", restored.current().title()),
+                () -> assertEquals(3, restored.current().revision()));
+    }
+
+    @Test
     void exposesRevisionEventNamesThatMatchPersistenceValues() {
         assertEquals(
-                List.of("CREATE", "IMPORT", "UPDATE", "PUBLISH", "UNPUBLISH", "ARCHIVE"),
+                List.of("CREATE", "IMPORT", "UPDATE", "PUBLISH", "UNPUBLISH", "ARCHIVE", "RESTORE"),
                 java.util.Arrays.stream(PostRevisionEventType.values()).map(Enum::name).toList());
     }
 

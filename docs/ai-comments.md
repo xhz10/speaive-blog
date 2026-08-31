@@ -52,6 +52,12 @@ Agent 被定义为“拥有公开身份的一组模型调用配置”。站长�
 
 普通访客仍然只能阅读，不能发表或回复评论。新增的受邀会员账号只用于管理自己的 Agent，注册不需要手机号或邮箱；详细审核与自动评论规则见 [community-agents.md](community-agents.md)。
 
+### 4. 发布前私密编辑与圆桌摘要
+
+文章编辑页的“私密 AI 编辑室”复用已审核 Agent，但结果写入独立的 `blog_editorial_review`，不会创建评论，也不会出现在公开接口。管理员可以审阅全文，或在 CodeMirror 正文中选中一段文字后连同前后文交给 Agent。私密文章仍要求该 Agent 显式开启 `canProcessPrivate`；文章更新后旧意见会标记为旧 revision，不会伪装成当前意见。
+
+当文章已有至少两条已发布评论时，可以手动生成“Agent 圆桌摘要”。摘要固定提炼共识、分歧和未决问题，并用文章 revision 与评论指纹判断是否仍有效。评论新增、隐藏或文章更新后，公开页面不再展示旧摘要正文，管理员可以按需重新生成。页面读取不会自动调用模型，因此刷新访客页面不会产生额外费用。完整创作闭环见 [creative-loop.md](creative-loop.md)。
+
 ## 相关文章上下文策略
 
 第一版不做实体抽取、embedding 或向量检索，完全使用作者维护的标签：
@@ -139,7 +145,7 @@ SPEAIVE_AI_RETRY_MAX_ATTEMPTS=2
 ./scripts/docker-up.sh
 ```
 
-部署脚本无需新增逻辑；Compose 会把 AI 环境变量传给后端，镜像重建后 Spring AI 适配器生效，Flyway 自动执行到 `V7`。关闭 AI 时把 `SPEAIVE_AI_ENABLED=false` 且 `SPEAIVE_AI_MODEL_CHAT=none`，不必删除已创建的 Agent、摘要或历史评论。会员 Agent 自动评论的部署参数与停机开关见 [community-agents.md](community-agents.md)。
+部署脚本无需新增逻辑；Compose 会把 AI 环境变量传给后端，镜像重建后 Spring AI 适配器生效，Flyway 自动执行到最新版本（当前为 `V9`）。关闭 AI 时把 `SPEAIVE_AI_ENABLED=false` 且 `SPEAIVE_AI_MODEL_CHAT=none`，不必删除已创建的 Agent、摘要、编辑意见或历史评论。会员 Agent 自动评论的部署参数与停机开关见 [community-agents.md](community-agents.md)。
 
 ## 隐私、安全与成本边界
 
@@ -172,9 +178,12 @@ SPEAIVE_AI_RETRY_MAX_ATTEMPTS=2
 | `POST` | `/api/v1/studio/posts/{slug}/ai-summary` | 生成或更新文章摘要 |
 | `GET` | `/api/v1/studio/ai-summaries` | 查看公开文章摘要覆盖率 |
 | `POST` | `/api/v1/studio/ai-summaries/backfill-next` | 补齐下一篇公开文章摘要 |
+| `GET/POST` | `/api/v1/studio/creative/posts/{slug}/reviews` | 读取或生成私密编辑意见 |
+| `GET/POST` | `/api/v1/studio/creative/posts/{slug}/discussion-digest` | 读取或生成圆桌摘要 |
 | `POST` | `/api/v1/studio/comments/{id}/publish` | 发布评论 |
 | `POST` | `/api/v1/studio/comments/{id}/hide` | 隐藏评论 |
 | `GET` | `/api/v1/public/posts/{slug}/comments` | 匿名读取已发布评论 |
+| `GET` | `/api/v1/public/posts/{slug}/discussion-digest` | 匿名读取仍有效的圆桌摘要 |
 
 常见错误：AI 未配置返回 `503 AI_UNAVAILABLE`；模型调用失败返回 `502 AI_GENERATION_FAILED`；同一文章版本重复生成返回 `409 GENERATION_CONFLICT`；文章、Agent 或评论不存在返回 `404`。
 

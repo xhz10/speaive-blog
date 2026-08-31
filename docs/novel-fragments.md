@@ -4,7 +4,7 @@
 
 这个模块不是“给文章再加一个小说标签”，而是一块独立的小说灵感工作区。它首先服务于低成本捕捉：人物、场景、对话或一个尚未完成的开头都可以单独保存，不要求先决定书名、卷、章和完整大纲。
 
-第一版把每一份内容建模为独立的“小说片段”。以后需要长篇结构时，可以在片段之上增加作品集、章节顺序和人物设定，不必搬迁正文，也不会让现在的随手写承担未来才需要的管理成本。
+第一版把每一份内容建模为独立的“小说片段”。现在已经可以用通用作品集把文章与小说片段混合编排并手动排序；以后需要严格的卷、章、人物设定等长篇结构时，仍可继续叠加，不必搬迁正文。
 
 小说片段与普通文章使用相同的管理员身份、Session、Markdown 渲染和部署方式，但使用独立的数据表、后端用例、API 和页面：
 
@@ -51,14 +51,16 @@ status = PUBLISHED AND visibility = PUBLIC
 
 详情页 `/novels/{slug}/` 使用约 720px 的窄阅读宽度、衬线中文字体、较大行距、首字下沉和克制的元数据。移动端缩小标题和左右留白，不缩短正文内容。管理员预览 `/studio/novels/read/{slug}/` 复用同一阅读系统并加 `noindex`，所以私密内容不会进入搜索页面。
 
-只有公开片段会写入动态 Sitemap；小说详情输出 `CreativeWork` 结构化数据，并继续关联站点的 Speaive 作者身份。私密片段不会进入 Sitemap、公开列表或搜索结构化数据。
+只有公开片段会写入动态 Sitemap；小说详情输出 `CreativeWork` 结构化数据，并继续关联站点的 Speaive 作者身份。公开作品集可以给片段提供上一篇、下一篇的连续阅读入口。私密片段不会进入 Sitemap、公开列表或搜索结构化数据。
 
 ## 数据与 API
 
 Flyway `V8__Add_novel_fragments.sql` 新增：
 
 - `blog_novel_fragment`：当前片段、作者、状态、可见性和 revision；
-- `blog_novel_fragment_revision`：`CREATE / UPDATE / PUBLISH / UNPUBLISH` 的完整快照。
+- `blog_novel_fragment_revision`：`CREATE / UPDATE / PUBLISH / UNPUBLISH / RESTORE` 的完整快照。
+
+Flyway `V9__Add_creative_workspace.sql` 让片段可以加入作品集、恢复历史版本和生成临时分享链接；这些表只保存片段引用，不复制正文。
 
 正文仍以 Markdown 存储，HTML 在读取时统一渲染和过滤，不把派生 HTML 写进数据库。
 
@@ -94,6 +96,7 @@ Studio 写操作沿用现有 Session 与 CSRF。作者由服务端固定为管�
 - 版本冲突不能覆盖新内容，每次写操作形成连续修订事件；
 - Markdown HTML 继续经过安全过滤；
 - 从历史迁移链升级到 V8，外键类型和旧数据兼容；
+- 从 V8 升级到 V9 后可恢复修订、加入作品集和创建临时分享；
 - Astro 类型检查、Vitest、生产 SSR 构建、Java 单元测试、架构守卫和 PostgreSQL Testcontainers 集成测试；
 - 桌面与移动视口检查公开书架、阅读页和写作台关键布局。
 
@@ -105,6 +108,6 @@ Studio 写操作沿用现有 Session 与 CSRF。作者由服务端固定为管�
 ./scripts/docker-up.sh
 ```
 
-镜像重建时，Spring Boot 启动会自动把数据库从 V7 升到 V8。小说正文和修订位于 PostgreSQL，已包含在现有数据库 dump 中。
+镜像重建时，Spring Boot 启动会自动把数据库迁移到 V9。小说正文、修订、作品集引用和分享授权都位于 PostgreSQL，已包含在现有数据库 dump 中。
 
-未来只有出现明确需求时再增加：作品集/卷/章排序、小说专用设定库、导出或 AI 辅助。评论和会员共创也应单独设计权限与成本边界，不能默认复用文章的自动评论流程。
+未来只有出现明确需求时再增加：专用卷章层级、小说设定库、导出或 AI 辅助。评论和会员共创也应单独设计权限与成本边界，不能默认复用文章的自动评论流程。

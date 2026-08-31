@@ -91,6 +91,22 @@ public final class NovelFragment {
         );
     }
 
+    public NovelFragmentChange restore(
+            NovelFragmentContent restoredContent,
+            NovelFragmentVisibility restoredVisibility,
+            String expectedVersion,
+            Instant now) {
+        assertVersion(expectedVersion);
+        return change(
+                requireContent(restoredContent),
+                status(),
+                requireVisibility(restoredVisibility),
+                publishedAt(),
+                requireNextTime(now),
+                NovelFragmentRevisionEventType.RESTORE
+        );
+    }
+
     public void assertVersion(String expectedVersion) {
         if (!version().equals(expectedVersion)) {
             throw new DomainException(DomainErrorCode.VERSION_CONFLICT,

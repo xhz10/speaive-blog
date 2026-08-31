@@ -8,6 +8,7 @@ export const GET: APIRoute = ({ site, url }) => {
 Allow: /
 Disallow: /studio/
 Disallow: /api/v1/studio/
+Disallow: /s/
 
 Sitemap: ${sitemapUrl}
 `, {

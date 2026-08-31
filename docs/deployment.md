@@ -116,7 +116,7 @@ git pull --ff-only origin main
 ./scripts/docker-up.sh
 ```
 
-以后更新继续在该分支执行 `git pull --ff-only` 和 `./scripts/docker-up.sh`。脚本本身不需要为权限、AI 摘要、评论线程、会员 Agent 或小说片段功能修改；它会重建镜像，Flyway 会在后端启动时按 `V1 -> V2 -> V3 -> V4 -> V5 -> V6 -> V7 -> V8` 迁移数据库。更新程序和重建容器不会删除文章、小说片段、会员、Agent、摘要、评论、修订或图片。
+以后更新继续在该分支执行 `git pull --ff-only` 和 `./scripts/docker-up.sh`。脚本本身不需要为权限、AI 摘要、评论线程、会员 Agent、小说片段或创作闭环功能修改；它会重建镜像，Flyway 会在后端启动时按 `V1 -> V2 -> V3 -> V4 -> V5 -> V6 -> V7 -> V8 -> V9` 迁移数据库。更新程序和重建容器不会删除文章、小说片段、灵感、作品集、分享授权、会员、Agent、摘要、评论、修订或图片。
 
 AI 评论默认关闭。需要启用时，在 `.env` 增加 `SPEAIVE_AI_ENABLED=true`、`SPEAIVE_AI_MODEL_CHAT=openai`、模型密钥、服务地址和默认模型，然后再次执行同一个 `./scripts/docker-up.sh`。会员自动评论默认开启调度，但只有 AI 总开关开启后才会执行；扫描周期、批量、重试和数量上限可用 `SPEAIVE_AI_COMMUNITY_*` 参数调整。完整模型配置见 [ai-comments.md](ai-comments.md)，邀请码、审核、自动任务和停机开关见 [community-agents.md](community-agents.md)。
 

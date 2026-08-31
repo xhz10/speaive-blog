@@ -42,9 +42,9 @@ public record PostChange(Post previous, Post current, PostRevisionEventType even
 
     private static void validateEventResult(Post previous, Post current, PostRevisionEventType eventType) {
         switch (eventType) {
-            case UPDATE -> {
+            case UPDATE, RESTORE -> {
                 if (current.archived() || current.status() != previous.status()) {
-                    throw invalid("更新事件不能改变文章状态");
+                    throw invalid("内容修改事件不能改变文章状态");
                 }
             }
             case PUBLISH -> {

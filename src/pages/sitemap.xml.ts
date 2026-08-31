@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 
-import { listPublishedNovelFragments, listPublishedPosts } from "../lib/public-api";
+import { listPublishedNovelFragments, listPublishedPosts, listPublishedWorks } from "../lib/public-api";
 
 const escapeXml = (value: string) => value
   .replaceAll("&", "&amp;")
@@ -10,12 +10,13 @@ const escapeXml = (value: string) => value
   .replaceAll("'", "&apos;");
 
 export const GET: APIRoute = async ({ site, url }) => {
-  const [posts, novelFragments] = await Promise.all([
+  const [posts, novelFragments, works] = await Promise.all([
     listPublishedPosts(),
-    listPublishedNovelFragments()
+    listPublishedNovelFragments(),
+    listPublishedWorks()
   ]);
   const base = process.env.SPEAIVE_SITE_URL ?? site?.href ?? url.origin;
-  const staticPaths = ["/", "/archive/", "/novels/", "/about/"];
+  const staticPaths = ["/", "/archive/", "/novels/", "/works/", "/about/"];
   const urls: Array<{ loc: string; lastmod?: string }> = [
     ...staticPaths.map((path) => ({ loc: new URL(path, base).href })),
     ...posts.map((post) => ({
@@ -25,6 +26,10 @@ export const GET: APIRoute = async ({ site, url }) => {
     ...novelFragments.map((fragment) => ({
       loc: new URL(`/novels/${encodeURIComponent(fragment.slug)}/`, base).href,
       lastmod: fragment.updatedAt.toISOString()
+    })),
+    ...works.map((work) => ({
+      loc: new URL(`/works/${encodeURIComponent(work.slug)}/`, base).href,
+      lastmod: work.updatedAt.toISOString()
     }))
   ];
 

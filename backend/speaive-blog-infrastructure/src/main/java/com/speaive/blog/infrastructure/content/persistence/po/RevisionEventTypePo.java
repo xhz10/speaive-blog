@@ -6,5 +6,6 @@ public enum RevisionEventTypePo {
     UPDATE,
     PUBLISH,
     UNPUBLISH,
-    ARCHIVE
+    ARCHIVE,
+    RESTORE
 }

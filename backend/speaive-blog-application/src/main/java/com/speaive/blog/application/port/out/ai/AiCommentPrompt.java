@@ -15,12 +15,30 @@ public record AiCommentPrompt(
         String aiSummary,
         List<RelatedPost> relatedPosts,
         List<ExistingComment> existingComments,
-        ReplyTarget replyTarget
+        ReplyTarget replyTarget,
+        String taskInstructions
 ) {
     public AiCommentPrompt {
         tags = List.copyOf(tags);
         relatedPosts = List.copyOf(relatedPosts);
         existingComments = List.copyOf(existingComments);
+    }
+
+    public AiCommentPrompt(
+            String systemPrompt,
+            String model,
+            double temperature,
+            String title,
+            String description,
+            String body,
+            String visibility,
+            List<String> tags,
+            String aiSummary,
+            List<RelatedPost> relatedPosts,
+            List<ExistingComment> existingComments,
+            ReplyTarget replyTarget) {
+        this(systemPrompt, model, temperature, title, description, body, visibility, tags, aiSummary,
+                relatedPosts, existingComments, replyTarget, null);
     }
 
     public record RelatedPost(

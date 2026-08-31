@@ -130,6 +130,26 @@ describe("search crawler discovery", () => {
           version: "fragment-id:2"
         }] });
       }
+      if (url.includes("/public/works")) {
+        return Response.json({ items: [{
+          slug: "夜行故事",
+          title: "夜行故事",
+          description: "一条连续阅读路径",
+          cover: null,
+          visibility: "PUBLIC",
+          revision: 1,
+          updatedAt: "2026-08-30T11:00:00Z",
+          items: [{
+            contentType: "POST",
+            contentSlug: "想法-&-记录",
+            position: 0,
+            title: "第一篇",
+            summary: "摘要",
+            href: "/blog/想法-&-记录/",
+            publishedAt: "2026-08-27T08:00:00Z"
+          }]
+        }] });
+      }
       return Response.json({ items: [{
         slug: "想法-&-记录",
         title: "第一篇",
@@ -154,6 +174,7 @@ describe("search crawler discovery", () => {
     expect(body).toContain("<loc>https://speaive.cn/archive/</loc>");
     expect(body).toContain("<loc>https://speaive.cn/novels/</loc>");
     expect(body).toContain("/novels/%E9%9B%A8%E5%A4%9C%E7%AB%99%E5%8F%B0/");
+    expect(body).toContain("/works/%E5%A4%9C%E8%A1%8C%E6%95%85%E4%BA%8B/");
     expect(body).toContain("%E6%83%B3%E6%B3%95-%26-%E8%AE%B0%E5%BD%95");
     expect(body).toContain("<lastmod>2026-08-28T09:30:00.000Z</lastmod>");
     expect(body).not.toContain("/studio/");
@@ -169,6 +190,7 @@ describe("search crawler discovery", () => {
     const body = await response.text();
 
     expect(body).toContain("Disallow: /studio/");
+    expect(body).toContain("Disallow: /s/");
     expect(body).toContain("Sitemap: https://speaive.cn/sitemap.xml");
   });
 });

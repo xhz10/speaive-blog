@@ -14,6 +14,8 @@ import com.speaive.blog.application.port.out.persistence.AgentRunRepository;
 import com.speaive.blog.application.port.out.persistence.CommentRepository;
 import com.speaive.blog.application.port.out.persistence.PostRepository;
 import com.speaive.blog.application.port.out.persistence.NovelFragmentRepository;
+import com.speaive.blog.application.port.out.persistence.CreativeWorkspaceRepository;
+import com.speaive.blog.application.port.out.persistence.ContentRevisionRepository;
 import com.speaive.blog.application.port.out.persistence.PostAiSummaryRepository;
 import com.speaive.blog.application.port.out.persistence.InvitationRepository;
 import com.speaive.blog.application.port.out.persistence.CommunityPostPolicyRepository;
@@ -28,6 +30,7 @@ import com.speaive.blog.application.service.CommentApplicationService;
 import com.speaive.blog.application.service.MemberAccountApplicationService;
 import com.speaive.blog.application.service.CommunityAutomationPlanner;
 import com.speaive.blog.application.service.CommunityAutomationApplicationService;
+import com.speaive.blog.application.service.CreativeWorkspaceApplicationService;
 import com.speaive.blog.infrastructure.content.config.ContentStorageSettings;
 import com.speaive.blog.infrastructure.content.markdown.CommonMarkMarkdownAdapter;
 import com.speaive.blog.infrastructure.content.media.PostgresMediaStorageAdapter;
@@ -44,10 +47,12 @@ import com.speaive.blog.infrastructure.content.persistence.mapper.BlogAccountDat
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogInvitationDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogCommunityPostPolicyDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogCommunityCommentJobDatabaseMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapper.BlogCreativeDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapper.MarkdownImportDatabaseMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapping.BlogPersistenceMapStructMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapping.NovelFragmentPersistenceMapStructMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapping.BlogAiPersistenceMapStructMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapping.CreativePersistenceMapStructMapper;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAgentRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAgentRunRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresCommentRepository;
@@ -59,6 +64,8 @@ import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAc
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresInvitationRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresCommunityPostPolicyRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresCommunityCommentJobRepository;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresCreativeWorkspaceRepository;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresContentRevisionRepository;
 import com.speaive.blog.infrastructure.transaction.SpringTransactionRunner;
 import com.speaive.blog.interfaces.importing.MarkdownInboxImporter;
 import org.springframework.beans.factory.annotation.Value;
@@ -103,6 +110,20 @@ public class BlogBackendConfiguration {
             BlogAuthorDatabaseMapper authors,
             NovelFragmentPersistenceMapStructMapper mapping) {
         return new PostgresNovelFragmentRepository(fragments, authors, mapping);
+    }
+
+    @Bean
+    CreativeWorkspaceRepository creativeWorkspaceRepository(
+            BlogCreativeDatabaseMapper database,
+            CreativePersistenceMapStructMapper mapping) {
+        return new PostgresCreativeWorkspaceRepository(database, mapping);
+    }
+
+    @Bean
+    ContentRevisionRepository contentRevisionRepository(
+            BlogCreativeDatabaseMapper database,
+            CreativePersistenceMapStructMapper mapping) {
+        return new PostgresContentRevisionRepository(database, mapping);
     }
 
     @Bean
@@ -212,6 +233,22 @@ public class BlogBackendConfiguration {
             TransactionRunner transactions) {
         return new NovelFragmentApplicationService(
                 fragments, authors, markdown, transactions, Clock.systemUTC());
+    }
+
+    @Bean
+    CreativeWorkspaceApplicationService creativeWorkspaceApplicationService(
+            CreativeWorkspaceRepository workspace,
+            ContentRevisionRepository revisions,
+            PostRepository posts,
+            NovelFragmentRepository novels,
+            AgentRepository agents,
+            CommentRepository comments,
+            AiCommentGenerationPort ai,
+            MarkdownPort markdown,
+            TransactionRunner transactions) {
+        return new CreativeWorkspaceApplicationService(
+                workspace, revisions, posts, novels, agents, comments, ai, markdown,
+                transactions, Clock.systemUTC());
     }
 
     @Bean

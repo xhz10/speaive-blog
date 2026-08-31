@@ -17,6 +17,7 @@ import {
   Undo2
 } from "@lucide/astro";
 import type { StudioNovelFragmentDetail } from "../lib/studio/types";
+import CreativeToolsPanel from "./CreativeToolsPanel.astro";
 
 interface Props {
   fragment?: StudioNovelFragmentDetail;
@@ -172,6 +173,7 @@ const initialState = JSON.stringify(fragment ?? null).replace(/</g, "\\u003c");
       </div>
     </section>
   </div>
+  <CreativeToolsPanel contentType="NOVEL" slug={fragment?.slug} version={fragment?.version} />
 </form>
 
 <script is:inline id="novel-editor-initial-state" type="application/json" set:html={initialState}></script>
@@ -462,6 +464,9 @@ const initialState = JSON.stringify(fragment ?? null).replace(/</g, "\\u003c");
       fragment = next;
       status = next.status;
       version = next.version;
+      document.dispatchEvent(new CustomEvent("studio:content-saved", {
+        detail: { contentType: "NOVEL", slug: next.slug, version: next.version }
+      }));
       slugInput.value = next.slug;
       slugInput.readOnly = true;
       slugTouched = true;

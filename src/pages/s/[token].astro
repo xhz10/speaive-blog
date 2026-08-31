@@ -1,0 +1,23 @@
+---
+import { Clock3, LockKeyhole } from "@lucide/astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { formatDateTime } from "../../lib/date-time";
+import { getSharedContent } from "../../lib/public-api";
+
+const token = Astro.params.token ?? "";
+const content = await getSharedContent(token);
+if (!content) Astro.response.status = 404;
+---
+
+{content ? <BaseLayout title={content.title} description="Speaive 临时分享的只读内容" noindex>
+  <article class="shared-reading-page">
+    <header class="shared-reading-header"><div class="reading-width">
+      <span class="shared-reading-badge"><LockKeyhole size={14} />临时私密分享</span>
+      <p class="article-kicker">{content.contentType === "POST" ? "Private writing" : "Private fiction"}</p>
+      <h1>{content.title}</h1>{content.summary && <p>{content.summary}</p>}
+      <div><span>作者 {content.authorDisplayName}</span><span><Clock3 size={14} />链接有效至 {formatDateTime(content.expiresAt)}</span></div>
+    </div></header>
+    <div class="article-body reading-width"><div class="prose" set:html={content.html} /></div>
+    <footer class="shared-reading-footer"><p>这个链接可以被作者提前撤销。请不要在未经允许的情况下继续转发。</p></footer>
+  </article>
+</BaseLayout> : <BaseLayout title="分享已失效" noindex><section class="not-found"><div><h1>链接已经熄灭</h1><p>它可能已过期、被作者撤销，或者地址不完整。</p><a class="button primary" href="/">返回首页</a></div></section></BaseLayout>}

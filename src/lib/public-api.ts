@@ -40,6 +40,52 @@ export interface PublishedNovelFragment extends PublishedNovelFragmentSummary {
   html: string;
 }
 
+export interface PublishedWorkItem {
+  contentType: "POST" | "NOVEL";
+  contentSlug: string;
+  position: number;
+  title: string;
+  summary: string;
+  href: string;
+  publishedAt: Date | null;
+}
+
+export interface PublishedWork {
+  slug: string;
+  title: string;
+  description: string;
+  cover?: string;
+  updatedAt: Date;
+  items: PublishedWorkItem[];
+}
+
+export interface PublishedWorkNavigation {
+  workSlug: string;
+  workTitle: string;
+  previous: { contentType: "POST" | "NOVEL"; contentSlug: string; title: string; href: string } | null;
+  next: { contentType: "POST" | "NOVEL"; contentSlug: string; title: string; href: string } | null;
+}
+
+export interface PublishedDiscussionDigest {
+  body: string | null;
+  state: "MISSING" | "STALE" | "CURRENT";
+  commentCount: number;
+  updatedAt: Date | null;
+}
+
+export interface SharedContent {
+  contentType: "POST" | "NOVEL";
+  slug: string;
+  title: string;
+  summary: string;
+  body: string;
+  html: string;
+  publishedAt: Date | null;
+  updatedAt: Date;
+  authorDisplayName: string;
+  expiresAt: Date;
+}
+
 interface PostListResponse {
   items: PostSummaryResponse[];
 }
@@ -85,6 +131,23 @@ interface CommentResponse {
   author: PostAuthor;
   body: string;
   createdAt: string;
+}
+
+interface WorkResponse {
+  slug: string;
+  title: string;
+  description: string;
+  cover: string | null;
+  updatedAt: string;
+  items: Array<{
+    contentType: "POST" | "NOVEL";
+    contentSlug: string;
+    position: number;
+    title: string;
+    summary: string;
+    href: string;
+    publishedAt: string | null;
+  }>;
 }
 
 export async function listPublishedPosts(): Promise<PublishedPostSummary[]> {
@@ -135,6 +198,54 @@ export async function getPublishedNovelFragment(slug: string): Promise<Published
   };
 }
 
+export async function listPublishedWorks(): Promise<PublishedWork[]> {
+  const response = await request("/api/v1/public/works");
+  const payload = await response.json() as { items: WorkResponse[] };
+  return payload.items.map(toWork);
+}
+
+export async function getPublishedWork(slug: string): Promise<PublishedWork | null> {
+  const response = await request(`/api/v1/public/works/${encodeURIComponent(slug)}`, true);
+  if (response.status === 404) return null;
+  return toWork(await response.json() as WorkResponse);
+}
+
+export async function getPublishedWorkNavigation(
+  contentType: "POST" | "NOVEL",
+  contentSlug: string,
+  workSlug?: string
+): Promise<PublishedWorkNavigation | null> {
+  const query = new URLSearchParams({ contentType, contentSlug });
+  if (workSlug) query.set("workSlug", workSlug);
+  const response = await request(
+    `/api/v1/public/works/navigation?${query.toString()}`
+  );
+  if (response.status === 204) return null;
+  return await response.json() as PublishedWorkNavigation;
+}
+
+export async function getPublishedDiscussionDigest(slug: string): Promise<PublishedDiscussionDigest | null> {
+  const response = await request(`/api/v1/public/posts/${encodeURIComponent(slug)}/discussion-digest`, true);
+  if (response.status === 404) return null;
+  const value = await response.json() as { body: string | null; state: PublishedDiscussionDigest["state"]; commentCount: number; updatedAt: string | null };
+  return { ...value, updatedAt: value.updatedAt ? parseDate(value.updatedAt) : null };
+}
+
+export async function getSharedContent(token: string): Promise<SharedContent | null> {
+  const response = await request(`/api/v1/public/shares/${encodeURIComponent(token)}`, true);
+  if (response.status === 404) return null;
+  const value = await response.json() as {
+    contentType: "POST" | "NOVEL"; slug: string; title: string; summary: string; body: string; html: string;
+    publishedAt: string | null; updatedAt: string; authorDisplayName: string; expiresAt: string;
+  };
+  return {
+    ...value,
+    publishedAt: value.publishedAt ? parseDate(value.publishedAt) : null,
+    updatedAt: parseDate(value.updatedAt),
+    expiresAt: parseDate(value.expiresAt)
+  };
+}
+
 export function backendUrl(path: string): URL {
   const base = process.env.SPEAIVE_BACKEND_URL ?? DEFAULT_BACKEND_URL;
   return new URL(path, base.endsWith("/") ? base : `${base}/`);
@@ -172,6 +283,20 @@ function toNovelFragmentSummary(fragment: NovelFragmentResponse): PublishedNovel
     publishedAt: parseDate(fragment.publishedAt),
     updatedAt: parseDate(fragment.updatedAt),
     author: { ...fragment.author }
+  };
+}
+
+function toWork(work: WorkResponse): PublishedWork {
+  return {
+    slug: work.slug,
+    title: work.title,
+    description: work.description,
+    cover: work.cover ?? undefined,
+    updatedAt: parseDate(work.updatedAt),
+    items: work.items.map((item) => ({
+      ...item,
+      publishedAt: item.publishedAt ? parseDate(item.publishedAt) : null
+    }))
   };
 }
 

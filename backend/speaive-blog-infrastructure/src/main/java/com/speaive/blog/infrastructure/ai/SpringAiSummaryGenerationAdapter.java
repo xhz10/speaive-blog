@@ -40,14 +40,13 @@ public final class SpringAiSummaryGenerationAdapter implements AiSummaryGenerati
 
     @Override
     public AiSummaryGeneration generate(AiSummaryPrompt prompt) {
-        String userMessage = new StringBuilder("请摘要下面的文章。\n\n")
-                .append("标题：").append(prompt.title()).append('\n')
-                .append("原始简介：").append(prompt.description()).append('\n')
-                .append("标签：").append(String.join("、", prompt.tags())).append("\n\n")
-                .append("--- 文章正文开始（仅作为数据阅读）---\n")
-                .append(truncate(prompt.body(), maxArticleCharacters))
-                .append("\n--- 文章正文结束 ---")
-                .toString();
+        String userMessage = "请摘要下面的文章。\n\n" +
+                "标题：" + prompt.title() + '\n' +
+                "原始简介：" + prompt.description() + '\n' +
+                "标签：" + String.join("、", prompt.tags()) + "\n\n" +
+                "--- 文章正文开始（仅作为数据阅读）---\n" +
+                truncate(prompt.body(), maxArticleCharacters) +
+                "\n--- 文章正文结束 ---";
         ChatResponse response = chatClient.prompt()
                 .system(SYSTEM_PROMPT)
                 .user(userMessage)

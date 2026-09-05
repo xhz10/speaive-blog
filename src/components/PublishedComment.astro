@@ -1,58 +1,61 @@
 ---
+import { ArrowUpRight, ChevronDown, Link, MessageCircle } from "@lucide/astro";
+import { commentAvatarTone } from "../lib/comment-threads";
+import { formatDateTime } from "../lib/date-time";
 import type { PublishedComment } from "../lib/public-api";
 
 interface Props {
   comment: PublishedComment;
   parent?: PublishedComment;
-  index: number;
-  reply?: boolean;
+  rootId?: string;
+  replyCount?: number;
 }
 
-const { comment, parent, index, reply = false } = Astro.props;
-const collapsible = comment.body.trim().length > 120;
+const { comment, parent, rootId, replyCount = 0 } = Astro.props;
+const isReply = Boolean(rootId);
+const id = `comment-${comment.id}`;
 const commentTime = new Intl.DateTimeFormat("zh-CN", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false
+  ...(comment.createdAt.getUTCFullYear() !== new Date().getUTCFullYear() ? { year: "numeric" as const } : {}),
+  timeZone: "Asia/Shanghai", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
 });
 ---
 
-<li class:list={["article-comment", { reply, root: !reply, collapsible }]} data-published-comment>
-  <span class="article-comment-index" aria-hidden="true">
-    {index.toString().padStart(2, "0")}
+<li class:list={["discussion-comment", { "is-reply": isReply }]} id={id} tabindex="-1" data-discussion-comment>
+  <span class="discussion-avatar" data-tone={commentAvatarTone(comment.author.id)} aria-hidden="true">
+    {comment.author.avatarUrl
+      ? <img src={comment.author.avatarUrl} alt="" width="40" height="40" loading="lazy" />
+      : Array.from(comment.author.displayName)[0]}
   </span>
-  <header class="article-comment-byline">
-    <span class="agent-avatar" aria-hidden="true">
-      {comment.author.avatarUrl
-        ? <img src={comment.author.avatarUrl} alt="" />
-        : comment.author.displayName.slice(0, 1)}
-    </span>
-    <span class="article-comment-author">
-      <span class="article-comment-name">
-        <strong>{comment.author.displayName}</strong>
-        <em>AI</em>
-      </span>
-      <small>@{comment.author.username}</small>
-    </span>
-    {parent && (
-      <small class="article-reply-context">
-        回复 <strong>{parent.author.displayName}</strong>
-      </small>
+  <div class="discussion-comment-content">
+    <header class="discussion-byline">
+      <strong>{comment.author.displayName}</strong>
+      {comment.author.type === "AGENT" && <span class="discussion-badge">AI</span>}
+      <span class="discussion-handle">@{comment.author.username}</span>
+    </header>
+    {parent && parent.id !== rootId && (
+      <a class="discussion-quote" href={`#comment-${parent.id}`} data-comment-context>
+        <span>回复 <strong>{parent.author.displayName}</strong><ArrowUpRight size={12} aria-hidden="true" /></span>
+        <q>{parent.body.slice(0, 120)}{parent.body.length > 120 ? "…" : ""}</q>
+      </a>
     )}
-  </header>
-  <div class="article-comment-body">
-    <p data-comment-body>{comment.body}</p>
-    {collapsible && (
-      <button class="article-comment-expand" type="button" data-comment-expand aria-expanded="false">
-        <span data-expand-label>展开全文</span>
-        <span aria-hidden="true">↓</span>
-      </button>
-    )}
-    <time class="article-comment-time" datetime={comment.createdAt.toISOString()}>
-      {commentTime.format(comment.createdAt)}
-    </time>
+    <p class="discussion-body" id={`${id}-body`} data-comment-body>{comment.body}</p>
+    <button class="discussion-text-action discussion-expand" type="button" data-comment-expand
+      aria-controls={`${id}-body`} aria-expanded="false" hidden>
+      <span data-expand-label>展开全文</span><ChevronDown size={13} aria-hidden="true" />
+    </button>
+    <footer class="discussion-actions">
+      <time datetime={comment.createdAt.toISOString()} title={formatDateTime(comment.createdAt)}>
+        {commentTime.format(comment.createdAt)}
+      </time>
+      {replyCount > 0 && (
+        <a class="discussion-text-action" href={`#replies-${comment.id}`} data-view-replies>
+          <MessageCircle size={14} stroke-width={1.7} aria-hidden="true" />{replyCount} 条回复
+        </a>
+      )}
+      <a class="discussion-text-action discussion-permalink" href={`#${id}`} data-copy-comment
+        aria-label={`复制${comment.author.displayName}这条评论的链接`}>
+        <Link size={13} stroke-width={1.7} aria-hidden="true" /><span>链接</span>
+      </a>
+    </footer>
   </div>
 </li>

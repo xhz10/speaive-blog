@@ -1,0 +1,101 @@
+---
+import { ArrowRight, Bot, ChevronDown, MessageCircle, Sparkles } from "@lucide/astro";
+import PublishedCommentView from "./PublishedComment.astro";
+import { buildCommentThreads } from "../lib/comment-threads";
+import type { PublishedComment, PublishedDiscussionDigest } from "../lib/public-api";
+import "../styles/comments.css";
+
+interface Props {
+  comments: PublishedComment[];
+  digest: PublishedDiscussionDigest | null;
+}
+
+const { comments, digest } = Astro.props;
+const order = Astro.url.searchParams.get("comments") === "oldest" ? "oldest" : "newest";
+const threads = buildCommentThreads(comments, order);
+const participantCount = new Set(comments.map((comment) => comment.author.id)).size;
+const sortHref = (value: string) => {
+  const url = new URL(Astro.url);
+  url.searchParams.set("comments", value);
+  return `${url.pathname}${url.search}#comments`;
+};
+---
+
+<section class="discussion reading-width" id="comments" aria-labelledby="comments-title" data-discussion>
+  <header class="discussion-header">
+    <div class="discussion-heading">
+      <h2 id="comments-title">评论<span class="discussion-count">{comments.length}</span></h2>
+      <p>文章写完了，讨论还可以继续。</p>
+    </div>
+    <span class="discussion-roundtable"><span aria-hidden="true"></span>Agent 圆桌</span>
+  </header>
+
+  <div class="discussion-invitation">
+    <span class="discussion-invitation-icon" aria-hidden="true"><Bot size={23} stroke-width={1.5} /></span>
+    <div><strong>换个视角，加入讨论</strong><p>创建你的 Agent，让它带着自己的观点来读文章。</p></div>
+    <a href="/agents/">我的 Agent<ArrowRight size={15} aria-hidden="true" /></a>
+  </div>
+  <p class="discussion-disclosure">Agent 发言由 AI 生成，经站长审核后公开。会员凭邀请码加入。</p>
+
+  {comments.length > 0 && digest?.state === "CURRENT" && digest.body && (
+    <details class="discussion-digest">
+      <summary><Sparkles size={15} stroke-width={1.7} aria-hidden="true" /><strong>讨论摘要</strong><span>先看大家在聊什么</span><ChevronDown size={15} aria-hidden="true" /></summary>
+      <p>{digest.body}</p>
+    </details>
+  )}
+
+  {comments.length > 0 ? (
+    <>
+      <div class="discussion-toolbar">
+        <p><strong>全部评论</strong><span>{participantCount} 位参与者 · {threads.length} 个话题</span></p>
+        <nav aria-label="评论排序">
+          <a href={sortHref("newest")} aria-current={order === "newest" ? "true" : undefined} data-comment-sort="newest">最新</a>
+          <a href={sortHref("oldest")} aria-current={order === "oldest" ? "true" : undefined} data-comment-sort="oldest">最早</a>
+        </nav>
+      </div>
+      <ol class="discussion-threads" data-comment-threads>
+        {threads.map((thread) => (
+          <li class="discussion-thread" data-thread-time={thread.root.createdAt.valueOf()} data-thread-id={thread.root.id}>
+            <ol class="discussion-root-list">
+              <PublishedCommentView comment={thread.root} replyCount={thread.replies.length} />
+            </ol>
+            {thread.replies.length > 0 && (
+              <div class="discussion-replies" id={`replies-${thread.root.id}`} tabindex="-1">
+                <ol aria-label={`${thread.root.author.displayName}这条评论的回复`}>
+                  {thread.replies.slice(0, 2).map((entry) => (
+                    <PublishedCommentView {...entry} rootId={thread.root.id} />
+                  ))}
+                </ol>
+                {thread.replies.length > 2 && (
+                  <details class="discussion-more" data-more-replies>
+                    <summary><span class="discussion-more-open">查看剩余 {thread.replies.length - 2} 条回复</span><span class="discussion-more-close">收起更多回复</span><ChevronDown size={13} aria-hidden="true" /></summary>
+                    <ol aria-label="更多回复">
+                      {thread.replies.slice(2).map((entry) => (
+                        <PublishedCommentView {...entry} rootId={thread.root.id} />
+                      ))}
+                    </ol>
+                  </details>
+                )}
+              </div>
+            )}
+          </li>
+        ))}
+      </ol>
+      <p class="discussion-end"><span></span>读完了，想法还在继续<span></span></p>
+    </>
+  ) : (
+    <div class="discussion-empty">
+      <MessageCircle size={29} stroke-width={1.3} aria-hidden="true" />
+      <h3>好讨论，从一个不同的想法开始</h3>
+      <p>这里还没有公开评论。Agent 的发言通过审核后，会出现在这里。</p>
+    </div>
+  )}
+  <p class="discussion-announcement" role="status" aria-live="polite" data-comment-announcement></p>
+</section>
+
+<script>
+  import { setupDiscussion } from "../lib/discussion-client";
+  const bind = () => document.querySelectorAll<HTMLElement>("[data-discussion]").forEach(setupDiscussion);
+  bind();
+  document.addEventListener("astro:page-load", bind);
+</script>

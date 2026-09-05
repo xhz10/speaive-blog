@@ -1,6 +1,7 @@
 ---
 import { BookOpenText, RotateCcw, Sparkles, UsersRound } from "@lucide/astro";
 import type { StudioPostDetail } from "../lib/studio/types";
+import "../styles/studio-comments.css";
 
 interface Props {
   post?: StudioPostDetail;
@@ -9,7 +10,7 @@ interface Props {
 const { post } = Astro.props;
 ---
 
-<section class="ai-comment-panel" data-ai-comment-panel data-initial-slug={post?.slug ?? ""}>
+<section class="ai-comment-panel" id="agent-comments" data-ai-comment-panel data-initial-slug={post?.slug ?? ""}>
   <div class="ai-comment-head">
     <div>
       <p class="studio-kicker">AI Comments</p>
@@ -54,17 +55,19 @@ const { post } = Astro.props;
     <button class="button secondary" type="button" data-community-policy-toggle disabled>允许自动评论</button>
   </section>
 
-  <p class="notice" hidden data-ai-comment-notice></p>
+  <p class="notice" role="status" aria-live="polite" hidden data-ai-comment-notice></p>
   <div class="ai-agent-picker" data-ai-agent-picker>
     <p>{post ? "正在加载 Agent……" : "保存草稿后即可生成 Agent 评论。"}</p>
   </div>
-  <div class="ai-comment-review" data-ai-comment-list>
+  <div class="ai-review-summary" data-review-summary hidden></div>
+  <div class="ai-comment-review" data-ai-comment-list aria-label="评论审核列表">
     {post && <p class="agent-empty">正在加载评论……</p>}
   </div>
 </section>
 
 <script>
   import { studioRequest } from "../lib/studio/client";
+  import { buildCommentThreads } from "../lib/comment-threads";
   import type {
     AiSummaryCoverage,
     StudioAgent,
@@ -98,12 +101,19 @@ const { post } = Astro.props;
     let aiAvailable = false;
     let busy = false;
     let communityPolicy: PostCommunityPolicy | null = null;
+    let replyOpener: HTMLButtonElement | null = null;
+    let loaded = false;
 
     if (slug) void load();
     document.addEventListener("studio:post-saved", (event) => {
       const savedSlug = (event as CustomEvent<{ slug?: string }>).detail?.slug;
       if (savedSlug) slug = savedSlug;
-      if (slug) void Promise.all([refreshSummaryState(), refreshCommunityPolicy()]);
+      if (slug) {
+        if (!loaded) void load();
+        else void Promise.all([refreshSummaryState(), refreshCommunityPolicy()]).catch((error) => {
+          showNotice(error instanceof Error ? error.message : "评论状态刷新失败", true);
+        });
+      }
     });
 
     generateButton.addEventListener("click", () => void generateSelected());
@@ -111,8 +121,15 @@ const { post } = Astro.props;
     backfillButton.addEventListener("click", () => void backfillSummaries());
     communityToggle.addEventListener("click", () => void toggleCommunityPolicy());
     document.querySelector("[data-visibility]")?.addEventListener("change", renderCommunityPolicy);
+    list.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !busy) closeReplyComposer(true);
+    });
     list.addEventListener("click", (event) => {
       const target = event.target as HTMLElement;
+      if (target.closest("[data-cancel-reply]")) {
+        if (!busy) closeReplyComposer(true);
+        return;
+      }
       const replyButton = target.closest<HTMLButtonElement>("[data-generate-reply]");
       if (replyButton) {
         void generateReply(replyButton);
@@ -140,9 +157,16 @@ const { post } = Astro.props;
         aiAvailable = agentResult.aiAvailable;
         renderAgents();
         renderComments(commentResult.items);
+        const replyId = new URL(location.href).searchParams.get("reply");
+        const replyAction = replyId ? list.querySelector<HTMLButtonElement>(`[data-comment-action="reply"][data-comment-id="${CSS.escape(replyId)}"]`) : null;
+        if (replyAction) {
+          toggleReplyComposer(replyAction);
+          replyAction.closest("article")?.scrollIntoView({ block: "center" });
+        }
         renderSummary(summaryResult, coverageResult);
         communityPolicy = policyResult;
         renderCommunityPolicy();
+        loaded = true;
       } catch (error) {
         showNotice(error instanceof Error ? error.message : "AI 评论区域加载失败", true);
       }
@@ -185,17 +209,31 @@ const { post } = Astro.props;
 
     function renderComments(comments: StudioComment[]) {
       latestComments = comments;
+      closeReplyComposer();
       list.replaceChildren();
+      const summary = root.querySelector<HTMLElement>("[data-review-summary]")!;
+      summary.hidden = comments.length === 0;
+      summary.replaceChildren();
+      const title = document.createElement("strong");
+      title.textContent = `全部评论 ${comments.length}`;
+      const counts = document.createElement("span");
+      counts.textContent = `${comments.filter((comment) => comment.status === "PENDING").length} 条待审核 · ${comments.filter((comment) => comment.status === "PUBLISHED").length} 条已公开`;
+      summary.append(title, counts);
       if (comments.length === 0) {
         const empty = document.createElement("p");
         empty.className = "agent-empty";
-        empty.textContent = "还没有 Agent 评论。";
+        empty.textContent = "还没有评论。选择上方角色生成第一条发言，审核后即可公开，也可以安排其他角色接着回复。";
         list.append(empty);
         return;
       }
       const byId = new Map(comments.map((comment) => [comment.id, comment]));
-      for (const entry of flattenThread(comments)) {
-        list.append(createCommentCard(entry.comment, byId, entry.depth));
+      for (const thread of buildCommentThreads(comments)) {
+        const group = document.createElement("section");
+        group.className = "ai-review-thread";
+        group.setAttribute("aria-label", `${thread.root.author.displayName}发起的讨论`);
+        group.append(createCommentCard(thread.root, byId, 0));
+        for (const entry of thread.replies) group.append(createCommentCard(entry.comment, byId, 1));
+        list.append(group);
       }
     }
 
@@ -205,7 +243,9 @@ const { post } = Astro.props;
       depth: number
     ): HTMLElement {
       const article = document.createElement("article");
-      article.className = `ai-review-comment${comment.parentCommentId ? " reply" : " root"}`;
+      article.className = `ai-review-comment${depth ? " reply" : " root"}`;
+      article.id = `review-comment-${comment.id}`;
+      article.tabIndex = -1;
       article.dataset.commentId = comment.id;
       article.dataset.commentStatus = comment.status;
       article.style.setProperty("--comment-depth", String(Math.min(depth, 3)));
@@ -245,7 +285,10 @@ const { post } = Astro.props;
       if (parent) {
         relation = document.createElement("small");
         relation.className = "ai-reply-relation";
-        relation.textContent = `↳ 接着 ${parent.author.displayName} 的话`;
+        const context = document.createElement("a");
+        context.href = `#review-comment-${parent.id}`;
+        context.textContent = `回复 ${parent.author.displayName}：${parent.body.slice(0, 90)}${parent.body.length > 90 ? "…" : ""}`;
+        relation.append(context);
       }
       const body = document.createElement("p");
       body.textContent = comment.body;
@@ -269,28 +312,67 @@ const { post } = Astro.props;
       button.dataset.commentAction = action;
       button.dataset.commentId = id;
       button.textContent = label;
+      if (action === "reply") button.setAttribute("aria-expanded", "false");
       return button;
+    }
+
+    function closeReplyComposer(restoreFocus = false) {
+      list.querySelectorAll<HTMLElement>("[data-reply-composer]").forEach((composer) => composer.remove());
+      replyOpener?.setAttribute("aria-expanded", "false");
+      replyOpener?.removeAttribute("aria-controls");
+      if (restoreFocus) replyOpener?.focus();
+      replyOpener = null;
     }
 
     function toggleReplyComposer(button: HTMLButtonElement) {
       const id = button.dataset.commentId;
       const article = id ? list.querySelector<HTMLElement>(`[data-comment-id="${CSS.escape(id)}"]`) : null;
       if (!id || !article || busy) return;
-      const existing = article.querySelector<HTMLElement>("[data-reply-composer]");
-      list.querySelectorAll<HTMLElement>("[data-reply-composer]").forEach((composer) => composer.remove());
-      if (existing) return;
+      const wasOpen = button.getAttribute("aria-expanded") === "true";
+      closeReplyComposer();
+      if (wasOpen) return;
       const targetComment = latestComments.find((comment) => comment.id === id);
+      if (!targetComment) return;
+      replyOpener = button;
       const eligible = agents.filter((agent) => agent.enabled
-        && agent.id !== targetComment?.author.id
+        && agent.id !== targetComment.author.id
         && (currentVisibility() !== "ADMIN_ONLY" || agent.canProcessPrivate));
       const composer = document.createElement("div");
       composer.className = "ai-reply-composer";
       composer.dataset.replyComposer = "";
+      composer.id = `reply-composer-${id}`;
+      composer.setAttribute("role", "group");
+      composer.setAttribute("aria-labelledby", `reply-heading-${id}`);
+      button.setAttribute("aria-expanded", "true");
+      button.setAttribute("aria-controls", composer.id);
+      const heading = document.createElement("strong");
+      heading.id = `reply-heading-${id}`;
+      heading.className = "ai-reply-heading";
+      heading.textContent = `回复 ${targetComment.author.displayName}`;
+      const quote = document.createElement("blockquote");
+      quote.textContent = targetComment.body.slice(0, 220) + (targetComment.body.length > 220 ? "…" : "");
+      const status = document.createElement("p");
+      status.className = "ai-reply-feedback";
+      status.dataset.replyFeedback = "";
+      status.setAttribute("role", "status");
+      status.setAttribute("aria-live", "polite");
+      const controls = document.createElement("div");
+      controls.className = "ai-reply-controls";
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "button ghost";
+      cancel.dataset.cancelReply = "";
+      cancel.textContent = "取消";
+      composer.append(heading, quote);
       if (eligible.length === 0) {
-        composer.textContent = "没有可用于回复的其他 Agent。";
+        status.textContent = "没有可用于回复的其他角色，请先在 Agent 管理中启用一个符合文章权限的角色。";
       } else {
+        const label = document.createElement("label");
+        label.htmlFor = `reply-agent-${id}`;
+        label.textContent = "选择发言角色";
         const select = document.createElement("select");
-        select.setAttribute("aria-label", "选择回复角色");
+        select.id = label.htmlFor;
+        select.disabled = !aiAvailable;
         for (const agent of eligible) {
           const option = document.createElement("option");
           option.value = agent.id;
@@ -304,9 +386,14 @@ const { post } = Astro.props;
         submit.dataset.commentId = id;
         submit.textContent = "生成回复";
         submit.disabled = !aiAvailable;
-        composer.append(select, submit);
+        composer.append(label, select);
+        controls.append(submit);
+        status.textContent = aiAvailable ? "角色会参考原评论和文章上下文生成回复，通过审核后公开。" : "服务器尚未启用 AI，暂时无法生成回复。";
       }
+      controls.prepend(cancel);
+      composer.append(status, controls);
       article.append(composer);
+      (composer.querySelector<HTMLSelectElement>("select:not(:disabled)") ?? cancel).focus();
     }
 
     async function generateSelected() {
@@ -344,26 +431,39 @@ const { post } = Astro.props;
 
     async function generateReply(button: HTMLButtonElement) {
       const id = button.dataset.commentId;
-      const select = button.parentElement?.querySelector<HTMLSelectElement>("select");
-      if (!id || !select?.value || busy) return;
+      const composer = button.closest<HTMLElement>("[data-reply-composer]");
+      const select = composer?.querySelector<HTMLSelectElement>("select");
+      const feedback = composer?.querySelector<HTMLElement>("[data-reply-feedback]");
+      if (!id || !select?.value || !feedback || busy || !aiAvailable) return;
       if (editorIsDirty()) {
-        showNotice("请先保存当前文章修改，再生成回复。", true);
+        feedback.textContent = "请先保存当前文章修改，再生成回复。";
+        feedback.classList.add("error");
         return;
       }
       setBusy(true);
       button.textContent = "正在生成……";
+      feedback.classList.remove("error");
+      feedback.textContent = "角色正在阅读上下文并组织回复，请稍候……";
+      composer?.setAttribute("aria-busy", "true");
       try {
-        await studioRequest<StudioComment>(`/studio/comments/${encodeURIComponent(id)}/ai-replies`, {
+        const generated = await studioRequest<StudioComment>(`/studio/comments/${encodeURIComponent(id)}/ai-replies`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ agentId: select.value })
         });
-        showNotice("Agent 回复已生成，发布父评论后再按顺序审核回复。 ");
-        await refreshComments();
+        showNotice("回复已生成并进入待审核。请先公开父评论，再公开这条回复。");
+        renderComments([...latestComments.filter((comment) => comment.id !== generated.id), generated]);
+        const generatedCard = document.getElementById(`review-comment-${generated.id}`);
+        generatedCard?.focus({ preventScroll: true });
+        generatedCard?.scrollIntoView({ block: "center" });
       } catch (error) {
-        showNotice(error instanceof Error ? error.message : "回复生成失败", true);
+        feedback.textContent = error instanceof Error ? error.message : "回复生成失败，请重试。";
+        feedback.classList.add("error");
       } finally {
+        button.textContent = "生成回复";
+        composer?.setAttribute("aria-busy", "false");
         setBusy(false);
+        if (button.isConnected) button.focus();
       }
     }
 
@@ -503,34 +603,9 @@ const { post } = Astro.props;
       return `公开文章摘要库：${coverage.current}/${coverage.total} 已同步${remaining ? `，还有 ${remaining} 篇待补齐` : ""}`;
     }
 
-    function flattenThread(comments: StudioComment[]) {
-      const byId = new Map(comments.map((comment) => [comment.id, comment]));
-      const children = new Map<string, StudioComment[]>();
-      const roots: StudioComment[] = [];
-      for (const comment of comments) {
-        if (comment.parentCommentId && byId.has(comment.parentCommentId)) {
-          const siblings = children.get(comment.parentCommentId) ?? [];
-          siblings.push(comment);
-          children.set(comment.parentCommentId, siblings);
-        } else {
-          roots.push(comment);
-        }
-      }
-      const result: Array<{ comment: StudioComment; depth: number }> = [];
-      const visited = new Set<string>();
-      const visit = (comment: StudioComment, depth: number) => {
-        if (visited.has(comment.id)) return;
-        visited.add(comment.id);
-        result.push({ comment, depth: Math.min(depth, 3) });
-        for (const child of children.get(comment.id) ?? []) visit(child, depth + 1);
-      };
-      for (const rootComment of roots) visit(rootComment, 0);
-      for (const comment of comments) visit(comment, 0);
-      return result;
-    }
-
     function formatCommentTime(value: string): string {
       return new Intl.DateTimeFormat("zh-CN", {
+        timeZone: "Asia/Shanghai",
         month: "numeric",
         day: "numeric",
         hour: "2-digit",
@@ -541,8 +616,10 @@ const { post } = Astro.props;
     function setBusy(value: boolean) {
       busy = value;
       syncButtons();
-      root.querySelectorAll<HTMLButtonElement>("[data-comment-action], [data-generate-reply]")
+      root.querySelectorAll<HTMLButtonElement>("[data-comment-action], [data-cancel-reply]")
         .forEach((button) => { button.disabled = value; });
+      root.querySelectorAll<HTMLButtonElement | HTMLSelectElement>("[data-generate-reply], [data-reply-composer] select")
+        .forEach((control) => { control.disabled = value || !aiAvailable; });
     }
 
     function syncButtons() {

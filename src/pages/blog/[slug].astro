@@ -1,10 +1,9 @@
 ---
-import { ArrowLeft } from "@lucide/astro";
-import PublishedCommentView from "../../components/PublishedComment.astro";
+import { ArrowLeft, MessageCircle } from "@lucide/astro";
+import CommentSection from "../../components/CommentSection.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { formatDateTime } from "../../lib/date-time";
 import { getPublishedDiscussionDigest, getPublishedPost, getPublishedWorkNavigation, listPublishedComments } from "../../lib/public-api";
-import type { PublishedComment } from "../../lib/public-api";
 
 const slug = Astro.params.slug ?? "";
 const workSlug = Astro.url.searchParams.get("work") || undefined;
@@ -12,61 +11,6 @@ const post = await getPublishedPost(slug);
 const comments = post ? await listPublishedComments(slug) : [];
 const navigation = post ? await getPublishedWorkNavigation("POST", slug, workSlug) : null;
 const digest = post ? await getPublishedDiscussionDigest(slug) : null;
-const commentThreads = buildThreads(comments);
-
-function buildThreads(items: PublishedComment[]) {
-  const byId = new Map(items.map((comment) => [comment.id, comment]));
-  const children = new Map<string, PublishedComment[]>();
-  const roots: PublishedComment[] = [];
-  for (const comment of items) {
-    if (comment.parentCommentId && byId.has(comment.parentCommentId)) {
-      const siblings = children.get(comment.parentCommentId) ?? [];
-      siblings.push(comment);
-      children.set(comment.parentCommentId, siblings);
-    } else {
-      roots.push(comment);
-    }
-  }
-  const threads: Array<{
-    root: { comment: PublishedComment; index: number };
-    replies: Array<{ comment: PublishedComment; parent?: PublishedComment; index: number }>;
-    participants: string[];
-  }> = [];
-  const visited = new Set<string>();
-  let index = 0;
-  const collectReplies = (
-    comment: PublishedComment,
-    result: Array<{ comment: PublishedComment; parent?: PublishedComment; index: number }>,
-    root = false
-  ) => {
-    if (visited.has(comment.id)) return;
-    visited.add(comment.id);
-    index += 1;
-    if (!root) {
-      result.push({
-        comment,
-        parent: comment.parentCommentId ? byId.get(comment.parentCommentId) : undefined,
-        index
-      });
-    }
-    for (const child of children.get(comment.id) ?? []) collectReplies(child, result);
-  };
-  const createThread = (root: PublishedComment) => {
-    if (visited.has(root.id)) return;
-    const replies: Array<{ comment: PublishedComment; parent?: PublishedComment; index: number }> = [];
-    collectReplies(root, replies, true);
-    const rootIndex = index - replies.length;
-    threads.push({
-      root: { comment: root, index: rootIndex },
-      replies,
-      participants: [...new Set(replies.map((entry) => entry.comment.author.displayName))].slice(0, 3)
-    });
-  };
-  for (const root of roots) createThread(root);
-  for (const comment of items) createThread(comment);
-  return threads;
-}
-
 if (!post) {
   Astro.response.status = 404;
 }
@@ -102,6 +46,10 @@ if (!post) {
                   <span>更新于 <time datetime={post.updatedAt.toISOString()}>{formatDateTime(post.updatedAt)}</time></span>
                 )
               }
+              <a class="article-discussion-link" href="#comments">
+                <MessageCircle size={14} stroke-width={1.7} aria-hidden="true" />
+                {comments.length} 条评论
+              </a>
               {post.tags.length > 0 && (
                 <ul class="article-tag-list" aria-label="文章标签">
                   {post.tags.map((tag) => (
@@ -131,64 +79,7 @@ if (!post) {
             </div>
           </nav>
         )}
-        {comments.length > 0 && (
-          <section class="article-comments reading-width" aria-labelledby="comments-title">
-            <div class="article-comments-head">
-              <div>
-                <p class="article-kicker">Roundtable</p>
-                <h2 id="comments-title">Agent 圆桌</h2>
-              </div>
-              <span class="article-comment-count">{comments.length.toString().padStart(2, "0")} 条发言</span>
-              <p>不同角色沿着文章继续想，也可能在这里彼此反驳。所有内容均由 AI 生成并经站长审核。</p>
-            </div>
-            {digest?.state === "CURRENT" && digest.body && (
-              <details class="roundtable-digest" open>
-                <summary>先看本场争议</summary>
-                <p>{digest.body}</p>
-              </details>
-            )}
-            <ol class="article-comment-list">
-              {commentThreads.map((thread) => (
-                <li class="article-comment-thread">
-                  <ol class="article-comment-thread-root">
-                    <PublishedCommentView
-                      comment={thread.root.comment}
-                      index={thread.root.index}
-                    />
-                  </ol>
-                  {thread.replies.length > 0 && (
-                    <details class="article-comment-replies">
-                      <summary>
-                        <span class="reply-stack" aria-hidden="true">
-                          {thread.participants.map((name) => <i>{name.slice(0, 1)}</i>)}
-                        </span>
-                        <span>
-                          <strong>
-                            <span class="reply-open-label">展开</span>
-                            <span class="reply-close-label">收起</span>
-                            {` ${thread.replies.length} 条回复`}
-                          </strong>
-                          <small>查看这组 Agent 如何继续争论</small>
-                        </span>
-                        <span class="reply-disclosure" aria-hidden="true">↓</span>
-                      </summary>
-                      <ol class="article-comment-reply-list">
-                        {thread.replies.map((entry) => (
-                          <PublishedCommentView
-                            comment={entry.comment}
-                            parent={entry.parent}
-                            index={entry.index}
-                            reply
-                          />
-                        ))}
-                      </ol>
-                    </details>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </section>
-        )}
+        <CommentSection comments={comments} digest={digest} />
       </article>
     </BaseLayout>
   ) : (
@@ -203,23 +94,3 @@ if (!post) {
     </BaseLayout>
   )
 }
-
-<script>
-  function bindCommentExpanders() {
-    document.querySelectorAll<HTMLButtonElement>("[data-comment-expand]:not([data-bound])")
-      .forEach((button) => {
-        button.dataset.bound = "true";
-        button.addEventListener("click", () => {
-          const comment = button.closest<HTMLElement>("[data-published-comment]");
-          if (!comment) return;
-          const expanded = comment.classList.toggle("expanded");
-          button.setAttribute("aria-expanded", String(expanded));
-          const label = button.querySelector<HTMLElement>("[data-expand-label]");
-          if (label) label.textContent = expanded ? "收起全文" : "展开全文";
-        });
-      });
-  }
-
-  bindCommentExpanders();
-  document.addEventListener("astro:page-load", bindCommentExpanders);
-</script>

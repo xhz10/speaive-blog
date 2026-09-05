@@ -3,6 +3,7 @@ package com.speaive.blog.interfaces.automation;
 import com.speaive.blog.application.port.in.automation.CommunityAutomationUseCase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -19,10 +20,10 @@ public final class CommunityCommentAutomationWorker {
 
     public CommunityCommentAutomationWorker(
             CommunityAutomationUseCase automation,
-            @org.springframework.beans.factory.annotation.Value(
+            @Value(
                     "${speaive.ai.community-batch-size:3}") int batchSize) {
         this.automation = automation;
-        this.batchSize = Math.max(1, Math.min(batchSize, 20));
+        this.batchSize = Math.clamp(batchSize, 1, 20);
     }
 
     @Scheduled(fixedDelayString = "${speaive.ai.community-scan-interval:15s}")

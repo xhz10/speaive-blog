@@ -421,7 +421,7 @@ const { post } = Astro.props;
         showNotice(`${succeeded.size} 条评论已生成，审核后再发布。${details.length ? ` ${details.join("；")}。失败角色已保留勾选，可重试。` : ""}`, failures.length > 0);
         await Promise.all([refreshComments(), refreshSummaryState()]);
       } catch (error) {
-        showNotice(error instanceof Error ? error.message : "批量生成失败，请刷新查看已生成的评论后重试。", true);
+        showNotice(`${error instanceof Error ? error.message : "批量生成失败"}。请刷新评论列表确认已生成结果后再重试。`, true);
       } finally {
         setBusy(false);
         generateLabel.textContent = "生成评论";

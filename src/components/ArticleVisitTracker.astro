@@ -13,7 +13,12 @@ const { slug } = Astro.props;
     recorded = true;
     // 每次实际打开页面生成一个事件 ID；统计独立于正文，不影响阅读与评论。
     try {
-      const eventId = crypto.randomUUID();
+      // getRandomValues 也可用于普通 HTTP 的自托管站点；randomUUID 在部分浏览器仅限安全上下文。
+      const bytes = crypto.getRandomValues(new Uint8Array(16));
+      bytes[6] = (bytes[6]! & 15) | 64;
+      bytes[8] = (bytes[8]! & 63) | 128;
+      const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+      const eventId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
       const uaData = (navigator as HintNavigator).userAgentData;
       const hints = await Promise.race([
         uaData?.getHighEntropyValues(["model"]).catch(() => ({} as Hints)) ?? Promise.resolve({} as Hints),

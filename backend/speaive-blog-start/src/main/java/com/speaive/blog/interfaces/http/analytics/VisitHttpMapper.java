@@ -12,6 +12,8 @@ import org.mapstruct.ReportingPolicy;
 interface VisitHttpMapper {
     @Mapping(target = "referrerHost", source = "request.referrerHost", defaultValue = "")
     RecordArticleVisitCommand toCommand(VisitRequests.RecordVisit request, String ip, String userAgent);
+    @org.mapstruct.BeanMapping(nullValueMappingStrategy = org.mapstruct.NullValueMappingStrategy.RETURN_DEFAULT)
+    com.speaive.blog.application.query.analytics.VisitAnalyticsQuery toQuery(int days, int page, int pageSize, String postId);
     VisitResponses.Overview toResponse(VisitAnalyticsResult result);
     VisitResponses.Visit toResponse(VisitAnalyticsResult.Visit result);
     VisitResponses.Count toResponse(VisitAnalyticsResult.Count result);

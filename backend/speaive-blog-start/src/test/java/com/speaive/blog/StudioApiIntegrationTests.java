@@ -107,6 +107,9 @@ class StudioApiIntegrationTests {
     private final MarkdownInboxUseCase inboxImports;
     private final CommunityAutomationUseCase communityAutomation;
 
+    @Autowired
+    com.speaive.blog.application.port.in.analytics.VisitAnalyticsUseCase visitAnalytics;
+
     @MockitoBean
     AiCommentGenerationPort aiComments;
 
@@ -1739,6 +1742,34 @@ class StudioApiIntegrationTests {
         mockMvc.perform(get("/api/v1/studio/analytics?pageSize=101").session(admin.session())).andExpect(status().isBadRequest());
         posts.archive(published.slug(), published.version());
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM blog_article_visit", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void analyticsKeepsFiltersPaginationBotExclusionAndRetentionConsistent() throws Exception {
+        var first = posts.createDraft(command("visit-first", "第一篇"));
+        var second = posts.createDraft(command("visit-second", "第二篇"));
+        for (int n = 0; n < 4; n++) {
+            jdbc.update("""
+                    INSERT INTO blog_article_visit (id, post_id, post_slug, post_title, visited_at, ip, visitor_key,
+                        device_type, device_model, operating_system, browser, location, referrer_host)
+                    VALUES (?, ?, ?, ?, ?, '127.0.0.1', ?, ?, '', '', '', '本地 / 内网', '')
+                    """, java.util.UUID.randomUUID().toString(), n == 1 ? "second-id" : "first-id",
+                    n == 1 ? second.slug() : first.slug(), n == 1 ? "第二篇" : "第一篇",
+                    java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(n == 3 ? 91 : 0))),
+                    "visitor-" + n, n == 2 ? "BOT" : "DESKTOP");
+        }
+        Client admin = login();
+        mockMvc.perform(get("/api/v1/studio/analytics?pageSize=1&page=2").session(admin.session()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.pageViews").value(2))
+                .andExpect(jsonPath("$.visitors").value(2)).andExpect(jsonPath("$.articles").value(2))
+                .andExpect(jsonPath("$.items", hasSize(1))).andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.devices[0].count").value(2));
+        mockMvc.perform(get("/api/v1/studio/analytics?postId=first-id").session(admin.session()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.pageViews").value(1))
+                .andExpect(jsonPath("$.items[0].postTitle").value("第一篇"))
+                .andExpect(jsonPath("$.topArticles", hasSize(1)));
+        visitAnalytics.purgeExpired();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM blog_article_visit", Integer.class)).isEqualTo(3);
     }
 
     private Client login() throws Exception {

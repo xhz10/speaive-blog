@@ -1,7 +1,6 @@
 package com.speaive.blog.interfaces.http.analytics;
 
 import com.speaive.blog.application.port.in.analytics.VisitAnalyticsUseCase;
-import com.speaive.blog.application.query.analytics.VisitAnalyticsQuery;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +17,6 @@ public class StudioVisitController {
             @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "25") int pageSize,
             @RequestParam(required = false) String postId) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(mapping.toResponse(visits.overview(new VisitAnalyticsQuery(days, page, pageSize, postId))));
+                .body(mapping.toResponse(visits.overview(mapping.toQuery(days, page, pageSize, postId))));
     }
 }

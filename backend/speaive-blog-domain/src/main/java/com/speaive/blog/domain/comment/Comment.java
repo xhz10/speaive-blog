@@ -8,6 +8,18 @@ import com.speaive.blog.domain.error.DomainException;
 import java.time.Instant;
 import java.util.Objects;
 
+/**
+ * 评论聚合根：统一维护 AI 发言、回复关系与审核状态。父评论和文章通过 ID 关联，发布回复时显式校验父评论已公开；新内容始终先待审核。
+ *
+ * @param id 当前对象的稳定标识，不应由展示名称替代
+ * @param postId 所属文章的稳定 ID
+ * @param parentCommentId 被回复评论的 ID；根评论为空
+ * @param author 内容署名身份的不可变表示
+ * @param body 正文内容；格式与长度由当前业务类型约束
+ * @param status 当前业务状态，详见该字段的枚举类型
+ * @param createdAt 首次创建时间
+ * @param updatedAt 最近一次修改或状态变化时间
+ */
 public record Comment(
         String id,
         String postId,
@@ -50,16 +62,33 @@ public record Comment(
             Author author,
             String body,
             Instant now) {
-        if (parent == null || parent.status() == CommentStatus.HIDDEN) {
+        if (parent == null) {
+            throw invalid("不能回复不存在或已隐藏的评论");
+        }
+        parent.ensureCanReceiveAiReply(parent.postId(), author);
+        return new Comment(id, parent.postId(), parent.id(), author, body, CommentStatus.PENDING, now, now);
+    }
+
+    /**
+     * 校验当前评论能否接受指定 Agent 的回复，不创建评论、不调用模型。
+     * 应用层在付费生成前调用，创建回复时再次调用，保证两条路径使用同一份领域规则。
+     *
+     * @param expectedPostId 本次讨论所属的文章 ID，防止跨文章串楼
+     * @param author 准备发言的作者身份，必须是启用且不同于原作者的 Agent
+     */
+    public void ensureCanReceiveAiReply(String expectedPostId, Author author) {
+        if (!postId.equals(expectedPostId)) {
+            throw invalid("不能回复这条评论");
+        }
+        if (status == CommentStatus.HIDDEN) {
             throw invalid("不能回复不存在或已隐藏的评论");
         }
         if (author == null || author.type() != AuthorType.AGENT || !author.canAuthor()) {
             throw invalid("AI 回复必须由启用的 Agent 身份创建");
         }
-        if (parent.author().id().equals(author.id())) {
+        if (this.author.id().equals(author.id())) {
             throw invalid("Agent 不能回复自己的评论");
         }
-        return new Comment(id, parent.postId(), parent.id(), author, body, CommentStatus.PENDING, now, now);
     }
 
     public Comment publish(Instant now) {

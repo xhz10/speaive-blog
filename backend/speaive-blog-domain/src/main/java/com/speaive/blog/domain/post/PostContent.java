@@ -9,6 +9,16 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+/**
+ * 文章内容值对象，封装标题、摘要、计划展示的发布时间、标签、封面与 Markdown 正文的校验和规范化。它不包含生命周期状态或数据库字段。
+ *
+ * @param title 标题
+ * @param description 文章或作品集简介
+ * @param publishedAt 内容展示的发布时间；不能仅据此判断是否公开
+ * @param tags 主题标签列表
+ * @param cover 封面地址，未配置时可为空
+ * @param body 正文内容；格式与长度由当前业务类型约束
+ */
 public record PostContent(
         String title,
         String description,

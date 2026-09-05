@@ -1,7 +1,18 @@
 package com.speaive.blog;
 
+import com.speaive.blog.application.service.VisitAnalyticsApplicationService;
+import com.speaive.blog.application.port.out.analytics.VisitorContextPort;
+import com.speaive.blog.application.port.out.persistence.ArticleVisitRepository;
+import com.speaive.blog.infrastructure.analytics.LocalVisitorContextAdapter;
+import com.speaive.blog.infrastructure.content.persistence.mapping.ArticleVisitPersistenceMapper;
+import com.speaive.blog.infrastructure.content.persistence.repository.PostgresArticleVisitRepository;
+import com.speaive.blog.interfaces.http.analytics.VisitRequestGuard;
+import org.springframework.jdbc.core.JdbcTemplate;
 import com.speaive.blog.application.port.in.importing.MarkdownInboxUseCase;
 import com.speaive.blog.application.port.in.comment.CommentUseCase;
+import com.speaive.blog.application.port.out.ai.AiGenerationTaskRunner;
+import com.speaive.blog.application.service.CommentBatchApplicationService;
+import com.speaive.blog.infrastructure.ai.VirtualThreadAiGenerationTaskRunner;
 import com.speaive.blog.application.port.out.ai.AiCommentGenerationPort;
 import com.speaive.blog.application.port.out.ai.AiSummaryGenerationPort;
 import com.speaive.blog.application.port.out.importing.MarkdownImportLedger;
@@ -78,9 +89,36 @@ import org.springframework.transaction.PlatformTransactionManager;
 import java.nio.file.Path;
 import java.time.Clock;
 
+/**
+ * 应用组合根：把出站适配器注入用例，并把用例暴露为 Spring Bean。此处可以同时认识内外层，Controller 不能照搬这里的直接依赖。
+ */
 @Configuration(proxyBeanMethods = false)
 @EnableScheduling
 public class BlogBackendConfiguration {
+
+    @Bean
+    LocalVisitorContextAdapter visitorContext(@Value("${speaive.analytics.geo-directory}") Path directory) throws Exception {
+        return new LocalVisitorContextAdapter(directory);
+    }
+
+    @Bean
+    ArticleVisitRepository articleVisitRepository(JdbcTemplate jdbc, ArticleVisitPersistenceMapper mapping) {
+        return new PostgresArticleVisitRepository(jdbc, mapping);
+    }
+
+    @Bean
+    VisitRequestGuard visitRequestGuard(@Value("${speaive.analytics.trust-proxy-headers:false}") boolean trustProxy,
+            @Value("${speaive.analytics.trusted-proxies:127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}") String proxies) {
+        return new VisitRequestGuard(trustProxy, proxies, Clock.systemUTC());
+    }
+
+    @Bean
+    VisitAnalyticsApplicationService visitAnalyticsApplicationService(PostRepository posts, ArticleVisitRepository visits,
+            VisitorContextPort context, TransactionRunner transactions,
+            @Value("${speaive.analytics.retention-days:90}") int retentionDays,
+            @Value("${speaive.analytics.enabled:true}") boolean enabled) {
+        return new VisitAnalyticsApplicationService(posts, visits, context, transactions, Clock.systemUTC(), retentionDays, enabled);
+    }
 
     @Bean
     ContentStorageSettings contentStorageSettings(
@@ -292,6 +330,20 @@ public class BlogBackendConfiguration {
             TransactionRunner transactions) {
         return new CommentApplicationService(
                 posts, summaries, agents, comments, runs, commentAi, summaryAi, transactions, Clock.systemUTC());
+    }
+
+    @Bean
+    AiGenerationTaskRunner aiGenerationTaskRunner(
+            @Value("${speaive.ai.comment-batch-concurrency:3}") int concurrency,
+            @Value("${speaive.ai.comment-batch-capacity:30}") int capacity) {
+        return new VirtualThreadAiGenerationTaskRunner(concurrency, capacity);
+    }
+
+    @Bean
+    CommentBatchApplicationService commentBatchApplicationService(CommentUseCase comments,
+            PostRepository posts, AgentRepository agents, TransactionRunner transactions,
+            AiGenerationTaskRunner runner) {
+        return new CommentBatchApplicationService(comments, posts, agents, transactions, runner);
     }
 
     @Bean

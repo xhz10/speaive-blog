@@ -35,6 +35,9 @@ import org.mapstruct.ReportingPolicy;
         componentModel = MappingConstants.ComponentModel.SPRING,
         unmappedTargetPolicy = ReportingPolicy.ERROR
 )
+/**
+ * AI 角色、运行审计、摘要和评论的持久化边界映射，显式转换领域枚举与 PO 枚举。
+ */
 public interface BlogAiPersistenceMapStructMapper {
     @Mapping(target = "id", source = "id")
     BlogAgentPo toAgentPo(AgentProfile agent);

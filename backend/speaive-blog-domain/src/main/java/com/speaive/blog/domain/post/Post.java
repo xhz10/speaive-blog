@@ -8,6 +8,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * 文章聚合根：创建、修改、发布、撤回、历史恢复与归档只能通过有业务含义的方法完成。每次变更返回 PostChange，保持 ID、slug、作者不变并推进一次修订。
+ */
 public final class Post {
     private final PostSnapshot snapshot;
 

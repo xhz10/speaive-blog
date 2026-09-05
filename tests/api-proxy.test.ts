@@ -8,7 +8,7 @@ afterEach(() => {
 });
 
 describe("Astro API boundary", () => {
-  it("drops all forwarding headers unless the host proxy is explicitly trusted", async () => {
+  it("replaces forged forwarding headers with the direct peer when the host proxy is not trusted", async () => {
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ items: [], errors: [] }));
     vi.stubGlobal("fetch", fetchMock);
     const request = new Request("http://blog.test/api/v1/public/posts", {
@@ -25,7 +25,7 @@ describe("Astro API boundary", () => {
 
     expect(response.status).toBe(200);
     const headers = fetchMock.mock.calls[0][1].headers as Headers;
-    expect(headers.has("x-forwarded-for")).toBe(false);
+    expect(headers.get("x-forwarded-for")).toBe("203.0.113.10");
     expect(headers.has("x-forwarded-prefix")).toBe(false);
     expect(headers.has("x-real-ip")).toBe(false);
     expect(headers.has("x-remove-me")).toBe(false);

@@ -1,5 +1,5 @@
 ---
-import { BookOpenText, Bot, ExternalLink, LogOut, ShieldCheck, Sparkles } from "@lucide/astro";
+import { ChartNoAxesColumn, BookOpenText, Bot, ExternalLink, LogOut, ShieldCheck, Sparkles } from "@lucide/astro";
 import BaseLayout from "./BaseLayout.astro";
 
 interface Props {
@@ -51,6 +51,9 @@ const isActive = (href: string) => pathname.startsWith(href);
           >
             <Bot size={16} stroke-width={1.8} aria-hidden="true" />
             Agent
+          </a>
+          <a class:list={["button", "ghost", { active: isActive("/studio/analytics/") }]} href="/studio/analytics/" aria-current={isActive("/studio/analytics/") ? "page" : undefined}>
+            <ChartNoAxesColumn size={16} stroke-width={1.8} aria-hidden="true" />访客
           </a>
           <a class="button ghost studio-blog-link" href="/" target="_blank" rel="noreferrer">
             <ExternalLink size={16} stroke-width={1.8} aria-hidden="true" />

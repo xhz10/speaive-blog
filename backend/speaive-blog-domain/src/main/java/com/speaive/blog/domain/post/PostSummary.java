@@ -7,6 +7,22 @@ import com.speaive.blog.domain.error.DomainException;
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * 不含正文的文章读取投影，用于列表和相关内容筛选。它不负责写操作，状态修改仍通过 Post 聚合。
+ *
+ * @param id 当前对象的稳定标识，不应由展示名称替代
+ * @param slug 内容 URL 中的路径标识，不是不可重用的数据库 ID
+ * @param title 标题
+ * @param description 文章或作品集简介
+ * @param publishedAt 内容展示的发布时间；不能仅据此判断是否公开
+ * @param updatedAt 最近一次修改或状态变化时间
+ * @param tags 主题标签列表
+ * @param cover 封面地址，未配置时可为空
+ * @param author 内容署名身份的不可变表示
+ * @param status 当前业务状态，详见该字段的枚举类型
+ * @param visibility 可见范围；独立于发布状态
+ * @param revision 从 1 开始的修订号，每次合法写操作推进一次
+ */
 public record PostSummary(
         String id,
         PostSlug slug,

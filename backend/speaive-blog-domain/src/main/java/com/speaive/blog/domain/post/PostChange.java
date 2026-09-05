@@ -5,6 +5,13 @@ import com.speaive.blog.domain.error.DomainException;
 
 import java.util.Objects;
 
+/**
+ * 文章的一次合法状态变化，携带变更前后聚合与操作原因。它为仓储提供旧版本 CAS 条件和新修订快照，不是数据库 PO，也不是异步消息。
+ *
+ * @param previous 执行本次操作前的聚合状态，提供并发比较依据
+ * @param current 通过领域校验后的新聚合状态
+ * @param eventType 产生该修订的业务操作原因
+ */
 public record PostChange(Post previous, Post current, PostRevisionEventType eventType) {
     public PostChange {
         previous = Objects.requireNonNull(previous, "previous");

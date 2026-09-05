@@ -11,6 +11,9 @@ import org.springframework.ai.chat.model.ChatResponse;
 
 import java.util.Objects;
 
+/**
+ * AI 记忆摘要出站适配器，封装 Spring AI 的提示词、模型调用和结果读取。
+ */
 public final class SpringAiSummaryGenerationAdapter implements AiSummaryGenerationPort {
     private static final String SYSTEM_PROMPT = """
             你是博客文章的资料编辑。请把文章压缩成一段可供其他评论者快速理解的事实摘要。

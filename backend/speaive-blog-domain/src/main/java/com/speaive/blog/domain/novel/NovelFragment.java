@@ -7,6 +7,9 @@ import com.speaive.blog.domain.error.DomainException;
 import java.time.Instant;
 import java.util.Objects;
 
+/**
+ * 小说片段聚合根，封装私密草稿、编辑、发布、撤回与历史恢复行为。它拥有独立的内容结构和修订类型，不能直接套用文章的归档流程。
+ */
 public final class NovelFragment {
     private final NovelFragmentSnapshot snapshot;
 

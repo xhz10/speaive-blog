@@ -27,6 +27,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * 小说片段用例编排，协调聚合、Markdown 与仓储，保持独立的小说修订和公开读取规则。
+ */
 public final class NovelFragmentApplicationService implements NovelFragmentUseCase {
     private final NovelFragmentRepository fragments;
     private final AuthorRepository authors;

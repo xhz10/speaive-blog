@@ -16,6 +16,9 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 
 import java.util.stream.Collectors;
 
+/**
+ * HTTP 错误转换边界，把用例错误与请求校验异常统一转换为状态码和 code/message 响应，不泄漏底层异常栈。
+ */
 @RestControllerAdvice
 public class ApiExceptionHandler {
 

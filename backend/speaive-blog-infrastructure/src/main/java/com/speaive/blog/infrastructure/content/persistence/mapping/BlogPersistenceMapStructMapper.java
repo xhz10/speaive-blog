@@ -28,6 +28,9 @@ import java.util.List;
         componentModel = MappingConstants.ComponentModel.SPRING,
         unmappedTargetPolicy = ReportingPolicy.ERROR
 )
+/**
+ * 文章与作者持久化边界的结构映射，隔离领域对象与数据库 PO。MapStruct 只负责转换，生命周期规则保留在领域对象。
+ */
 public interface BlogPersistenceMapStructMapper {
     @Mapping(target = "content", expression = "java(toContent(post, tags))")
     @Mapping(target = "author", source = "author")

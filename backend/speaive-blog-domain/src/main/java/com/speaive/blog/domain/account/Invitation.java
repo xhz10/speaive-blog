@@ -6,6 +6,17 @@ import com.speaive.blog.domain.error.DomainException;
 import java.time.Instant;
 import java.util.Objects;
 
+/**
+ * 邀请码的使用配额与有效期。领取资格由领域对象检查，应用层配合数据库锁原子消费次数。
+ *
+ * @param id 当前对象的稳定标识，不应由展示名称替代
+ * @param codeHash 邀请码的单向哈希，不保存原始邀请码
+ * @param maxUses 邀请码允许使用的总次数
+ * @param usedCount 已经消费的邀请次数
+ * @param expiresAt 过期时间，到达此时刻即不可再使用
+ * @param createdAt 首次创建时间
+ * @param updatedAt 最近一次修改或状态变化时间
+ */
 public record Invitation(
         String id,
         String codeHash,

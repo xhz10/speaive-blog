@@ -24,6 +24,9 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+/**
+ * 自动评论任务用例，处理文章开关、任务领取、失败重试与执行结果统计。定时入口只调用此用例，模型生成复用评论用例。
+ */
 public final class CommunityAutomationApplicationService implements CommunityAutomationUseCase {
     private static final Duration STALE_JOB_AFTER = Duration.ofMinutes(15);
 

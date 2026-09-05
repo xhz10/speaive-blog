@@ -20,6 +20,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * 创作工作区的 PostgreSQL 适配器，保存灵感、作品集、分享和 AI 辅助数据；不应承接新的业务状态决策。
+ */
 public final class PostgresCreativeWorkspaceRepository implements CreativeWorkspaceRepository {
     private final BlogCreativeDatabaseMapper database;
     private final CreativePersistenceMapStructMapper mapping;

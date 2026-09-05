@@ -26,6 +26,9 @@ import org.mapstruct.ReportingPolicy;
         componentModel = MappingConstants.ComponentModel.SPRING,
         unmappedTargetPolicy = ReportingPolicy.ERROR
 )
+/**
+ * 小说片段及其修订历史的持久化边界映射。
+ */
 public interface NovelFragmentPersistenceMapStructMapper {
     @Mapping(target = "content", expression = "java(toContent(fragment))")
     @Mapping(target = "author", source = "author")

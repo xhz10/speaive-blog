@@ -139,3 +139,10 @@ pnpm build
 
 默认公共封面图 `public/images/editorial-writing.jpg` 来源于 [Unsplash](https://unsplash.com/)（资源标识：`photo-1455390582262-044cdead277a`）。
 # speaive-blog
+
+## 后端架构与访客统计
+
+- [后端中文阅读地图](backend/docs/README.md)：模块职责、业务模型、请求流程、枚举释义与重构建议。
+- Agent 评论室支持后端虚拟线程批量生成，默认最多 3 个角色同时运行，各角色独立成功或失败，仍需审核后公开。
+- 写作台新增 `/studio/analytics/` 管理员访客统计：访问时间、文章、IP、粗略地点、设备与来源，以及趋势和排行。
+- 安装离线地点库：在根目录执行 `./scripts/setup-geoip.sh` 后重启后端。没有地点库时仍记录访问，地点显示未知。具体配置与统计口径见 [访客统计说明](backend/docs/visitor-analytics.md)。

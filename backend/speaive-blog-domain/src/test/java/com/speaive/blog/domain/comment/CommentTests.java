@@ -77,6 +77,16 @@ class CommentTests {
                 "self-reply", parent, activeAgent(), "自问自答", CREATED_AT.plusSeconds(1)));
     }
 
+    @Test
+    void preflightRejectsCrossPostHiddenSelfAndNonAgentReplies() {
+        var parent = Comment.createAiCandidate("parent", "post", activeAgent(), "原评论", CREATED_AT);
+        assertInvalidComment(() -> parent.ensureCanReceiveAiReply("another-post", anotherAgent()));
+        assertInvalidComment(() -> parent.ensureCanReceiveAiReply("post", activeAgent()));
+        assertInvalidComment(() -> parent.ensureCanReceiveAiReply("post", Author.ADMIN));
+        assertInvalidComment(() -> parent.hide(CREATED_AT.plusSeconds(1)).ensureCanReceiveAiReply("post", anotherAgent()));
+        parent.ensureCanReceiveAiReply("post", anotherAgent());
+    }
+
     private static Author activeAgent() {
         return new Author(
                 "agent-id", "reader", "认真读者", AuthorType.AGENT, null, AuthorStatus.ACTIVE);

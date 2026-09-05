@@ -8,6 +8,9 @@ import com.speaive.blog.domain.novel.NovelFragmentSummary;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 小说片段持久化端口，保存聚合变更及修订历史，并保留公开读取过滤和版本竞争语义。
+ */
 public interface NovelFragmentRepository {
     List<NovelFragmentSummary> findAll(NovelFragmentQueryScope scope);
 

@@ -1,0 +1,36 @@
+---
+interface Props { slug: string; }
+const { slug } = Astro.props;
+---
+<span hidden data-article-visit={slug}></span>
+<script>
+  type Hints = { model?: string };
+  type HintNavigator = Navigator & { userAgentData?: { getHighEntropyValues(hints: string[]): Promise<Hints> } };
+  const marker = document.querySelector<HTMLElement>("[data-article-visit]");
+  let recorded = false;
+  async function record() {
+    if (recorded || document.visibilityState !== "visible" || !marker?.dataset.articleVisit) return;
+    recorded = true;
+    // 每次实际打开页面生成一个事件 ID；统计独立于正文，不影响阅读与评论。
+    try {
+      const eventId = crypto.randomUUID();
+      const uaData = (navigator as HintNavigator).userAgentData;
+      const hints = await Promise.race([
+        uaData?.getHighEntropyValues(["model"]).catch(() => ({} as Hints)) ?? Promise.resolve({} as Hints),
+        new Promise<Hints>((resolve) => setTimeout(() => resolve({}), 800))
+      ]);
+      const csrfResponse = await fetch("/api/v1/account/csrf", { credentials: "same-origin", cache: "no-store" });
+      if (!csrfResponse.ok) return;
+      const csrf = await csrfResponse.json() as { token: string; headerName: string };
+      let referrerHost = "";
+      try { referrerHost = document.referrer ? new URL(document.referrer).hostname : ""; } catch { /* 无有效来源。 */ }
+      await fetch(`/api/v1/public/posts/${encodeURIComponent(marker.dataset.articleVisit)}/visits`, {
+        method: "POST", credentials: "same-origin", keepalive: true,
+        headers: { "Content-Type": "application/json", [csrf.headerName]: csrf.token },
+        body: JSON.stringify({ eventId, modelHint: (hints.model ?? "").slice(0, 120), referrerHost })
+      });
+    } catch { /* 统计服务异常、浏览器限制或离线时，正文仍正常展示。 */ }
+  }
+  void record();
+  document.addEventListener("visibilitychange", () => { void record(); });
+</script>

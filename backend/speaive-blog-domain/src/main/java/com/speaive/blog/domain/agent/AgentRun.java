@@ -6,6 +6,24 @@ import com.speaive.blog.domain.error.DomainException;
 import java.time.Instant;
 import java.util.Objects;
 
+/**
+ * 单次 AI 生成的审计记录，绑定文章修订、角色提示词版本和可选回复目标。生成成功只意味着产生待审核评论。
+ *
+ * @param id 当前对象的稳定标识，不应由展示名称替代
+ * @param postId 所属文章的稳定 ID
+ * @param postRevision 生成或快照所依据的文章修订号
+ * @param agentId 负责生成或执行任务的 Agent ID
+ * @param promptVersion 本次调用使用的角色提示词版本
+ * @param model 实际或指定的模型名称；未提供时可为空
+ * @param targetCommentId 本次生成的回复目标；根评论生成时为空
+ * @param status 当前业务状态，详见该字段的枚举类型
+ * @param commentId 成功生成的评论 ID；完成前可为空
+ * @param inputTokens 服务商返回的输入 token 数；为空表示未提供，不能当作零
+ * @param outputTokens 服务商返回的输出 token 数；为空表示未提供，不能当作零
+ * @param errorMessage 失败原因摘要；成功或尚未失败时可为空
+ * @param startedAt 本次模型调用登记开始的时间
+ * @param completedAt 本次执行结束时间；未结束时为空
+ */
 public record AgentRun(
         String id,
         String postId,

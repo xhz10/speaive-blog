@@ -7,6 +7,22 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 
+/**
+ * 可重试的社区自动评论任务，绑定文章 ID、文章修订和角色 ID。数据库原子领取负责进入 RUNNING，本对象负责成功、跳过与失败重试规则。
+ *
+ * @param id 当前对象的稳定标识，不应由展示名称替代
+ * @param postId 所属文章的稳定 ID
+ * @param postRevision 生成或快照所依据的文章修订号
+ * @param agentId 负责生成或执行任务的 Agent ID
+ * @param status 当前业务状态，详见该字段的枚举类型
+ * @param attempts 已经领取执行的次数，用于重试上限判断
+ * @param availableAt 最早可再次领取执行的时间
+ * @param claimedAt 本次任务被领取的时间；等待执行时为空
+ * @param completedAt 本次执行结束时间；未结束时为空
+ * @param lastError 最近一次错误或跳过原因
+ * @param createdAt 首次创建时间
+ * @param updatedAt 最近一次修改或状态变化时间
+ */
 public record CommunityCommentJob(
         String id,
         String postId,

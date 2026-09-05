@@ -30,6 +30,9 @@ import java.time.Duration;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+/**
+ * HTTP 安全边界，配置站长与会员访问规则、Session、CSRF 和安全响应；领域中的业务资格检查仍然需要保留。
+ */
 @Configuration(proxyBeanMethods = false)
 public class WebSecurityConfiguration {
     private static final Logger LOGGER = LoggerFactory.getLogger(WebSecurityConfiguration.class);
@@ -132,6 +135,7 @@ public class WebSecurityConfiguration {
                                 "/api/v1/studio/csrf", "/api/v1/account/csrf", "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/studio/login",
                                 "/api/v1/account/login", "/api/v1/account/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/public/posts/*/visits").permitAll()
                         .requestMatchers("/api/v1/studio/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/account/**").hasRole("MEMBER")
                         .anyRequest().denyAll())

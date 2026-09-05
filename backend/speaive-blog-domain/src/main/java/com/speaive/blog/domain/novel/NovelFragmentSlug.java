@@ -6,6 +6,11 @@ import com.speaive.blog.domain.error.DomainException;
 import java.text.Normalizer;
 import java.util.regex.Pattern;
 
+/**
+ * 小说片段路径标识，封装合法字符与长度限制。
+ *
+ * @param value 经过校验的路径标识文本
+ */
 public record NovelFragmentSlug(String value) {
     public static final int MAX_LENGTH = 100;
     private static final Pattern VALID_SLUG = Pattern.compile(

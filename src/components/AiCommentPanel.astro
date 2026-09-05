@@ -404,29 +404,28 @@ const { post } = Astro.props;
         return;
       }
       setBusy(true);
-      generateLabel.textContent = `正在生成 0/${selected.length}`;
-      let completed = 0;
-      let failed = 0;
-      for (const input of selected) {
-        try {
-          await studioRequest<StudioComment>(`/studio/posts/${encodeURIComponent(slug)}/ai-comments`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ agentId: input.value })
-          });
-        } catch (error) {
-          failed += 1;
-          showNotice(error instanceof Error ? error.message : "评论生成失败", true);
-        } finally {
-          completed += 1;
-          generateLabel.textContent = `正在生成 ${completed}/${selected.length}`;
-        }
+      generateLabel.textContent = `正在生成 ${selected.length} 个角色…`;
+      try {
+        const result = await studioRequest<{ items: Array<{
+          agentId: string; comment: StudioComment | null; errorCode: string | null; errorMessage: string | null;
+        }> }>(`/studio/posts/${encodeURIComponent(slug)}/ai-comments/batch`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentIds: selected.map((input) => input.value) })
+        });
+        const failures = result.items.filter((item) => !item.comment);
+        const succeeded = new Set(result.items.filter((item) => item.comment).map((item) => item.agentId));
+        for (const input of selected) if (succeeded.has(input.value)) input.checked = false;
+        const details = failures.map((item) =>
+          `${agents.find((agent) => agent.id === item.agentId)?.displayName ?? "角色"}：${item.errorMessage ?? "生成失败"}`);
+        showNotice(`${succeeded.size} 条评论已生成，审核后再发布。${details.length ? ` ${details.join("；")}。失败角色已保留勾选，可重试。` : ""}`, failures.length > 0);
+        await Promise.all([refreshComments(), refreshSummaryState()]);
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : "批量生成失败，请刷新查看已生成的评论后重试。", true);
+      } finally {
+        setBusy(false);
+        generateLabel.textContent = "生成评论";
       }
-      setBusy(false);
-      generateLabel.textContent = "生成评论";
-      if (failed === 0) showNotice(`${completed} 条评论已生成，审核后再发布。`);
-      await Promise.all([refreshComments(), refreshSummaryState()]);
-      renderAgents();
     }
 
     async function generateReply(button: HTMLButtonElement) {
@@ -615,6 +614,11 @@ const { post } = Astro.props;
 
     function setBusy(value: boolean) {
       busy = value;
+      picker.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((input) => {
+        const agent = agents.find((item) => item.id === input.value);
+        input.disabled = value || !aiAvailable || !agent?.enabled
+          || (currentVisibility() === "ADMIN_ONLY" && !agent.canProcessPrivate);
+      });
       syncButtons();
       root.querySelectorAll<HTMLButtonElement>("[data-comment-action], [data-cancel-reply]")
         .forEach((button) => { button.disabled = value; });

@@ -10,6 +10,8 @@ import com.speaive.blog.interfaces.http.comment.CommentResponses.CommentDetail;
 import com.speaive.blog.interfaces.http.comment.CommentResponses.CommentList;
 import com.speaive.blog.interfaces.http.comment.CommentResponses.AiSummaryCoverage;
 import com.speaive.blog.interfaces.http.comment.CommentResponses.PostAiSummaryDetail;
+import com.speaive.blog.application.command.comment.GenerateCommentBatchCommand;
+import com.speaive.blog.application.result.comment.CommentBatchResult;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingConstants;
 import org.mapstruct.ReportingPolicy;
@@ -28,4 +30,9 @@ interface CommentHttpMapper {
     PostAiSummaryDetail toResponse(PostAiSummaryResult result);
 
     AiSummaryCoverage toResponse(AiSummaryCoverageResult result);
+    GenerateCommentBatchCommand toCommand(CommentRequests.GenerateAiCommentBatchRequest request);
+
+    CommentResponses.CommentBatch toResponse(CommentBatchResult result);
+
+    CommentResponses.CommentBatchItem toResponse(CommentBatchResult.Item result);
 }

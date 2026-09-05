@@ -4,6 +4,9 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * 传给 Markdown 适配器的解析输入，携带文件名、正文与相关默认值；不属于 HTTP 请求 DTO。
+ */
 public record MarkdownParseRequest(String fileName, byte[] markdown, Instant fallbackPublishedAt) {
     public MarkdownParseRequest {
         fileName = Objects.requireNonNull(fileName, "fileName");

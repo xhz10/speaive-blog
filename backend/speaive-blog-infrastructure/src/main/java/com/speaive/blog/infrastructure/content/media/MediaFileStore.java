@@ -23,6 +23,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * 媒体文件存储适配器，校验文件名、图片内容和引用权限，协调文件写入与数据库元数据；跨资源失败需清理已写文件。
+ */
 final class MediaFileStore {
     private final Path dataDirectory;
     private final Path mediaDirectory;
@@ -325,7 +328,9 @@ final class MediaFileStore {
         return new BlogException(BlogErrorCode.STORAGE_ERROR, message, cause);
     }
 
+    /** 媒体适配器支持的图片编码类型；同时校验扩展名、MIME 和文件头，不能只相信上传名称。 */
     private enum ImageKind {
+        /** JPEG 图片，接受 .jpg 与 .jpeg，存储扩展名统一为 .jpg。 */
         JPEG(Set.of(".jpg", ".jpeg"), ".jpg", "image/jpeg") {
             @Override
             boolean matches(byte[] bytes) {
@@ -333,6 +338,7 @@ final class MediaFileStore {
                         && unsigned(bytes[2]) == 0xff;
             }
         },
+        /** PNG 图片，校验 PNG 文件头。 */
         PNG(Set.of(".png"), ".png", "image/png") {
             private final int[] signature = {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
 
@@ -341,18 +347,21 @@ final class MediaFileStore {
                 return startsWith(bytes, signature);
             }
         },
+        /** GIF 图片，接受 GIF87a 与 GIF89a 文件头。 */
         GIF(Set.of(".gif"), ".gif", "image/gif") {
             @Override
             boolean matches(byte[] bytes) {
                 return ascii(bytes, 0, 6).equals("GIF87a") || ascii(bytes, 0, 6).equals("GIF89a");
             }
         },
+        /** WebP 图片，校验 RIFF 容器与 WEBP 标记。 */
         WEBP(Set.of(".webp"), ".webp", "image/webp") {
             @Override
             boolean matches(byte[] bytes) {
                 return ascii(bytes, 0, 4).equals("RIFF") && ascii(bytes, 8, 12).equals("WEBP");
             }
         },
+        /** AVIF 图片，校验 ftyp 容器与 avif 或 avis 品牌标记。 */
         AVIF(Set.of(".avif"), ".avif", "image/avif") {
             @Override
             boolean matches(byte[] bytes) {

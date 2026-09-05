@@ -24,6 +24,9 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Objects;
 
+/**
+ * Markdown 预览与导入用例，协调解析端口、文章聚合和导入哈希台账，避免同一投递内容被重复创建。
+ */
 public final class MarkdownApplicationService implements MarkdownUseCase, MarkdownInboxUseCase {
     private static final String CONTENT_HASH_ALGORITHM = "SHA-256";
 

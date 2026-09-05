@@ -79,6 +79,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * 创作工作区用例，当前汇集灵感、历史恢复、作品集、分享、私密编辑和圆桌摘要。职责跨度较大，后续应按业务能力渐进拆分，见架构评估文档。
+ */
 public final class CreativeWorkspaceApplicationService implements CreativeWorkspaceUseCase {
     private static final int MAX_SHARE_DAYS = 90;
     private static final int MAX_EDITORIAL_QUOTE = 4_000;

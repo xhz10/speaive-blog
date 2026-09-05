@@ -3,6 +3,9 @@ package com.speaive.blog.application.port.out.ai;
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * 用例组装并授权的 AI 输入快照，包含文章、相关摘要、已有讨论和可选回复目标；它不是直接来自 HTTP 的模型请求。
+ */
 public record AiCommentPrompt(
         String systemPrompt,
         String model,

@@ -51,6 +51,12 @@ management:
       show-details: never
 
 speaive:
+  analytics:
+    enabled: ${SPEAIVE_ANALYTICS_ENABLED:true}
+    retention-days: ${SPEAIVE_ANALYTICS_RETENTION_DAYS:90}
+    geo-directory: ${SPEAIVE_ANALYTICS_GEO_DIRECTORY:${speaive.content.data-directory}/geoip}
+    trust-proxy-headers: ${SPEAIVE_ANALYTICS_TRUST_PROXY_HEADERS:false}
+    trusted-proxies: ${SPEAIVE_ANALYTICS_TRUSTED_PROXIES:127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
   content:
     data-directory: ${SPEAIVE_DATA_DIR:./.data}
     import-directory: ${SPEAIVE_IMPORT_DIR:${SPEAIVE_DATA_DIR:./.data}/inbox}
@@ -68,6 +74,8 @@ speaive:
   ai:
     enabled: ${SPEAIVE_AI_ENABLED:false}
     max-article-characters: ${SPEAIVE_AI_MAX_ARTICLE_CHARACTERS:24000}
+    comment-batch-concurrency: ${SPEAIVE_AI_COMMENT_BATCH_CONCURRENCY:3}
+    comment-batch-capacity: ${SPEAIVE_AI_COMMENT_BATCH_CAPACITY:30}
     community-automation-enabled: ${SPEAIVE_AI_COMMUNITY_AUTOMATION_ENABLED:true}
     community-scan-interval: ${SPEAIVE_AI_COMMUNITY_SCAN_INTERVAL:15s}
     community-batch-size: ${SPEAIVE_AI_COMMUNITY_BATCH_SIZE:3}

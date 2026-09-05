@@ -26,6 +26,9 @@ import java.util.List;
         componentModel = MappingConstants.ComponentModel.SPRING,
         unmappedTargetPolicy = ReportingPolicy.ERROR
 )
+/**
+ * 创作工作区领域对象与数据库行的结构映射；不在映射表达式中决定可见性或权限。
+ */
 public interface CreativePersistenceMapStructMapper {
     Inspiration toInspiration(BlogInspirationPo value);
     BlogInspirationPo toInspirationPo(Inspiration value);

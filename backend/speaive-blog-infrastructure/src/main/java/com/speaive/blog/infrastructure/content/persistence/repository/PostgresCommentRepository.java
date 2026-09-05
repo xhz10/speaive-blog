@@ -16,6 +16,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * 评论仓储的 PostgreSQL 适配器，恢复作者与评论领域对象，并用旧状态条件更新审核结果。
+ */
 public final class PostgresCommentRepository implements CommentRepository {
     private final BlogCommentDatabaseMapper database;
     private final BlogAuthorDatabaseMapper authors;

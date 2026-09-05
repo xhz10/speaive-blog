@@ -9,6 +9,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+/**
+ * 文章持久化出站端口。实现必须把主记录、标签、媒体引用和修订快照放入同一事务，并按变更前版本执行 CAS；不能自行决定文章生命周期。
+ */
 public interface PostRepository {
     List<PostSummary> findAll(PostQueryScope scope);
 

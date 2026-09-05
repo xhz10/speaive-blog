@@ -13,6 +13,9 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.zip.CRC32;
 
+/**
+ * 图片内容校验器，按编码结构检查实际字节，降低只检查扩展名或文件头造成的误判。
+ */
 final class ImageValidator {
     private static final int MAX_DIMENSION = 12_000;
     private static final long MAX_PIXELS = 36_000_000L;

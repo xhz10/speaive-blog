@@ -31,6 +31,9 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+/**
+ * 邀请码会员注册与账号查询用例，协调邀请配额、身份和密码哈希的保存。HTTP 登录会话由入站安全层负责。
+ */
 public final class MemberAccountApplicationService implements MemberAccountUseCase {
     private static final SecureRandom RANDOM = new SecureRandom();
 

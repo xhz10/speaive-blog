@@ -12,6 +12,9 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * 自动评论队列的 PostgreSQL 适配器，利用数据库原子领取和幂等约束协调多次调度。
+ */
 public final class PostgresCommunityCommentJobRepository implements CommunityCommentJobRepository {
     private final BlogCommunityCommentJobDatabaseMapper database;
     private final BlogAiPersistenceMapStructMapper mapping;

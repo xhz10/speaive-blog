@@ -27,6 +27,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+/**
+ * 文章仓储的 PostgreSQL 适配器，映射领域变更并原子写入主记录、关联数据和修订快照；CAS 失败必须报告版本冲突。
+ */
 public final class PostgresPostRepository implements PostRepository {
     private static final String DATABASE_ARCHIVE_PREFIX = "database:";
 

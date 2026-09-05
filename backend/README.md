@@ -1,6 +1,10 @@
 # Speaive Blog Backend
 
-Speaive Blog 的 Java 25 + Spring Boot 4.0.7 模块化单体后端，负责写作台认证、文章生命周期、Markdown 渲染、图片和公开读取 API。
+Speaive Blog 的 Java 25 + Spring Boot 4.0.7 模块化单体后端，负责写作台与会员认证、文章和小说生命周期、AI 评论及回复、创作空间、访客统计、Markdown 渲染和媒体。
+
+**从代码理解业务请先读 [后端阅读地图](docs/README.md)**，其中有架构图、业务状态机、请求流程、中文枚举字典及重构评审。
+
+新功能：管理员批量评论采用有并发和容量上限的 Java 25 虚拟线程；访客统计在 `/studio/analytics/`，部署方式见 [访客统计说明](docs/visitor-analytics.md)。
 
 ## 技术基线
 

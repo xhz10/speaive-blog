@@ -26,6 +26,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * 文章用例编排：加载聚合、开启事务、调用文章行为、保存变更并返回读取结果。发布后的社区任务规划发生在同一用例内，正文生命周期规则归 Post 所有。
+ */
 public final class PostApplicationService implements PostUseCase {
     private final PostRepository posts;
     private final AuthorRepository authors;
@@ -184,8 +187,11 @@ public final class PostApplicationService implements PostUseCase {
         return markdown.referencedMediaPaths(post.body(), post.cover());
     }
 
+    /** 文章应用服务内部的操作选择器；代表要执行的命令，不是持久化状态。 */
     private enum Transition {
+        /** 调用文章聚合的发布行为。 */
         PUBLISH,
+        /** 调用文章聚合的撤回为草稿行为。 */
         UNPUBLISH
     }
 }

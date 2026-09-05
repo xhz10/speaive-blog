@@ -15,6 +15,9 @@ import java.util.Comparator;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * 社区评论入队的应用协作者，读取文章开关并按角色关注规则筛选候选人，再通过唯一键幂等登记任务。通常由现有事务内的发布或设置用例调用。
+ */
 public final class CommunityAutomationPlanner {
     private final AgentRepository agents;
     private final CommunityPostPolicyRepository policies;

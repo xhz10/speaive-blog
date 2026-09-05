@@ -6,6 +6,11 @@ import com.speaive.blog.domain.error.DomainException;
 import java.text.Normalizer;
 import java.util.regex.Pattern;
 
+/**
+ * 文章公开路径标识的值对象，负责长度与字符规则。slug 可在归档后重用，所以它不能替代文章的稳定 ID。
+ *
+ * @param value 经过校验的路径标识文本
+ */
 public record PostSlug(String value) {
     public static final int MAX_LENGTH = 100;
     private static final Pattern VALID_SLUG = Pattern.compile(

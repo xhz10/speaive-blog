@@ -121,7 +121,7 @@ function isPayloadTooLarge(error: unknown): boolean {
 }
 
 function resolveClientAddress(request: Request, directAddress: string | undefined): string | null {
-  if (process.env.SPEAIVE_TRUST_PROXY_HEADERS !== "true") return null;
+  if (process.env.SPEAIVE_TRUST_PROXY_HEADERS !== "true") return normalizeIp(directAddress);
   const candidates: Array<string | null | undefined> = [
     request.headers.get("x-real-ip"),
     request.headers.get("x-forwarded-for")?.split(",", 1)[0],

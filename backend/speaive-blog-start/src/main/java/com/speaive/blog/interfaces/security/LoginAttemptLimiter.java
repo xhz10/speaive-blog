@@ -10,6 +10,9 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 登录入口的尝试次数限制器，限制短时间内的重复认证失败；不承担会员或作者业务状态管理。
+ */
 public final class LoginAttemptLimiter {
     private static final Duration MAX_CLEANUP_INTERVAL = Duration.ofMinutes(1);
 

@@ -49,6 +49,9 @@ import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+/**
+ * 评论与回复用例编排，同时协调文章记忆摘要和生成审计。AI 调用放在数据库事务之外，生成结果先待审核，审核状态由 Comment 决定。
+ */
 public final class CommentApplicationService implements CommentUseCase {
     private static final Duration STALE_RUN_AFTER = Duration.ofMinutes(15);
     private static final int MAX_RELATED_POSTS = 8;
@@ -105,7 +108,7 @@ public final class CommentApplicationService implements CommentUseCase {
     public CommentResult generateAiReply(String commentId, String agentId) {
         ReplySeed seed = withDomainErrors(() -> transactions.required(() -> {
             Comment parent = requiredComment(commentId);
-            Post post = requiredPost(parent.postId(), PostQueryScope.STUDIO, true);
+            Post post = requiredPostById(parent.postId(), PostQueryScope.STUDIO);
             return new ReplySeed(post.slug(), parent.id());
         }));
         return generate(seed.postSlug(), agentId, seed.parentCommentId());
@@ -114,7 +117,7 @@ public final class CommentApplicationService implements CommentUseCase {
     @Override
     public CommentResult generateAutomatedAiComment(String postId, long postRevision, String agentId) {
         String slug = withDomainErrors(() -> transactions.required(() -> {
-            Post post = requiredPost(postId, PostQueryScope.PUBLISHED, true);
+            Post post = requiredPostById(postId, PostQueryScope.PUBLISHED);
             if (post.revision() != postRevision || post.visibility() != PostVisibility.PUBLIC) {
                 throw new BlogException(BlogErrorCode.VERSION_CONFLICT,
                         "自动评论任务对应的文章版本已经变化");
@@ -159,19 +162,43 @@ public final class CommentApplicationService implements CommentUseCase {
             return getAiSummaryCoverage();
         }
         Post post = withDomainErrors(() -> transactions.required(
-                () -> requiredPost(next.id(), PostQueryScope.PUBLISHED, true)));
+                () -> requiredPostById(next.id(), PostQueryScope.PUBLISHED)));
         ensureCurrentSummary(post);
         return withDomainErrors(() -> transactions.required(() -> coverage(post.slug())));
     }
 
     @Override
     public CommentResult publishComment(String commentId) {
-        return transition(commentId, true);
+        return withDomainErrors(() -> transactions.required(() -> {
+            Comment current = requiredComment(commentId);
+            Instant now = clock.instant();
+            Comment published = current.parentCommentId() == null
+                    ? current.publish(now)
+                    : current.publishReplyTo(requiredComment(current.parentCommentId()), now);
+            comments.save(current, published);
+            return result(published);
+        }));
     }
 
     @Override
     public CommentResult hideComment(String commentId) {
-        return transition(commentId, false);
+        return withDomainErrors(() -> transactions.required(() -> {
+            Comment current = requiredComment(commentId);
+            Instant now = clock.instant();
+            // 一次审核操作覆盖整条后续对话；任意一条保存失败，事务会整体回滚。
+            List<Comment> all = comments.findByPostId(current.postId(), CommentQueryScope.STUDIO);
+            Set<String> idsToHide = descendantIds(current.id(), all);
+            idsToHide.add(current.id());
+            Comment hiddenRoot = current;
+            for (Comment item : all) {
+                if (idsToHide.contains(item.id()) && item.status() != CommentStatus.HIDDEN) {
+                    Comment hidden = item.hide(now);
+                    comments.save(item, hidden);
+                    if (item.id().equals(current.id())) hiddenRoot = hidden;
+                }
+            }
+            return result(hiddenRoot);
+        }));
     }
 
     private CommentResult generate(String postSlug, String agentId, String parentCommentId) {
@@ -186,7 +213,7 @@ public final class CommentApplicationService implements CommentUseCase {
             agent.ensureCanGenerate(post.visibility());
             if (parentCommentId != null) {
                 Comment parent = requiredComment(parentCommentId);
-                ensureReplyTarget(post, parent, agent);
+                parent.ensureCanReceiveAiReply(post.id(), agent.identity());
             }
             return new SummarySeed(post, agent.id());
         }));
@@ -195,6 +222,7 @@ public final class CommentApplicationService implements CommentUseCase {
         PreparedGeneration prepared = withDomainErrors(
                 () -> transactions.required(() -> prepare(postSlug, seed.agentId(), parentCommentId)));
         try {
+            // 模型请求发生在两个短事务之间，避免等待模型时一直占用数据库锁和连接。
             AiCommentGeneration generated = commentAi.generate(prepared.prompt());
             return withDomainErrors(() -> transactions.required(() -> complete(prepared, generated)));
         } catch (RuntimeException exception) {
@@ -222,7 +250,7 @@ public final class CommentApplicationService implements CommentUseCase {
                 .toList();
         Comment parent = parentCommentId == null ? null : requiredComment(parentCommentId);
         if (parent != null) {
-            ensureReplyTarget(post, parent, agent);
+            parent.ensureCanReceiveAiReply(post.id(), agent.identity());
         }
 
         AgentRun run = parent == null
@@ -232,6 +260,7 @@ public final class CommentApplicationService implements CommentUseCase {
                 : AgentRun.startReply(
                         UUID.randomUUID().toString(), post.id(), post.revision(), agent.id(), agent.promptVersion(),
                         agent.model(), parent.id(), clock.instant());
+        // 清理超时审计占位后再登记本次生成；唯一约束负责挡住相同版本的重复调用。
         runs.failStaleRunning(
                 post.id(), post.revision(), agent.id(), parentCommentId,
                 run.startedAt().minus(STALE_RUN_AFTER), run.startedAt());
@@ -309,7 +338,8 @@ public final class CommentApplicationService implements CommentUseCase {
                 post.id(), post.revision(), generated.body(), generated.model(),
                 generated.inputTokens(), generated.outputTokens(), now);
         return withDomainErrors(() -> transactions.required(() -> {
-            Post latest = requiredPost(post.id(), PostQueryScope.STUDIO, true);
+            Post latest = requiredPostById(post.id(), PostQueryScope.STUDIO);
+            // 模型运行期间正文可能已变更，旧摘要不能覆盖当前版本的摘要。
             if (latest.revision() != post.revision()) {
                 throw new BlogException(BlogErrorCode.VERSION_CONFLICT,
                         "摘要生成期间文章已更新，请重试");
@@ -343,35 +373,6 @@ public final class CommentApplicationService implements CommentUseCase {
         } catch (RuntimeException ignored) {
             exception.addSuppressed(ignored);
         }
-    }
-
-    private CommentResult transition(String commentId, boolean publish) {
-        return withDomainErrors(() -> transactions.required(() -> {
-            Comment current = requiredComment(commentId);
-            Instant now = clock.instant();
-            if (publish) {
-                Comment updated = current.parentCommentId() == null
-                        ? current.publish(now)
-                        : current.publishReplyTo(requiredComment(current.parentCommentId()), now);
-                comments.save(current, updated);
-                return result(updated);
-            }
-
-            List<Comment> all = comments.findByPostId(current.postId(), CommentQueryScope.STUDIO);
-            Set<String> idsToHide = descendantIds(current.id(), all);
-            idsToHide.add(current.id());
-            Comment result = current;
-            for (Comment item : all) {
-                if (idsToHide.contains(item.id()) && item.status() != CommentStatus.HIDDEN) {
-                    Comment hidden = item.hide(now);
-                    comments.save(item, hidden);
-                    if (item.id().equals(current.id())) {
-                        result = hidden;
-                    }
-                }
-            }
-            return result(result);
-        }));
     }
 
     private CommentListResult list(Post post, CommentQueryScope scope) {
@@ -438,21 +439,9 @@ public final class CommentApplicationService implements CommentUseCase {
                 .orElseThrow(() -> new BlogException(BlogErrorCode.NOT_FOUND, "文章不存在"));
     }
 
-    private Post requiredPost(String postId, PostQueryScope scope, boolean byId) {
-        if (!byId) {
-            return requiredPost(postId, scope);
-        }
+    private Post requiredPostById(String postId, PostQueryScope scope) {
         return posts.findById(postId, scope)
                 .orElseThrow(() -> new BlogException(BlogErrorCode.NOT_FOUND, "文章不存在"));
-    }
-
-    private static void ensureReplyTarget(Post post, Comment parent, AgentProfile agent) {
-        if (!post.id().equals(parent.postId()) || parent.status() == CommentStatus.HIDDEN) {
-            throw new BlogException(BlogErrorCode.INVALID_REQUEST, "不能回复这条评论");
-        }
-        if (parent.author().id().equals(agent.id())) {
-            throw new BlogException(BlogErrorCode.INVALID_REQUEST, "Agent 不能回复自己的评论");
-        }
     }
 
     private void ensureSummaryAvailable() {

@@ -1,4 +1,4 @@
 /**
- * Rich aggregates, value objects, and business rules grouped by business concept and independent of frameworks and persistence.
+ * 纯业务模型层。聚合维护业务不变量，值对象表达业务概念，不能依赖 HTTP、Spring、SQL 或文件系统。
  */
 package com.speaive.blog.domain;

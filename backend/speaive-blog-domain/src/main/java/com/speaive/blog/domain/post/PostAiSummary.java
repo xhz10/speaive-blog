@@ -6,6 +6,18 @@ import com.speaive.blog.domain.error.DomainException;
 import java.time.Instant;
 import java.util.Objects;
 
+/**
+ * 与某篇文章修订绑定的 AI 记忆摘要，供后续评论生成复用。文章修订变化后旧摘要仍可保存，但不能被当作当前摘要使用。
+ *
+ * @param postId 所属文章的稳定 ID
+ * @param postRevision 生成或快照所依据的文章修订号
+ * @param body 正文内容；格式与长度由当前业务类型约束
+ * @param model 实际或指定的模型名称；未提供时可为空
+ * @param inputTokens 服务商返回的输入 token 数；为空表示未提供，不能当作零
+ * @param outputTokens 服务商返回的输出 token 数；为空表示未提供，不能当作零
+ * @param createdAt 首次创建时间
+ * @param updatedAt 最近一次修改或状态变化时间
+ */
 public record PostAiSummary(
         String postId,
         long postRevision,

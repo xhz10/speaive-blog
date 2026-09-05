@@ -1,6 +1,7 @@
 package com.speaive.blog.interfaces.http.comment;
 
 import com.speaive.blog.application.port.in.comment.CommentUseCase;
+import com.speaive.blog.application.port.in.comment.CommentBatchUseCase;
 import com.speaive.blog.interfaces.http.comment.CommentRequests.GenerateAiCommentRequest;
 import com.speaive.blog.interfaces.http.comment.CommentResponses.CommentDetail;
 import com.speaive.blog.interfaces.http.comment.CommentResponses.CommentList;
@@ -19,9 +20,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class StudioCommentController {
     private final CommentUseCase comments;
     private final CommentHttpMapper mapper;
+    private final CommentBatchUseCase batches;
 
-    public StudioCommentController(CommentUseCase comments, CommentHttpMapper mapper) {
+    public StudioCommentController(CommentUseCase comments, CommentHttpMapper mapper, CommentBatchUseCase batches) {
         this.comments = comments;
+        this.batches = batches;
         this.mapper = mapper;
     }
 
@@ -33,6 +36,13 @@ public class StudioCommentController {
     @PostMapping("/posts/{slug}/ai-comments")
     CommentDetail generate(@PathVariable String slug, @Valid @RequestBody GenerateAiCommentRequest request) {
         return mapper.toResponse(comments.generateAiComment(slug, request.agentId()));
+    }
+
+    /** 批量生成仍由 /studio 的管理员认证和 CSRF 防护保护。 */
+    @PostMapping("/posts/{slug}/ai-comments/batch")
+    CommentResponses.CommentBatch generateBatch(@PathVariable String slug,
+            @Valid @RequestBody CommentRequests.GenerateAiCommentBatchRequest request) {
+        return mapper.toResponse(batches.generate(slug, mapper.toCommand(request)));
     }
 
     @PostMapping("/comments/{id}/ai-replies")

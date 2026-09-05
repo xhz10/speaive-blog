@@ -11,6 +11,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 创作工作区持久化端口，当前同时保存灵感、作品集、分享和 AI 辅助结果；能力拆分时应与对应用例一起逐步收窄。
+ */
 public interface CreativeWorkspaceRepository {
     List<Inspiration> findInspirations();
     Optional<Inspiration> findInspirationById(String id);

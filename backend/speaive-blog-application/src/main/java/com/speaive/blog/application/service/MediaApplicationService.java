@@ -10,6 +10,9 @@ import com.speaive.blog.application.result.media.StoredMediaResult;
 
 import java.util.Objects;
 
+/**
+ * 媒体上传和读取用例，确定允许的读取范围并调用存储端口；图片编码、文件路径和数据库元数据由适配器处理。
+ */
 public final class MediaApplicationService implements MediaUseCase {
     private final MediaStoragePort media;
 

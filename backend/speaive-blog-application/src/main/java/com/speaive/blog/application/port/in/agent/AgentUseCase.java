@@ -8,6 +8,9 @@ import com.speaive.blog.application.command.agent.UpdateOwnedAgentCommand;
 import com.speaive.blog.application.result.agent.AgentListResult;
 import com.speaive.blog.application.result.agent.AgentResult;
 
+/**
+ * Agent 管理入站契约，区分站长管理与按会员归属操作的用例。
+ */
 public interface AgentUseCase {
     AgentListResult listAgents();
 

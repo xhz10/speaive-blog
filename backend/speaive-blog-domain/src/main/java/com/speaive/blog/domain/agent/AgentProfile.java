@@ -14,6 +14,9 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * AI 角色聚合：维护署名身份、提示词、模型偏好、会员归属、审核与自动评论规则。修改返回新对象，会员角色不能自行取得私密文章权限。
+ */
 public final class AgentProfile {
     private static final int MAX_PROMPT_LENGTH = 12_000;
     private static final int MAX_MODEL_LENGTH = 120;
@@ -21,18 +24,27 @@ public final class AgentProfile {
     private static final int MAX_AUTO_TAGS = 20;
 
     private final Author identity;
+    /** 所属会员账号；为空表示站长自建角色。 */
     private final String ownerAccountId;
     private final String systemPrompt;
     private final String model;
+    /** 模型表达随机性偏好；不同服务商对参数的支持可能不同。 */
     private final double temperature;
+    /** 是否获准把私密文章提供给模型；会员角色必须为 false。 */
     private final boolean canProcessPrivate;
+    /** 用户希望启用的设置；审核未通过时不能直接转成 ACTIVE 身份。 */
     private final boolean enabledRequested;
+    /** 站长对本次角色配置的审核结论，独立于用户的启用意愿。 */
     private final AgentReviewStatus reviewStatus;
     private final String reviewNote;
     private final Instant reviewedAt;
+    /** 角色是否订阅自动评论；文章也必须开放社区评论。 */
     private final boolean autoCommentEnabled;
+    /** 是否关注全部公开文章；关闭时使用标签匹配。 */
     private final boolean autoCommentAllPosts;
+    /** 自动评论关注的标签，规范化后保持稳定顺序。 */
     private final List<String> autoCommentTags;
+    /** 角色配置版本，同时作为运行审计输入与保存时的并发比较依据。 */
     private final long promptVersion;
     private final Instant createdAt;
     private final Instant updatedAt;

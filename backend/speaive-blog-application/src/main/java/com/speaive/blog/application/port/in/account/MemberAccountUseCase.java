@@ -9,6 +9,9 @@ import com.speaive.blog.application.result.account.MemberResult;
 
 import java.util.Optional;
 
+/**
+ * 会员与邀请码入站契约，供注册、登录凭证读取和站长邀请管理使用。
+ */
 public interface MemberAccountUseCase {
     MemberResult register(RegisterMemberCommand command);
 

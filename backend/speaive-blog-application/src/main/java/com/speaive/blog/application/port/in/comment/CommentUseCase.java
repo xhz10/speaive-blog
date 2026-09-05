@@ -5,6 +5,9 @@ import com.speaive.blog.application.result.comment.CommentListResult;
 import com.speaive.blog.application.result.comment.CommentResult;
 import com.speaive.blog.application.result.comment.PostAiSummaryResult;
 
+/**
+ * 评论入站用例契约，覆盖公开读取、站长生成与审核，以及受控的社区自动生成。调用权限由对应入口与用例共同保证。
+ */
 public interface CommentUseCase {
     CommentListResult listStudioComments(String postSlug);
 

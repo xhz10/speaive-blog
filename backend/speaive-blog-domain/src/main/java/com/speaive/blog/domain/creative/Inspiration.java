@@ -6,6 +6,21 @@ import com.speaive.blog.domain.error.DomainException;
 import java.time.Instant;
 import java.util.Objects;
 
+/**
+ * 灵感聚合根：维护分类、处理进度、置顶和转化目标。只有 CONVERTED 状态保留文章或小说关联，编辑与状态变化都要核对 revision。
+ *
+ * @param id 当前对象的稳定标识，不应由展示名称替代
+ * @param title 标题
+ * @param body 正文内容；格式与长度由当前业务类型约束
+ * @param kind 灵感分类，详见 InspirationKind
+ * @param status 当前业务状态，详见该字段的枚举类型
+ * @param pinned 是否在工作区置顶
+ * @param targetType 转化目标类型；未转化时为空
+ * @param targetSlug 转化目标的路径标识；未转化时为空
+ * @param revision 从 1 开始的修订号，每次合法写操作推进一次
+ * @param createdAt 首次创建时间
+ * @param updatedAt 最近一次修改或状态变化时间
+ */
 public record Inspiration(
         String id,
         String title,

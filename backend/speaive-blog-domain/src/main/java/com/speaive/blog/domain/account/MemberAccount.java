@@ -9,6 +9,9 @@ import com.speaive.blog.domain.error.DomainException;
 import java.time.Instant;
 import java.util.Objects;
 
+/**
+ * 会员账号：关联内容身份与密码哈希。账号注册不赋予站长权限，密码原文不能进入领域对象或日志。
+ */
 public final class MemberAccount {
     private static final int MAX_PASSWORD_HASH_LENGTH = 100;
 

@@ -12,6 +12,9 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(
         name = {"speaive.ai.enabled", "speaive.ai.community-automation-enabled"},
         havingValue = "true")
+/**
+ * 定时调度入站适配器，只负责触发自动评论用例与记录执行结果，不直接访问队列表或调用模型。
+ */
 public final class CommunityCommentAutomationWorker {
     private static final Logger LOGGER = LoggerFactory.getLogger(CommunityCommentAutomationWorker.class);
 

@@ -35,6 +35,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * 文件投递箱入站适配器，扫描完整的 Markdown 投递文件并调用导入用例，再按结果归档文件；文章创建规则不放在扫描器中。
+ */
 public final class MarkdownInboxImporter {
     private static final Logger log = LoggerFactory.getLogger(MarkdownInboxImporter.class);
     private static final DateTimeFormatter FILE_TIMESTAMP = DateTimeFormatter

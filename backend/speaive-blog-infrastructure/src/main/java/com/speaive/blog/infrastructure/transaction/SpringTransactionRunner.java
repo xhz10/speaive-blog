@@ -7,6 +7,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+/**
+ * TransactionRunner 的 Spring 适配器，使用 TransactionTemplate 执行 REQUIRED 语义。数据库事务异常向外传播，领域层不需要事务注解。
+ */
 public final class SpringTransactionRunner implements TransactionRunner {
     private final TransactionTemplate transactions;
 

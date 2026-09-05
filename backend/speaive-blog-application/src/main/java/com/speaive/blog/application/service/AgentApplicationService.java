@@ -23,6 +23,9 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+/**
+ * 站长与会员 Agent 管理用例：查询、创建、修改、审核和运行偏好配置。归属与审核不变量交给 AgentProfile 校验。
+ */
 public final class AgentApplicationService implements AgentUseCase {
     private final AgentRepository agents;
     private final AccountRepository accounts;

@@ -9,6 +9,20 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * 作品集聚合根，拥有有序的 WorkItem 条目。条目位置必须连续，同一类型与 slug 的内容不可重复；跨聚合引用不复制文章正文。
+ *
+ * @param id 当前对象的稳定标识，不应由展示名称替代
+ * @param slug 内容 URL 中的路径标识，不是不可重用的数据库 ID
+ * @param title 标题
+ * @param description 文章或作品集简介
+ * @param cover 封面地址，未配置时可为空
+ * @param visibility 可见范围；独立于发布状态
+ * @param items 作品集按 position 排序的内容引用
+ * @param revision 从 1 开始的修订号，每次合法写操作推进一次
+ * @param createdAt 首次创建时间
+ * @param updatedAt 最近一次修改或状态变化时间
+ */
 public record WorkCollection(
         String id,
         String slug,

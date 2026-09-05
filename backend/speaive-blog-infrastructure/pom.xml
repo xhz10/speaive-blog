@@ -16,6 +16,10 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.lionsoul</groupId>
+            <artifactId>ip2region</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.speaive</groupId>
             <artifactId>speaive-blog-application</artifactId>
             <version>${project.version}</version>

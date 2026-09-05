@@ -6,6 +6,18 @@ import com.speaive.blog.domain.error.DomainException;
 import java.time.Instant;
 import java.util.Objects;
 
+/**
+ * 临时分享授权，保存内容引用、令牌哈希、有效期与撤销时间。原始令牌只在创建接口返回，访问时必须仍未撤销且未过期。
+ *
+ * @param id 当前对象的稳定标识，不应由展示名称替代
+ * @param contentType 引用内容的业务类型：文章或小说片段
+ * @param contentSlug 被引用内容的路径标识
+ * @param tokenHash 分享令牌的 SHA-256 哈希；原始令牌只向创建者返回一次
+ * @param expiresAt 过期时间，到达此时刻即不可再使用
+ * @param revokedAt 撤销时间；为空表示尚未撤销
+ * @param lastAccessedAt 最近一次成功访问时间；从未访问时为空
+ * @param createdAt 首次创建时间
+ */
 public record ShareGrant(
         String id,
         CreativeContentType contentType,

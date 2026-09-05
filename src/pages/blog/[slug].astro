@@ -1,5 +1,6 @@
 ---
 import { ArrowLeft, MessageCircle } from "@lucide/astro";
+import ArticleVisitTracker from "../../components/ArticleVisitTracker.astro";
 import CommentSection from "../../components/CommentSection.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { formatDateTime } from "../../lib/date-time";
@@ -28,6 +29,7 @@ if (!post) {
       updatedAt={post.updatedAt}
       author={post.author}
     >
+      <ArticleVisitTracker slug={slug} />
       <article class="article-page">
         <header class="article-header">
           <div class="shell">

@@ -14,6 +14,9 @@ import java.util.Objects;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
+/**
+ * AI 评论出站适配器，把用例已授权的上下文转为 Spring AI 请求，限制输出并返回纯文本结果；不能自行读取额外文章。
+ */
 public final class SpringAiCommentGenerationAdapter implements AiCommentGenerationPort {
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
             .withZone(ZoneId.of("Asia/Shanghai"));

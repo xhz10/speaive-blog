@@ -18,6 +18,9 @@ import java.time.Instant;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+/**
+ * 文章相关用例内部的协作代码，集中参数规范化、作者查询与领域错误转换。它不是供 Controller 直接调用的公共服务。
+ */
 final class PostApplicationSupport {
     private PostApplicationSupport() {
     }

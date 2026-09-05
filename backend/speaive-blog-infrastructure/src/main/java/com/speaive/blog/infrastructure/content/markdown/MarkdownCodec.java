@@ -36,6 +36,9 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Markdown 技术适配器，解析元数据、渲染并清洗 HTML，以及提取正文中的受管理媒体引用。它不决定文章是否发布。
+ */
 final class MarkdownCodec {
     private static final Pattern FIRST_HEADING = Pattern.compile("(?m)^#\\s+(.+?)\\s*$");
     private static final Pattern LEADING_HEADING = Pattern.compile("^#\\s+(.+?)\\s*(?:\\R|$)");

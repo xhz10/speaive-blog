@@ -19,6 +19,9 @@ import com.speaive.blog.application.result.creative.WorkCollectionListResult;
 import com.speaive.blog.application.result.creative.WorkCollectionResult;
 import com.speaive.blog.application.result.creative.WorkNavigationResult;
 
+/**
+ * 创作工作区入站契约，当前覆盖多个业务能力；后续拆分实现时仍需保持现有 HTTP 字段与调用行为兼容。
+ */
 public interface CreativeWorkspaceUseCase {
     InspirationListResult listInspirations();
     InspirationResult createInspiration(InspirationWriteCommand command);

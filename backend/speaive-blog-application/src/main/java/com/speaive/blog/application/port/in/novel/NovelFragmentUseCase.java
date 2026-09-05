@@ -4,6 +4,9 @@ import com.speaive.blog.application.command.novel.NovelFragmentWriteCommand;
 import com.speaive.blog.application.result.novel.NovelFragmentDetailResult;
 import com.speaive.blog.application.result.novel.NovelFragmentListResult;
 
+/**
+ * 小说片段入站用例契约，描述工作区编辑、发布和公共阅读能力。
+ */
 public interface NovelFragmentUseCase {
     NovelFragmentListResult listStudioFragments();
 

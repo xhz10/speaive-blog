@@ -3,6 +3,16 @@ package com.speaive.blog.domain.author;
 import com.speaive.blog.domain.error.DomainErrorCode;
 import com.speaive.blog.domain.error.DomainException;
 
+/**
+ * 内容署名身份的不可变表示，供文章、小说和评论引用。它不保存登录密码，也不等于 Spring Security 的登录用户。
+ *
+ * @param id 当前对象的稳定标识，不应由展示名称替代
+ * @param username 稳定用户名，用于身份定位
+ * @param displayName 对外展示的中文或自定义名称
+ * @param type 身份类型，详见对应枚举
+ * @param avatarUrl 头像地址；未配置时允许为空
+ * @param status 当前业务状态，详见该字段的枚举类型
+ */
 public record Author(
         String id,
         String username,

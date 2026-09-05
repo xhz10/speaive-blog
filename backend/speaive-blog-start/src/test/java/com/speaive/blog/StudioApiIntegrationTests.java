@@ -131,6 +131,7 @@ class StudioApiIntegrationTests {
 
     @BeforeEach
     void clearContent() throws Exception {
+        jdbc.update("DELETE FROM blog_article_visit");
         jdbc.update("DELETE FROM blog_discussion_digest");
         jdbc.update("DELETE FROM blog_editorial_review");
         jdbc.update("DELETE FROM blog_share_grant");
@@ -1650,6 +1651,94 @@ class StudioApiIntegrationTests {
             jdbc.execute("DROP TRIGGER IF EXISTS reject_blog_post_delete_trigger ON blog_post");
             jdbc.execute("DROP FUNCTION IF EXISTS reject_blog_post_delete()");
         }
+    }
+
+    @Test
+    void batchCommentsOverlapOnVirtualThreadsAndPreservePartialSuccess() throws Exception {
+        Client client = login();
+        var draft = posts.createDraft(command("batch-comments", "并发评论"));
+        posts.publish(draft.slug(), draft.version());
+        var ids = new java.util.ArrayList<String>();
+        for (String name : List.of("first-reader", "second-reader")) {
+            var created = mockMvc.perform(post("/api/v1/studio/agents").session(client.session())
+                    .cookie(client.csrfCookie()).header(client.csrfHeader(), client.csrfToken())
+                    .contentType(MediaType.APPLICATION_JSON).content("""
+                    {"username":"%s","displayName":"读者","systemPrompt":"认真阅读文章并发表评论。",
+                     "temperature":0.7,"canProcessPrivate":false,"enabled":true}
+                    """.formatted(name))).andExpect(status().isCreated()).andReturn();
+            ids.add(JsonPath.read(created.getResponse().getContentAsString(), "$.id"));
+        }
+        CountDownLatch overlap = new CountDownLatch(2);
+        AtomicInteger call = new AtomicInteger();
+        when(aiComments.generate(any())).thenAnswer(invocation -> {
+            assertThat(Thread.currentThread().isVirtual()).isTrue();
+            overlap.countDown();
+            assertThat(overlap.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            if (call.incrementAndGet() == 1) throw new BlogException(BlogErrorCode.AI_GENERATION_FAILED, "测试角色失败");
+            return new AiCommentGeneration("并发生成成功。", "test-model", 1, 1);
+        });
+        var result = mockMvc.perform(post("/api/v1/studio/posts/batch-comments/ai-comments/batch")
+                .session(client.session()).cookie(client.csrfCookie()).header(client.csrfHeader(), client.csrfToken())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"agentIds\":[\"" + ids.get(0) + "\",\"" + ids.get(1) + "\",\"missing-agent\"]}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items", hasSize(3)))
+                .andExpect(jsonPath("$.items[0].agentId").value(ids.get(0)))
+                .andExpect(jsonPath("$.items[1].agentId").value(ids.get(1)))
+                .andExpect(jsonPath("$.items[2].errorCode").value("NOT_FOUND")).andReturn();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM blog_comment WHERE status = 'PENDING'", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM blog_agent_run WHERE status = 'FAILED'", Integer.class)).isEqualTo(1);
+        verify(aiSummaries, org.mockito.Mockito.times(1)).generate(any());
+        mockMvc.perform(post("/api/v1/studio/posts/batch-comments/ai-comments/batch")
+                .session(client.session()).cookie(client.csrfCookie()).header(client.csrfHeader(), client.csrfToken())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"agentIds\":[\"same\",\"same\"]}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/v1/studio/posts/batch-comments/ai-comments/batch")
+                .session(client.session()).contentType(MediaType.APPLICATION_JSON).content("{\"agentIds\":[\"same\"]}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void anonymousVisitsAreIdempotentAndReadableOnlyByAdmin() throws Exception {
+        var draft = posts.createDraft(command("visitor-story", "有人读的文章"));
+        var published = posts.publish(draft.slug(), draft.version());
+        var privateDraft = posts.createDraft(new PostWriteCommand("private-visitor", "私密", "", java.time.Instant.now(),
+                List.of(), null, "ADMIN_ONLY", "私密正文"));
+        posts.publish(privateDraft.slug(), privateDraft.version());
+        var csrf = mockMvc.perform(get("/api/v1/account/csrf")).andExpect(status().isOk()).andReturn();
+        var cookie = csrf.getResponse().getCookie("XSRF-TOKEN");
+        String token = JsonPath.read(csrf.getResponse().getContentAsString(), "$.token");
+        String body = "{\"eventId\":\"00000000-0000-4000-8000-000000000010\",\"modelHint\":\"Pixel 9\",\"referrerHost\":\"example.com\"}";
+        mockMvc.perform(post("/api/v1/public/posts/visitor-story/visits").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden());
+        for (int n = 0; n < 2; n++) {
+            mockMvc.perform(post("/api/v1/public/posts/visitor-story/visits").cookie(cookie).header("X-XSRF-TOKEN", token)
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14; K) Chrome/130.0 Mobile Safari/537.36")
+                    .header("X-Forwarded-For", "8.8.8.8")
+                    .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isNoContent());
+        }
+        mockMvc.perform(post("/api/v1/public/posts/private-visitor/visits").cookie(cookie).header("X-XSRF-TOKEN", token)
+                .contentType(MediaType.APPLICATION_JSON).content(body.replace("000010", "000011"))).andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/studio/analytics")).andExpect(status().isUnauthorized());
+        var memberSession = new MockHttpSession();
+        var memberContext = org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
+        memberContext.setAuthentication(org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(
+                "reader", null, List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_MEMBER"))));
+        memberSession.setAttribute("SPRING_SECURITY_CONTEXT", memberContext);
+        mockMvc.perform(get("/api/v1/studio/analytics").session(memberSession)).andExpect(status().isForbidden());
+        Client admin = login();
+        mockMvc.perform(post("/api/v1/public/posts/visitor-story/visits").session(admin.session()).cookie(admin.csrfCookie())
+                .header(admin.csrfHeader(), admin.csrfToken()).contentType(MediaType.APPLICATION_JSON)
+                .content(body.replace("000010", "000012"))).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/studio/analytics").session(admin.session()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.pageViews").value(1))
+                .andExpect(jsonPath("$.visitors").value(1)).andExpect(jsonPath("$.articles").value(1))
+                .andExpect(jsonPath("$.items[0].deviceModel").value("Pixel 9"))
+                .andExpect(jsonPath("$.items[0].deviceType").value("MOBILE"))
+                .andExpect(jsonPath("$.items[0].ip").value("127.0.0.1"))
+                .andExpect(jsonPath("$.topArticles[0].label").value("有人读的文章"));
+        mockMvc.perform(get("/api/v1/studio/analytics?days=91").session(admin.session())).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/studio/analytics?pageSize=101").session(admin.session())).andExpect(status().isBadRequest());
+        posts.archive(published.slug(), published.version());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM blog_article_visit", Integer.class)).isEqualTo(1);
     }
 
     private Client login() throws Exception {

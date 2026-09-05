@@ -7,6 +7,8 @@ interface Props {
 }
 
 const { title } = Astro.props;
+const pathname = Astro.url.pathname;
+const isActive = (href: string) => pathname.startsWith(href);
 ---
 
 <BaseLayout title={title} noindex bare>
@@ -18,19 +20,35 @@ const { title } = Astro.props;
           Speaive <span>写作台</span>
         </a>
         <div class="studio-nav-actions">
-          <a class="button ghost" href="/studio/creative/">
+          <a
+            class:list={["button", "ghost", { active: isActive("/studio/creative/") }]}
+            href="/studio/creative/"
+            aria-current={isActive("/studio/creative/") ? "page" : undefined}
+          >
             <Sparkles size={16} stroke-width={1.8} aria-hidden="true" />
             创作
           </a>
-          <a class="button ghost" href="/studio/novels/">
+          <a
+            class:list={["button", "ghost", { active: isActive("/studio/novels/") }]}
+            href="/studio/novels/"
+            aria-current={isActive("/studio/novels/") ? "page" : undefined}
+          >
             <BookOpenText size={16} stroke-width={1.8} aria-hidden="true" />
             小说
           </a>
-          <a class="button ghost" href="/studio/community/">
+          <a
+            class:list={["button", "ghost", { active: isActive("/studio/community/") }]}
+            href="/studio/community/"
+            aria-current={isActive("/studio/community/") ? "page" : undefined}
+          >
             <ShieldCheck size={16} stroke-width={1.8} aria-hidden="true" />
             社区审核
           </a>
-          <a class="button ghost" href="/studio/agents/">
+          <a
+            class:list={["button", "ghost", { active: isActive("/studio/agents/") }]}
+            href="/studio/agents/"
+            aria-current={isActive("/studio/agents/") ? "page" : undefined}
+          >
             <Bot size={16} stroke-width={1.8} aria-hidden="true" />
             Agent
           </a>

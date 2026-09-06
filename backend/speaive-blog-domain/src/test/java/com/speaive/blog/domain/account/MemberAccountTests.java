@@ -35,4 +35,23 @@ class MemberAccountTests {
         assertTrue(account.enabled());
         assertEquals("reader", account.identity().username());
     }
+    @Test
+    void writingPublishingAndEncryptionAreIndependentAndVersioned() {
+        MemberAccount reader = MemberAccount.register("member", "reader", "读者", "hash", NOW);
+        assertEquals(MemberRole.READER, reader.role());
+        assertThrows(DomainException.class, reader::ensureCanWrite);
+        assertThrows(DomainException.class, () -> reader.chooseContentEncryption(true, 1, NOW));
+        assertThrows(DomainException.class, () -> reader.changeWritingPermissions(MemberRole.READER, true, true, 1, NOW));
+        MemberAccount writer = reader.changeWritingPermissions(MemberRole.WRITER, false, true, 1, NOW);
+        writer.ensureCanWrite();
+        assertThrows(DomainException.class, writer::ensureCanPublish);
+        MemberAccount encrypted = writer.chooseContentEncryption(true, 2, NOW);
+        assertTrue(encrypted.contentEncrypted());
+        assertThrows(DomainException.class, () -> encrypted.chooseContentEncryption(false, 2, NOW));
+        assertThrows(DomainException.class, () -> encrypted.changeWritingPermissions(MemberRole.WRITER, true, false, 3, NOW));
+        MemberAccount publisher = encrypted.changeWritingPermissions(MemberRole.WRITER, true, true, 3, NOW);
+        publisher.ensureCanPublish();
+        assertTrue(publisher.contentEncrypted());
+        assertFalse(publisher.chooseContentEncryption(false, 4, NOW).contentEncrypted());
+    }
 }

@@ -56,6 +56,7 @@ public class ApiExceptionHandler {
 
     private static HttpStatus statusFor(BlogErrorCode code) {
         return switch (code) {
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             case SLUG_CONFLICT, VERSION_CONFLICT, GENERATION_CONFLICT -> HttpStatus.CONFLICT;
             case AI_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;

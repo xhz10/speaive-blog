@@ -4,6 +4,8 @@ package com.speaive.blog.application.error;
 public enum BlogErrorCode {
     /** 请求不符合用例或领域规则，通常映射为 HTTP 400。 */
     INVALID_REQUEST,
+    /** 已登录但没有执行此操作的业务权限，映射为 HTTP 403。 */
+    FORBIDDEN,
     /** 上传或导入文件名不合法，映射为 HTTP 400。 */
     INVALID_FILE_NAME,
     /** Markdown 内容或元数据不能解析，映射为 HTTP 400。 */

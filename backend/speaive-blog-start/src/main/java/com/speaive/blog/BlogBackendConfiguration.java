@@ -63,6 +63,7 @@ import com.speaive.blog.infrastructure.content.persistence.mapper.MarkdownImport
 import com.speaive.blog.infrastructure.content.persistence.mapping.BlogPersistenceMapStructMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapping.NovelFragmentPersistenceMapStructMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapping.BlogAiPersistenceMapStructMapper;
+import com.speaive.blog.infrastructure.content.persistence.mapping.MemberPersistenceMapStructMapper;
 import com.speaive.blog.infrastructure.content.persistence.mapping.CreativePersistenceMapStructMapper;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAgentRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAgentRunRepository;
@@ -183,8 +184,8 @@ public class BlogBackendConfiguration {
     AccountRepository accountRepository(
             BlogAccountDatabaseMapper accounts,
             BlogAuthorDatabaseMapper authors,
-            BlogAiPersistenceMapStructMapper mapping) {
-        return new PostgresAccountRepository(accounts, authors, mapping);
+            BlogAiPersistenceMapStructMapper mapping, MemberPersistenceMapStructMapper memberMapping) {
+        return new PostgresAccountRepository(accounts, authors, mapping, memberMapping);
     }
 
     @Bean

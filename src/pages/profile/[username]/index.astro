@@ -1,0 +1,21 @@
+---
+import { ArrowUpRight, Feather } from "@lucide/astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { fetchStudioApi, isStudioApiError } from "../../../lib/studio/server";
+import { type WritingPosts, pageNumber, writingDate } from "../../../lib/writing/types";
+import "../../../styles/member-writing.css";
+let profile: WritingPosts | undefined; let error = "";
+const username = Astro.params.username ?? "";
+const page = pageNumber(Astro.url.searchParams.get("page"));
+try { profile = await fetchStudioApi<WritingPosts>(Astro.request, `/api/v1/public/profiles/${encodeURIComponent(username)}?page=${page}`); }
+catch (e) { Astro.response.status = isStudioApiError(e) && e.status === 404 ? 404 : 503; error = Astro.response.status === 404 ? "这个个人主页不存在或暂未开放。" : "个人主页暂时无法加载，请稍后重试。"; }
+Astro.response.headers.set("Cache-Control", "no-store");
+---
+<BaseLayout title={profile ? `${profile.displayName}的个人主页` : "个人主页"} description={profile ? `${profile.displayName}在 Speaive 分享的文字。` : undefined} noindex={!profile}>
+  <div class="writing-public-page">
+    {profile ? <><header class="writing-profile-hero"><div class="writing-avatar">{profile.displayName.slice(0, 1)}</div><p class="writing-eyebrow">@{profile.username}</p><h1>{profile.displayName}</h1><p>写下一些想留下的文字。</p><span><Feather size={15} />{profile.total} 篇公开文章</span></header>
+      <section class="writing-public-posts" aria-label="公开文章">{profile.items.map((post) => <article class="writing-public-row"><time datetime={post.publishedAt}>{writingDate(post.publishedAt)}</time><div><h2><a href={`/profile/${encodeURIComponent(profile.username)}/${post.slug}/`}>{post.title}</a></h2><p>{post.description}</p><span>{post.tags.join(" · ")}</span></div><ArrowUpRight size={20} stroke-width={1.5} /></article>)}{!profile.items.length && <div class="writing-empty"><Feather size={30} stroke-width={1.3} /><h2>{page > 1 ? "这一页没有文章" : "故事还在酝酿"}</h2><p>{page > 1 ? "返回上一页继续阅读。" : "作者公开发布的文字，会出现在这里。"}</p></div>}</section>
+      {(profile.total > profile.pageSize || page > 1) && <nav class="writing-pagination" aria-label="公开文章分页">{page > 1 ? <a href={`?page=${page - 1}`}>← 上一页</a> : <span />}<span>第 {page} 页</span>{page * profile.pageSize < profile.total ? <a href={`?page=${page + 1}`}>下一页 →</a> : <span />}</nav>}
+    </> : <div class="writing-empty"><h1>暂时无法打开主页</h1><p>{error}</p><a href="/">回到博客</a></div>}
+  </div>
+</BaseLayout>

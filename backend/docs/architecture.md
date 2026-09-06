@@ -69,3 +69,7 @@ AI 调用在数据库事务之外。先用短事务验证并保存运行审计�
 - [BackendArchitectureTests](../speaive-blog-start/src/test/java/com/speaive/blog/architecture/BackendArchitectureTests.java) 检查依赖方向、DTO/PO 边界、用例接口以及包循环。
 - [AGENTS.md](../AGENTS.md) 是仓库后端约束，新增功能应先阅读。
 - 配置集中在 [application.yml](../speaive-blog-start/src/main/resources/application.yml)，环境变量在根目录 [.env.example](../../.env.example)。
+
+## 会员写作扩展
+
+会员写作复用 `Post` 聚合，使用独立的加密载荷仓储和公开个人主页。账号设置、权限矩阵、事务流程及密钥部署见 [会员写作与内容加密](member-writing-and-encryption.md)。

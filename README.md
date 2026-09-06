@@ -146,3 +146,9 @@ pnpm build
 - Agent 评论室支持后端虚拟线程批量生成，默认最多 3 个角色同时运行，各角色独立成功或失败，仍需审核后公开。
 - 写作台新增 `/studio/analytics/` 管理员访客统计：访问时间、文章、IP、粗略地点、设备与来源，以及趋势和排行。
 - 安装离线地点库：在根目录执行 `./scripts/setup-geoip.sh` 后重启后端。没有地点库时仍记录访问，地点显示未知。具体配置与统计口径见 [访客统计说明](backend/docs/visitor-analytics.md)。
+
+## 会员写作与数据库内容加密
+
+受邀会员可由管理员在 `/studio/members/` 开通写作、公开发布和加密资格。会员在 `/writing/` 写作，在 `/writing/settings/` 选择加密；个人主页为 `/profile/{username}/`。管理员原有文章保持现有存储方式。
+
+首次启用加密先运行 `sh scripts/setup-content-key.sh`，单独备份密钥并配置后端读取权限。正文、标题、摘要、标签及全部修订统一转换；服务器持有密钥，获准阅读时会解密。完整技术与部署说明见 [会员写作与内容加密](backend/docs/member-writing-and-encryption.md)。

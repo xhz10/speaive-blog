@@ -1,0 +1,14 @@
+---
+import WritingLayout from "../../layouts/WritingLayout.astro";
+import WritingEditor from "../../components/WritingEditor.astro";
+import { fetchStudioApi, isStudioApiError } from "../../lib/studio/server";
+import type { WritingAccount, WritingPost } from "../../lib/writing/types";
+let account: WritingAccount | undefined; let post: WritingPost | undefined; let error = "";
+try {
+  account = await fetchStudioApi<WritingAccount>(Astro.request, "/api/v1/account/writing/settings");
+  post = await fetchStudioApi<WritingPost>(Astro.request, `/api/v1/account/writing/posts/${encodeURIComponent(Astro.params.slug ?? "")}`);
+} catch (e) { Astro.response.status = isStudioApiError(e) && e.status === 404 ? 404 : 503; error = e instanceof Error ? e.message : "文章暂时无法打开"; }
+---
+<WritingLayout title="编辑文章" username={account?.role === "WRITER" ? account.username : undefined}>
+  {error ? <div class="writing-empty" role="alert"><h1>无法打开这篇文章</h1><p>{error}</p><a href="/writing/">返回我的文章</a></div> : account && <WritingEditor account={account} post={post} />}
+</WritingLayout>

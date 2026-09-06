@@ -1,0 +1,18 @@
+---
+import { ArrowLeft, Feather } from "@lucide/astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+import { fetchStudioApi, isStudioApiError } from "../../../lib/studio/server";
+import { type WritingPost, writingDate } from "../../../lib/writing/types";
+import "../../../styles/member-writing.css";
+let post: WritingPost | undefined; let error = "";
+const username = Astro.params.username ?? "";
+try { post = await fetchStudioApi<WritingPost>(Astro.request, `/api/v1/public/profiles/${encodeURIComponent(username)}/posts/${encodeURIComponent(Astro.params.slug ?? "")}`); }
+catch (e) { Astro.response.status = isStudioApiError(e) && e.status === 404 ? 404 : 503; error = Astro.response.status === 404 ? "这篇文章不存在，或作者尚未公开。" : "文章暂时无法加载，请稍后重试。"; }
+Astro.response.headers.set("Cache-Control", "no-store");
+---
+<BaseLayout title={post?.title ?? "文章"} description={post?.description} type={post ? "article" : "website"} publishedAt={post?.publishedAt} updatedAt={post?.updatedAt} noindex={!post}>
+  <div class="writing-public-page writing-public-article">
+    <a class="writing-back" href={`/profile/${encodeURIComponent(username)}/`}><ArrowLeft size={15} />作者主页</a>
+    {post ? <article><header class="writing-article-hero"><p class="writing-eyebrow">{post.tags.join(" / ") || "文字与生活"}</p><h1>{post.title}</h1>{post.description && <p class="writing-article-deck">{post.description}</p>}<div><a href={`/profile/${encodeURIComponent(post.author.username)}/`}><span class="writing-avatar small">{post.author.displayName.slice(0, 1)}</span>{post.author.displayName}</a><span>·</span><time datetime={post.publishedAt}>{writingDate(post.publishedAt)}</time></div></header><div class="prose writing-article-body" set:html={post.html} /><footer class="writing-article-end"><Feather size={20} /><p>文字写到这里，故事还在继续。</p><a href={`/profile/${encodeURIComponent(post.author.username)}/`}>阅读 {post.author.displayName} 的更多文章 →</a></footer></article> : <div class="writing-empty"><h1>暂时无法打开文章</h1><p>{error}</p></div>}
+  </div>
+</BaseLayout>

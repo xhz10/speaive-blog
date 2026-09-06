@@ -1,0 +1,47 @@
+---
+import { LockKeyhole, ShieldCheck, ArrowUpRight } from "@lucide/astro";
+import WritingLayout from "../../layouts/WritingLayout.astro";
+import { fetchStudioApi } from "../../lib/studio/server";
+import type { WritingAccount } from "../../lib/writing/types";
+let account: WritingAccount | undefined; let error = "";
+try { account = await fetchStudioApi<WritingAccount>(Astro.request, "/api/v1/account/writing/settings"); }
+catch (e) { Astro.response.status = 503; error = e instanceof Error ? e.message : "设置暂时不可用"; }
+---
+<WritingLayout title="账号与存储" username={account?.role === "WRITER" ? account.username : undefined}>
+  <header class="writing-hero"><div><p class="writing-eyebrow">账号设置</p><h1>决定文字如何保存。</h1><p>公开范围由你选择，写作与发布资格由站长管理。</p></div></header>
+  {error ? <p class="notice error" role="alert">{error}</p> : account && <div class="writing-settings-grid">
+    <section class="writing-paper writing-settings"><div class="writing-section-icon"><LockKeyhole size={21} /></div><h2>加密存储</h2><p>开启后，数据库中的文章标题、摘要、正文、标签和历史版本会保存为密文。已有文章也会一起转换。</p>
+      <form data-encryption-form data-version={account.version} data-encrypted={String(account.contentEncrypted)}>
+        <label class="writing-switch"><span><strong>加密我的文章</strong><small>{account.contentEncrypted ? "正在使用加密存储" : "目前以普通方式存储"}</small></span><input type="checkbox" name="encrypted" checked={account.contentEncrypted} disabled={!account.contentEncrypted && (!account.encryptionAllowed || !account.encryptionAvailable)} /></label>
+        {!account.encryptionAllowed && <p class="writing-hint">站长尚未为此账号开放加密资格。</p>}
+        {account.encryptionAllowed && !account.encryptionAvailable && <p class="writing-hint">站长尚未配置可用的内容密钥，加密功能暂时不可用。</p>}
+        <p class="writing-notice" role="status" aria-live="polite" data-encryption-notice hidden></p>
+        <button class="button primary" type="submit" disabled={!account.contentEncrypted && (!account.encryptionAllowed || !account.encryptionAvailable)}>保存存储设置</button>
+      </form>
+      <div class="writing-boundary"><strong>加密存储与公开发布是两件事</strong><p>草稿仅本人可见；主动发布的文章仍会在个人主页公开。服务器会为获准访问的请求解密，持有服务器密钥的管理员在技术上也能解密。</p><p>此设置保护文章文本，账号资料、必要的记录信息和外链图片不在加密范围内。关闭后，已有文章与历史版本会恢复为明文存储。</p></div>
+    </section>
+    <aside class="writing-paper writing-settings"><div class="writing-section-icon"><ShieldCheck size={21} /></div><h2>{account.displayName}</h2><p>@{account.username}</p><dl class="writing-permissions"><div><dt>账号身份</dt><dd>{account.role === "WRITER" ? "作者" : "普通会员"}</dd></div><div><dt>公开发布</dt><dd>{account.canPublish ? "已开通" : "未开通"}</dd></div><div><dt>加密资格</dt><dd>{account.encryptionAllowed ? "已开通" : "未开通"}</dd></div></dl>{account.role === "WRITER" && <a class="writing-profile-link" href={`/profile/${encodeURIComponent(account.username)}/`} target="_blank" rel="noreferrer">查看个人主页 <ArrowUpRight size={16} /><small>/profile/{account.username}</small></a>}<p class="writing-hint">需要调整权限时，请联系站长。</p></aside>
+  </div>}
+</WritingLayout>
+<script>
+  import { writingRequest, jsonRequest } from "../../lib/writing/client";
+  import type { WritingAccount } from "../../lib/writing/types";
+  const form = document.querySelector<HTMLFormElement>("[data-encryption-form]");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = form.elements.namedItem("encrypted") as HTMLInputElement;
+    if (form.dataset.encrypted === "true" && !input.checked && !confirm("关闭后，全部文章和历史版本将恢复为明文存储。确定关闭吗？")) return;
+    const button = form.querySelector<HTMLButtonElement>("button[type=submit]")!;
+    const notice = form.querySelector<HTMLElement>("[data-encryption-notice]")!;
+    button.disabled = input.disabled = true;
+    notice.hidden = false; notice.textContent = "正在转换文章和全部历史版本，请保持页面打开…";
+    try {
+      const updated = await writingRequest<WritingAccount>("/settings/encryption", jsonRequest("PUT", { encrypted: input.checked, version: Number(form.dataset.version) }));
+      form.dataset.version = String(updated.version); form.dataset.encrypted = String(updated.contentEncrypted);
+      input.checked = updated.contentEncrypted;
+      form.querySelector("small")!.textContent = updated.contentEncrypted ? "正在使用加密存储" : "目前以普通方式存储";
+      notice.textContent = "已保存，当前文章与全部历史版本已完成转换。";
+    } catch (error) { notice.textContent = error instanceof Error ? error.message : "设置未保存，请刷新确认存储状态后重试。"; }
+    finally { button.disabled = input.disabled = false; }
+  });
+</script>

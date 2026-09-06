@@ -1,0 +1,24 @@
+---
+import { ArrowLeft, LockKeyhole, Save, ArrowUpRight, HistoryIcon } from "@lucide/astro";
+import type { WritingAccount, WritingPost } from "../lib/writing/types";
+import { writingStatus } from "../lib/writing/types";
+interface Props { account: WritingAccount; post?: WritingPost; }
+const { account, post } = Astro.props;
+const writable = account.role === "WRITER";
+---
+<form class="writing-editor" data-writing-editor data-slug={post?.slug ?? ""} data-version={post?.version ?? ""} data-username={account.username} data-dirty="false" data-status={post?.status ?? "DRAFT"}>
+  <div class="writing-editor-bar"><a href="/writing/"><ArrowLeft size={16} />我的文章</a><span data-save-state>{post ? writingStatus(post) : "新草稿 · 尚未保存"}</span><button class="button secondary" type="submit" disabled={!writable}><Save size={16} />保存</button>{account.canPublish && <button class="button primary" type="button" data-publish><ArrowUpRight size={16} />公开发布</button>}</div>
+  <p class="writing-notice" role="status" aria-live="polite" data-editor-notice hidden></p>
+  <div class="writing-editor-grid"><section class="writing-paper writing-manuscript"><div class="writing-editor-tabs" role="group" aria-label="编辑与预览"><button type="button" aria-pressed="true" data-edit-tab>写作</button><button type="button" aria-pressed="false" data-preview-tab>预览已保存内容</button><span><LockKeyhole size={13} />{account.contentEncrypted ? "加密存储" : "普通存储"}</span></div>
+    <div data-edit-pane><label class="writing-title-label"><span class="sr-only">文章标题</span><textarea class="writing-title-input" name="title" rows="2" maxlength="200" placeholder="给这篇文字起个名字" required readonly={!writable}>{post?.title ?? ""}</textarea></label><label class="writing-body-label"><span class="sr-only">文章正文，支持 Markdown</span><textarea class="writing-body-input" name="body" placeholder="从一个念头开始…
+
+支持 Markdown。写完一段，记得保存。" maxlength="1000000" spellcheck="false" readonly={!writable}>{post?.body ?? ""}</textarea></label></div>
+    <article class="prose writing-preview" data-preview-pane hidden><h1 data-preview-title>{post?.title}</h1><div data-preview-html set:html={post?.html ?? ""} /></article>
+    <div class="writing-editor-foot"><span data-word-count>0 字</span><span>⌘ / Ctrl + S 保存 · 不在浏览器中保存草稿副本</span></div>
+  </section><aside class="writing-editor-aside"><section class="writing-paper writing-settings"><h2>文章设置</h2><label class="field"><span class="field-label">摘要</span><textarea class="input" name="description" rows="4" maxlength="500" placeholder="让读者知道这篇文章在说什么" readonly={!writable}>{post?.description ?? ""}</textarea></label><label class="field"><span class="field-label">标签</span><input class="input" name="tags" value={post?.tags.join("，") ?? ""} placeholder="随笔，生活" readonly={!writable} /><small>用逗号分隔，最多 20 个</small></label><label class="field"><span class="field-label">可见范围</span><select class="input" name="visibility" disabled={!writable}><option value="ADMIN_ONLY" selected={!post || post.visibility !== "PUBLIC"}>仅自己可见</option><option value="PUBLIC" selected={post?.visibility === "PUBLIC"}>允许公开</option></select></label><p class="writing-hint">选择「允许公开」后，还需要点击公开发布。已公开的文章保存后会立即更新。</p>{!account.canPublish && <p class="writing-hint">站长尚未开通你的公开发布权限，可以先写成草稿。</p>}<a class="writing-profile-link" data-public-link href={post ? `/profile/${account.username}/${post.slug}/` : "#"} hidden={!post || writingStatus(post) !== "已公开"} target="_blank" rel="noreferrer">查看公开文章 ↗</a><button class="button secondary" type="button" data-unpublish hidden={!post || post.status !== "PUBLISHED"}>撤回为草稿</button></section>
+    <section class="writing-paper writing-settings" data-existing-tools hidden={!post}><details data-history><summary><HistoryIcon size={16} />历史版本</summary><p class="writing-hint">最近 50 个版本。恢复会创建新版本；已公开的文章会同步更新。</p><div class="writing-history" data-history-list></div></details><button class="writing-archive" type="button" data-archive>归档文章</button><p class="writing-hint">归档后从个人主页和文章列表移除，历史记录保留。</p></section>
+  </aside></div>
+</form>
+<script>
+  import "../lib/writing/editor";
+</script>

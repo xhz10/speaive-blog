@@ -104,3 +104,7 @@ sequenceDiagram
 ```
 
 查询入口 `GET /api/v1/studio/analytics` 强制 ADMIN，响应带 `Cache-Control: no-store`。普通会员登录后仍不能查询。数据库按时间、文章过滤后分别计算计数、趋势和排行，分页读取明细，不在应用内遍历全部访客。
+
+## 会员写作扩展
+
+会员写作复用 `Post` 聚合，使用独立的加密载荷仓储和公开个人主页。账号设置、权限矩阵、事务流程及密钥部署见 [会员写作与内容加密](member-writing-and-encryption.md)。

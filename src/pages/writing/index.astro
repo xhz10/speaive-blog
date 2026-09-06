@@ -1,0 +1,23 @@
+---
+import { Plus, LockKeyhole, ArrowUpRight, FileText } from "@lucide/astro";
+import WritingLayout from "../../layouts/WritingLayout.astro";
+import { fetchStudioApi } from "../../lib/studio/server";
+import { type WritingAccount, type WritingPosts, pageNumber, writingDate, writingStatus } from "../../lib/writing/types";
+const page = pageNumber(Astro.url.searchParams.get("page"));
+let account: WritingAccount | undefined; let posts: WritingPosts | undefined; let error = "";
+try { [account, posts] = await Promise.all([
+  fetchStudioApi<WritingAccount>(Astro.request, "/api/v1/account/writing/settings"),
+  fetchStudioApi<WritingPosts>(Astro.request, `/api/v1/account/writing/posts?page=${page}`)
+]); } catch (e) { Astro.response.status = 503; error = e instanceof Error ? e.message : "暂时无法读取文章"; }
+---
+<WritingLayout title="我的文章" username={account?.role === "WRITER" ? account.username : undefined}>
+  <header class="writing-hero"><div><p class="writing-eyebrow">{account?.displayName ?? "我的写作空间"}</p><h1>把想说的，写下来。</h1><p>先写给自己。准备好了，再与读者见面。</p></div>{account?.role === "WRITER" && <a class="button primary" href="/writing/new/"><Plus size={17} />写一篇文章</a>}</header>
+  {error ? <div class="writing-empty" role="alert"><h2>暂时无法打开写作空间</h2><p>{error}</p><a class="button secondary" href="/writing/">重新加载</a></div> : account && posts && <>
+    <div class="writing-storage-strip"><span><LockKeyhole size={16} />{account.contentEncrypted ? "文章与历史版本已加密存储" : "当前使用普通存储"}</span><a href="/writing/settings/">管理存储设置 →</a></div>
+    {account.role !== "WRITER" && <div class="writing-callout"><h2>你的写作空间已经准备好</h2><p>联系站长开通作者权限后，就可以在这里写文章。公开发布权限由站长单独设置。</p></div>}
+    <section class="writing-paper"><header class="writing-section-title"><h2>我的文章 <span>{posts.total}</span></h2><span>最近修改优先 · 草稿仅自己可见</span></header>
+    {posts.items.length ? <div class="writing-posts">{posts.items.map((post) => <article class="writing-post-row"><div><span class:list={["writing-badge", { public: writingStatus(post) === "已公开" }]}>{writingStatus(post)}</span><h3><a href={`/writing/${post.slug}/`}>{post.title}</a></h3><p>{post.description || "还没有填写摘要"}</p><small>{writingDate(post.updatedAt)} 更新{post.tags.length > 0 && ` · ${post.tags.join(" / ")}`}</small></div><a class="writing-open" href={`/writing/${post.slug}/`} aria-label={`打开：${post.title}`}><ArrowUpRight size={21} /></a></article>)}</div> : <div class="writing-empty"><FileText size={32} stroke-width={1.3} /><h2>{page > 1 ? "这一页没有文章" : "这里会收好你的每一篇文字"}</h2><p>{page > 1 ? "返回上一页继续查看。" : "随笔、故事，或者还没想好名字的念头，都可以先存成草稿。"}</p>{account.role === "WRITER" && page === 1 && <a class="button secondary" href="/writing/new/">开始第一篇</a>}</div>}
+    {(posts.total > posts.pageSize || page > 1) && <nav class="writing-pagination" aria-label="文章分页">{page > 1 ? <a href={`?page=${page - 1}`}>← 上一页</a> : <span />}<span>第 {page} 页</span>{page * posts.pageSize < posts.total ? <a href={`?page=${page + 1}`}>下一页 →</a> : <span />}</nav>}
+    </section>
+  </>}
+</WritingLayout>

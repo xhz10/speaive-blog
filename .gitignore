@@ -21,3 +21,6 @@ target/
 hs_err_pid*
 replay_pid*
 *.log
+
+# 内容加密密钥必须独立保管，不能提交或进入普通数据备份
+.secrets/

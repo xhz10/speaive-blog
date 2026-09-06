@@ -24,7 +24,7 @@ public final class PostResponses {
     ) {
     }
 
-    record PostSummary(
+    public record PostSummary(
             String slug,
             String title,
             String description,
@@ -39,7 +39,7 @@ public final class PostResponses {
     ) {
     }
 
-    record AuthorSummary(String id, String username, String displayName, String type, String avatarUrl) {
+    public record AuthorSummary(String id, String username, String displayName, String type, String avatarUrl) {
     }
 
     record ContentScanError(String file, String status, String message) {

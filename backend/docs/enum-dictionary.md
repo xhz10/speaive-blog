@@ -1,6 +1,6 @@
 # 枚举中文速查
 
-当前覆盖生产源码中的 **39 个枚举、140 个枚举项**，包括数据库 PO 枚举和两个类内部的私有枚举。代码中也有相同的中文 Javadoc，可直接在 IDE 中悬停查看。
+当前覆盖生产源码中的 **40 个枚举、143 个枚举项**，包括数据库 PO 枚举和两个类内部的私有枚举。代码中也有相同的中文 Javadoc，可直接在 IDE 中悬停查看。
 
 枚举名保持英文是为了兼容 Java、JSON 与数据库；中文说明解释业务含义。名称相同的状态可能属于不同流程，例如 Agent 审核的 `PENDING`、评论审核的 `PENDING`、自动任务的 `PENDING` 不能混用。
 
@@ -8,7 +8,7 @@
 
 | 所属层 | 枚举 |
 | --- | --- |
-| `domain` | [DeviceType](#devicetype)、[AgentReviewStatus](#agentreviewstatus)、[AgentRunStatus](#agentrunstatus)、[AuthorStatus](#authorstatus)、[AuthorType](#authortype)、[CommunityCommentJobStatus](#communitycommentjobstatus)、[CommentStatus](#commentstatus)、[CreativeContentType](#creativecontenttype)、[CreativeVisibility](#creativevisibility)、[InspirationKind](#inspirationkind)、[InspirationStatus](#inspirationstatus)、[DomainErrorCode](#domainerrorcode)、[NovelFragmentRevisionEventType](#novelfragmentrevisioneventtype)、[NovelFragmentStatus](#novelfragmentstatus)、[NovelFragmentVisibility](#novelfragmentvisibility)、[PostRevisionEventType](#postrevisioneventtype)、[PostStatus](#poststatus)、[PostVisibility](#postvisibility) |
+| `domain` | [MemberRole](#memberrole)、[DeviceType](#devicetype)、[AgentReviewStatus](#agentreviewstatus)、[AgentRunStatus](#agentrunstatus)、[AuthorStatus](#authorstatus)、[AuthorType](#authortype)、[CommunityCommentJobStatus](#communitycommentjobstatus)、[CommentStatus](#commentstatus)、[CreativeContentType](#creativecontenttype)、[CreativeVisibility](#creativevisibility)、[InspirationKind](#inspirationkind)、[InspirationStatus](#inspirationstatus)、[DomainErrorCode](#domainerrorcode)、[NovelFragmentRevisionEventType](#novelfragmentrevisioneventtype)、[NovelFragmentStatus](#novelfragmentstatus)、[NovelFragmentVisibility](#novelfragmentvisibility)、[PostRevisionEventType](#postrevisioneventtype)、[PostStatus](#poststatus)、[PostVisibility](#postvisibility) |
 | `application` | [BlogErrorCode](#blogerrorcode)、[MediaReadScope](#mediareadscope)、[CommentQueryScope](#commentqueryscope)、[NovelFragmentQueryScope](#novelfragmentqueryscope)、[PostQueryScope](#postqueryscope)、[MarkdownImportOutcome](#markdownimportoutcome)、[Transition](#transition) |
 | `infrastructure` | [ImageKind](#imagekind)、[AgentReviewStatusPo](#agentreviewstatuspo)、[AgentRunStatusPo](#agentrunstatuspo)、[AuthorStatusPo](#authorstatuspo)、[AuthorTypePo](#authortypepo)、[CommentStatusPo](#commentstatuspo)、[CommunityCommentJobStatusPo](#communitycommentjobstatuspo)、[NovelFragmentRevisionEventTypePo](#novelfragmentrevisioneventtypepo)、[NovelFragmentStatusPo](#novelfragmentstatuspo)、[NovelFragmentVisibilityPo](#novelfragmentvisibilitypo)、[PostStatusPo](#poststatuspo)、[PostVisibilityPo](#postvisibilitypo)、[RevisionEventTypePo](#revisioneventtypepo) |
 | `start` | [ApiErrorCode](#apierrorcode) |
@@ -22,6 +22,7 @@
 | 枚举项 | 中文含义 |
 | --- | --- |
 | `INVALID_REQUEST` | 请求不符合用例或领域规则，通常映射为 HTTP 400。 |
+| `FORBIDDEN` | 已登录但没有执行此操作的业务权限，映射为 HTTP 403。 |
 | `INVALID_FILE_NAME` | 上传或导入文件名不合法，映射为 HTTP 400。 |
 | `INVALID_MARKDOWN` | Markdown 内容或元数据不能解析，映射为 HTTP 400。 |
 | `INVALID_IMAGE` | 图片格式或内容校验失败，映射为 HTTP 400。 |
@@ -507,3 +508,14 @@ HTTP 入站层自身的错误分类，覆盖认证、授权、参数校验与限
 | `DESKTOP` | 桌面或笔记本电脑，不代表已知硬件型号。 |
 | `BOT` | 明确声明的爬虫或自动程序，默认不计入阅读统计。 |
 | `UNKNOWN` | 信息缺失或无法识别。 |
+
+## MemberRole
+
+会员业务身份，独立于 Spring 登录角色。普通会员登录后仍不能直接写作或发布。
+
+[打开源码](../speaive-blog-domain/src/main/java/com/speaive/blog/domain/account/MemberRole.java)
+
+| 枚举项 | 中文含义 |
+| --- | --- |
+| `READER` | 普通会员，可使用原有会员功能，尚无写作资格。 |
+| `WRITER` | 作者，可编辑自己的文章；公开发布仍需单独授权。 |

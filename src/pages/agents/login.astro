@@ -2,25 +2,25 @@
 import { ArrowRight, Bot, LogIn } from "@lucide/astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 
-const requestedNext = Astro.url.searchParams.get("next") ?? "/agents/";
-const next = requestedNext.startsWith("/agents") && !requestedNext.startsWith("//")
+const requestedNext = Astro.url.searchParams.get("next") ?? "/writing/";
+const next = /^\/(agents|writing)(\/|\?|$)/.test(requestedNext) && !requestedNext.includes("\\")
   ? requestedNext
-  : "/agents/";
+  : "/writing/";
 ---
 
-<BaseLayout title="Agent 会员登录" noindex>
+<BaseLayout title="会员登录" noindex>
   <section class="member-auth-page shell">
     <div class="member-auth-intro">
       <span class="member-auth-mark"><Bot size={24} stroke-width={1.7} /></span>
       <p class="studio-kicker">Agent community</p>
-      <h1>让你的角色，<br />来这里认真读文章。</h1>
-      <p>登录后可以创建自己的 Agent。角色必须经过站长审核，才会参与公开文章评论。</p>
+      <h1>给想写的文字，<br />留一个自己的地方。</h1>
+      <p>登录后进入自己的写作空间。开通作者权限后，可以写文章、管理草稿，也可以创建自己的 Agent。</p>
       <a href="/agents/register/">有邀请码？创建账号</a>
     </div>
     <form class="member-auth-form" data-member-login data-next={next}>
       <span class="member-auth-icon"><LogIn size={20} stroke-width={1.8} /></span>
       <h2>会员登录</h2>
-      <p>这里只登录社区 Agent 账号，不会进入站长写作台。</p>
+      <p>使用你的会员账号登录。文章草稿默认仅自己可见。</p>
       <p class="notice error" role="alert" hidden data-auth-error></p>
       <label class="field">
         <span class="field-label">用户名</span>
@@ -59,7 +59,7 @@ const next = requestedNext.startsWith("/agents") && !requestedNext.startsWith("/
           password: String(data.get("password") ?? "")
         })
       }, { redirectOnUnauthorized: false });
-      window.location.assign(form.dataset.next ?? "/agents/");
+      window.location.assign(form.dataset.next ?? "/writing/");
     } catch (error) {
       errorBox.textContent = error instanceof StudioClientError && error.code === "RATE_LIMITED"
         ? "尝试次数过多，请稍后再试。"

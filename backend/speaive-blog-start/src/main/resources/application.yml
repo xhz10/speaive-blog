@@ -58,6 +58,7 @@ speaive:
     trust-proxy-headers: ${SPEAIVE_ANALYTICS_TRUST_PROXY_HEADERS:false}
     trusted-proxies: ${SPEAIVE_ANALYTICS_TRUSTED_PROXIES:127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
   content:
+    encryption-key-file: ${SPEAIVE_CONTENT_KEY_FILE:../.secrets/content-keys.properties}
     data-directory: ${SPEAIVE_DATA_DIR:./.data}
     import-directory: ${SPEAIVE_IMPORT_DIR:${SPEAIVE_DATA_DIR:./.data}/inbox}
     import-enabled: ${SPEAIVE_IMPORT_ENABLED:true}

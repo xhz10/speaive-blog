@@ -41,6 +41,7 @@ services:
       SPEAIVE_BACKEND_PORT: 8080
       SPEAIVE_DATA_DIR: /data
       SPEAIVE_IMPORT_DIR: /data/inbox
+      SPEAIVE_CONTENT_KEY_FILE: /run/content-secrets/content-keys.properties
       SPEAIVE_ADMIN_USERNAME: ${SPEAIVE_ADMIN_USERNAME:-admin}
       SPEAIVE_ADMIN_PASSWORD_HASH: ${SPEAIVE_ADMIN_PASSWORD_HASH:?请在 .env 中设置 SPEAIVE_ADMIN_PASSWORD_HASH}
       SPEAIVE_SECURE_COOKIES: ${SPEAIVE_SECURE_COOKIES:-false}
@@ -74,6 +75,10 @@ services:
       - type: bind
         source: ${SPEAIVE_DATA_DIR:-./.data}
         target: /data
+      - type: bind
+        source: ${SPEAIVE_CONTENT_SECRET_DIR:-./.secrets}
+        target: /run/content-secrets
+        read_only: true
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/actuator/health"]
       interval: 10s

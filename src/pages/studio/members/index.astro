@@ -1,0 +1,39 @@
+---
+import { UsersRound, ArrowUpRight } from "@lucide/astro";
+import StudioLayout from "../../../layouts/StudioLayout.astro";
+import { fetchStudioApi } from "../../../lib/studio/server";
+import type { WritingAccount } from "../../../lib/writing/types";
+import "../../../styles/member-writing.css";
+let members: WritingAccount[] = []; let error = "";
+try { members = (await fetchStudioApi<{ items: WritingAccount[] }>(Astro.request, "/api/v1/studio/members")).items; }
+catch (e) { Astro.response.status = 503; error = e instanceof Error ? e.message : "无法读取会员账号"; }
+---
+<StudioLayout title="会员与写作权限">
+  <div class="writing-admin-page"><header class="writing-hero"><div><p class="writing-eyebrow">会员管理</p><h1>让朋友也能在这里写作。</h1><p>写作、公开发布、加密资格分别设置。是否开启加密，由作者自己决定。</p></div><a class="button secondary" href="/studio/community/">邀请码与社区管理 →</a></header>
+  {error ? <p class="notice error" role="alert">{error}</p> : members.length ? <div class="writing-member-grid">{members.map((member) => <form class="writing-paper writing-member-card" data-member-permissions data-username={member.username} data-version={member.version}><header><span class="writing-avatar">{member.displayName.slice(0, 1)}</span><div><h2>{member.displayName}</h2><p>@{member.username}</p></div><a href={`/profile/${encodeURIComponent(member.username)}/`} target="_blank" rel="noreferrer" aria-label={`${member.displayName}的个人主页`}><ArrowUpRight size={18} /></a></header><label class="field"><span class="field-label">账号身份</span><select class="input" name="role"><option value="READER" selected={member.role === "READER"}>普通会员 · 可使用社区 Agent</option><option value="WRITER" selected={member.role === "WRITER"}>作者 · 可以编辑自己的文章</option></select></label><label class="writing-check"><input type="checkbox" name="canPublish" checked={member.canPublish} disabled={member.role !== "WRITER"} /><span>允许公开发布<small>文章可以展示在该作者的个人主页</small></span></label><label class="writing-check"><input type="checkbox" name="encryptionAllowed" checked={member.encryptionAllowed} disabled={member.contentEncrypted} /><span>开放加密存储<small>{member.contentEncrypted ? "作者正在使用加密，不能直接撤销资格" : "作者可在自己的设置中开启或关闭"}</small></span></label><div class="writing-member-card-foot"><span class="writing-badge">{member.contentEncrypted ? "已开启加密" : "普通存储"}</span><button class="button secondary" type="submit">保存权限</button></div><p class="writing-notice" data-permissions-notice role="status" hidden></p></form>)}</div> : <div class="writing-empty"><UsersRound size={32} /><h2>还没有会员账号</h2><p>先在社区管理中创建邀请码，朋友注册后就会出现在这里。</p><a class="button secondary" href="/agents/register/" target="_blank" rel="noreferrer">查看注册页面</a></div>}
+  <p class="writing-hint">撤销发布资格会阻止后续发布和公开更新；改回普通会员会撤回公开文章并关闭个人主页。已有内容仍属于原作者。管理员原有文章不受这些设置影响。</p></div>
+</StudioLayout>
+<script>
+  import { studioRequest } from "../../../lib/studio/client";
+  import { jsonRequest } from "../../../lib/writing/client";
+  import type { WritingAccount } from "../../../lib/writing/types";
+  for (const form of document.querySelectorAll<HTMLFormElement>("[data-member-permissions]")) {
+    const role = form.elements.namedItem("role") as HTMLSelectElement;
+    const publish = form.elements.namedItem("canPublish") as HTMLInputElement;
+    const encryption = form.elements.namedItem("encryptionAllowed") as HTMLInputElement;
+    role.addEventListener("change", () => { publish.disabled = role.value !== "WRITER"; if (publish.disabled) publish.checked = false; });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = form.querySelector<HTMLButtonElement>("button[type=submit]")!;
+      const notice = form.querySelector<HTMLElement>("[data-permissions-notice]")!;
+      button.disabled = true; notice.hidden = false; notice.textContent = "正在保存…";
+      try {
+        const updated = await studioRequest<WritingAccount>(`/studio/members/${encodeURIComponent(form.dataset.username ?? "")}/permissions`, jsonRequest("PUT", {
+          role: role.value, canPublish: publish.checked, encryptionAllowed: encryption.checked, version: Number(form.dataset.version)
+        }));
+        form.dataset.version = String(updated.version); notice.textContent = "权限已保存，下次操作立即生效。";
+      } catch (error) { notice.textContent = error instanceof Error ? error.message : "权限未保存，请重试。"; }
+      finally { button.disabled = false; }
+    });
+  }
+</script>

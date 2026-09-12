@@ -1,3 +1,4 @@
+import { initializeWritingExperience } from "./mobile-editor";
 import { ensureWritingIdentity } from "./session";
 import { confirmWritingAction } from "./confirmation";
 import { writingRequest, jsonRequest as buildJsonRequest } from "./client";
@@ -6,10 +7,12 @@ import { writingStatus, type WritingPost, type WritingHistory } from "./types";
 const form = document.querySelector<HTMLFormElement>("[data-writing-editor]");
 if (form) initialize(form);
 function initialize(form: HTMLFormElement): void {
+  const experience = initializeWritingExperience(form);
   const jsonRequest = (method: string, body: unknown) => buildJsonRequest(method, body, form.dataset.username);
   const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
   const notice = form.querySelector<HTMLElement>("[data-editor-notice]")!;
   const saveState = form.querySelector<HTMLElement>("[data-save-state]")!;
+  let savedState = saveState.textContent ?? "";
   let slug = form.dataset.slug ?? "";
   let version = form.dataset.version ?? "";
   let busy = false;
@@ -33,7 +36,7 @@ function initialize(form: HTMLFormElement): void {
     const publishButton = form.querySelector<HTMLElement>("[data-publish]");
     if (publishButton) publishButton.hidden = writingStatus(post) === "已公开";
     form.querySelector<HTMLElement>("[data-preview-note]")!.hidden = true;
-    dirty(false); count(); saveState.textContent = `${writingStatus(post)} · 已保存`;
+    dirty(false); count(); savedState = `${writingStatus(post)} · 已保存`; saveState.textContent = savedState;
     form.querySelector<HTMLElement>("[data-preview-title]")!.textContent = post.title;
     // html 来自后端 Markdown 清洗器；作者输入始终通过 textContent 或表单值显示。
     form.querySelector<HTMLElement>("[data-preview-html]")!.innerHTML = post.html;
@@ -45,17 +48,23 @@ function initialize(form: HTMLFormElement): void {
     const latest = form.querySelector<HTMLAnchorElement>("[data-latest-version]")!;
     latest.href = `/writing/${slug}/`; latest.hidden = false;
     window.history.replaceState(null, "", `/writing/${slug}/`);
+    experience.resize();
     const history = form.querySelector<HTMLDetailsElement>("[data-history]")!;
     history.open = false;
   }
   function validate(): boolean {
     // 必须先校验再禁用控件；disabled 控件不参与浏览器约束校验。
-    preview(false);
     const title = field("title");
     title.setCustomValidity(title.value.trim() ? "" : "请给文章起一个标题。");
     const tags = field("tags").value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean);
     field("tags").setCustomValidity(tags.length > 20 || tags.some((tag) => tag.length > 40) ? "最多 20 个标签，每个不超过 40 个字符。" : "");
-    return form.reportValidity();
+    const invalid = form.querySelector<HTMLInputElement | HTMLTextAreaElement>(":invalid");
+    if (invalid) {
+      experience.show(invalid.closest(".writing-editor-aside") ? "settings" : "edit", true);
+      invalid.scrollIntoView({ block: "center" });
+      return form.reportValidity();
+    }
+    return true;
   }
   async function save(): Promise<WritingPost> {
     const tags = field("tags").value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean);
@@ -69,7 +78,7 @@ function initialize(form: HTMLFormElement): void {
   async function run(action: () => Promise<void>, requireValid = false, progress = "正在保存…"): Promise<void> {
     if (busy || (requireValid && !validate())) return;
     const trigger = document.activeElement;
-    message(progress);
+    saveState.textContent = progress;
     busy = true; form.setAttribute("aria-busy", "true");
     const controls = [...form.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("button,input,textarea,select")];
     const previous = controls.map((control) => control.disabled);
@@ -78,10 +87,19 @@ function initialize(form: HTMLFormElement): void {
     try { await ensureWritingIdentity(form.dataset.username!); await action(); form.querySelector<HTMLElement>("[data-editor-recovery]")!.hidden = true; }
     catch (error) {
       message(error instanceof TypeError ? "连接暂时中断，文字尚未保存。请检查网络后重试。" : error instanceof Error ? error.message : "操作失败，文字尚未保存，请重试。", "error");
+      saveState.textContent = "操作失败 · 请重试";
       form.querySelector<HTMLElement>("[data-editor-recovery]")!.hidden = false;
+      notice.scrollIntoView({ block: "center" });
     }
     finally { controls.forEach((control, index) => { control.disabled = previous[index]!; }); busy = false; form.removeAttribute("aria-busy"); if (trigger instanceof HTMLElement && trigger.isConnected && document.activeElement === document.body) trigger.focus(); }
   }
+  form.querySelector<HTMLAnchorElement>("[data-editor-back]")?.addEventListener("click", async (event) => {
+    if (form.dataset.dirty !== "true") return;
+    event.preventDefault();
+    if (busy || !await confirmWritingAction("还有文字没有保存", "返回文章列表会丢失本页未保存的修改。可以先留在这里，点击顶部保存。", "放弃修改并返回", true)) return;
+    dirty(false);
+    window.location.assign("/writing/");
+  });
   form.addEventListener("submit", (event) => { event.preventDefault(); if (writable) void run(async () => { await save(); message("已保存。", "success"); }, true); });
   form.querySelector("[data-publish]")?.addEventListener("click", async () => {
     if (busy || !validate()) return;
@@ -101,15 +119,9 @@ function initialize(form: HTMLFormElement): void {
     if (busy || !await confirmWritingAction("归档这篇文章？", "文章将从公开入口移除，可以在“我的文章 → 归档”中找回。未保存的修改不会进入归档，历史记录仍按原存储设置保留。", "确认归档", true)) return;
     void run(async () => { await writingRequest(`/posts/${slug}/archive`, jsonRequest("POST", { version })); dirty(false); window.location.assign("/writing/"); });
   });
-  function preview(show: boolean): void {
-    form.querySelector<HTMLElement>("[data-edit-pane]")!.hidden = show;
-    form.querySelector<HTMLElement>("[data-preview-pane]")!.hidden = !show;
-    form.querySelector("[data-edit-tab]")!.setAttribute("aria-pressed", String(!show));
-    form.querySelector("[data-preview-tab]")!.setAttribute("aria-pressed", String(show));
-  }
-  form.querySelector("[data-edit-tab]")?.addEventListener("click", () => preview(false));
   form.querySelector("[data-preview-tab]")?.addEventListener("click", () => {
-    if (!writable) { preview(true); return; }
+    if (!writable) { experience.show("preview", true); return; }
+    const previousScroll = window.scrollY;
     void run(async () => {
       const result = await writingRequest<{ title: string; html: string }>("/preview", jsonRequest("POST", {
         title: field("title").value, body: field("body").value
@@ -117,8 +129,9 @@ function initialize(form: HTMLFormElement): void {
       form.querySelector<HTMLElement>("[data-preview-title]")!.textContent = result.title || "无标题草稿";
       form.querySelector<HTMLElement>("[data-preview-html]")!.innerHTML = result.html;
       form.querySelector<HTMLElement>("[data-preview-note]")!.hidden = form.dataset.dirty !== "true";
-      preview(true);
-      message("这是当前文字的预览，没有保存或发布文章。");
+      notice.hidden = true;
+      experience.show("preview", true, previousScroll);
+      saveState.textContent = form.dataset.dirty === "true" ? "有未保存的修改" : savedState;
     }, false, "正在生成预览…");
   });
   form.querySelector<HTMLDetailsElement>("[data-history]")?.addEventListener("toggle", async (event) => {

@@ -1,25 +1,66 @@
 ---
-import { ArrowLeft, LockKeyhole, Save, ArrowUpRight, RotateCcwClock } from "@lucide/astro";
+import { ArrowLeft, LockKeyhole, Save, ArrowUpRight, RotateCcwClock, Heading2, Bold, Quote, List, Link, Keyboard } from "@lucide/astro";
+import WritingLinkDialog from "./WritingLinkDialog.astro";
 import type { WritingAccount, WritingPost } from "../lib/writing/types";
 import { writingStatus } from "../lib/writing/types";
 interface Props { account: WritingAccount; post?: WritingPost; }
 const { account, post } = Astro.props;
 const writable = account.role === "WRITER";
 ---
-<form novalidate class="writing-editor" data-writing-editor data-slug={post?.slug ?? ""} data-version={post?.version ?? ""} data-cover={post?.cover ?? ""} data-published-at={post?.publishedAt ?? ""} data-username={account.username} data-dirty="false" data-status={post?.status ?? "DRAFT"}>
-  <div class="writing-editor-bar"><a href="/writing/"><ArrowLeft size={16} />我的文章</a><span role="status" aria-live="polite" data-save-state>{post ? writingStatus(post) : "新草稿 · 尚未保存"}</span><button class="button primary" type="submit" disabled={!writable}><Save size={16} /><span data-save-label>{post?.status === "PUBLISHED" && post.visibility === "PUBLIC" ? "更新公开文章" : "保存"}</span></button>{account.canPublish && <button class="button secondary" type="button" data-publish hidden={post?.status === "PUBLISHED" && post.visibility === "PUBLIC"}><ArrowUpRight size={16} />公开发布</button>}</div>
+<form novalidate class="writing-editor" data-writing-editor data-slug={post?.slug ?? ""} data-version={post?.version ?? ""} data-cover={post?.cover ?? ""} data-published-at={post?.publishedAt ?? ""} data-username={account.username} data-dirty="false" data-status={post?.status ?? "DRAFT"} data-view="edit">
+  <header class="writing-editor-head">
+    <div class="writing-editor-bar">
+      <a href="/writing/" data-editor-back aria-label="返回我的文章"><ArrowLeft size={19} /><span>文章</span></a>
+      <span role="status" aria-live="polite" data-save-state>{post ? writingStatus(post) : "新草稿 · 未保存"}</span>
+      <button class="button primary" type="submit" disabled={!writable}><Save size={16} /><span data-save-label>{post?.status === "PUBLISHED" && post.visibility === "PUBLIC" ? "更新公开文章" : "保存"}</span></button>
+    </div>
+    <div class="writing-editor-tabs" role="group" aria-label="写作视图">
+      <button type="button" aria-pressed="true" aria-controls="writing-edit-pane" data-edit-tab>写作</button>
+      <button type="button" aria-pressed="false" aria-controls="writing-preview-pane" data-preview-tab>预览</button>
+      <button type="button" aria-pressed="false" aria-controls="writing-settings-pane" data-settings-tab>设置与发布</button>
+      <span><LockKeyhole size={13} />{account.contentEncrypted ? "加密存储" : "普通存储"}</span>
+    </div>
+  </header>
   <p class="writing-notice" role="status" aria-live="polite" data-editor-notice hidden></p>
   <div class="writing-recovery" data-editor-recovery hidden><p>当前文字仍保留在本页。处理完成后，回到这里重新操作。</p><a href="/agents/login/?next=%2Fwriting%2F%3Freauth%3D1" target="_blank" rel="noreferrer">在新窗口重新登录 ↗</a><a data-latest-version href={post ? `/writing/${post.slug}/` : "#"} target="_blank" rel="noreferrer" hidden={!post}>在新窗口查看已保存版本 ↗</a></div>
-  <div class="writing-editor-grid"><section class="writing-paper writing-manuscript"><div class="writing-editor-tabs" role="group" aria-label="编辑与预览"><button type="button" aria-pressed="true" data-edit-tab>写作</button><button type="button" aria-pressed="false" data-preview-tab>预览</button><span><LockKeyhole size={13} />{account.contentEncrypted ? "加密存储" : "普通存储"}</span></div>
-    <div data-edit-pane><label class="writing-title-label"><span class="visually-hidden">文章标题</span><textarea class="writing-title-input" name="title" rows="2" maxlength="200" placeholder="给这篇文字起个名字" required readonly={!writable}>{post?.title ?? ""}</textarea></label><label class="writing-body-label"><span class="visually-hidden">文章正文，支持 Markdown</span><textarea class="writing-body-input" name="body" placeholder="从一个念头开始…
-
-支持 Markdown。写完一段，记得保存。" maxlength="1000000" spellcheck="false" readonly={!writable}>{post?.body ?? ""}</textarea></label></div>
-    <article class="prose writing-preview" data-preview-pane hidden><h1 data-preview-title>{post?.title}</h1><p class="writing-preview-note" data-preview-note hidden>当前预览包含未保存的修改。</p><div data-preview-html set:html={post?.html ?? ""} /></article>
-    <div class="writing-editor-foot"><span data-word-count>0 字</span><span>⌘ / Ctrl + S 保存 · 未保存的文字仅留在当前页面</span></div>
-  </section><aside class="writing-editor-aside"><section class="writing-paper writing-settings"><h2>文章设置</h2><label class="field"><span class="field-label">摘要</span><textarea class="input" name="description" rows="4" maxlength="500" placeholder="让读者知道这篇文章在说什么" readonly={!writable}>{post?.description ?? ""}</textarea></label><label class="field"><span class="field-label">标签</span><input class="input" name="tags" value={post?.tags.join("，") ?? ""} placeholder="随笔，生活" readonly={!writable} /><small>用逗号分隔，最多 20 个</small></label><label class="field"><span class="field-label">可见范围</span><select class="input" name="visibility" disabled={!writable}><option value="ADMIN_ONLY" selected={!post || post.visibility !== "PUBLIC"}>仅自己可见</option><option value="PUBLIC" selected={post?.visibility === "PUBLIC"}>允许公开</option></select></label><p class="writing-hint">选择「允许公开」后，还需要点击公开发布。已公开的文章保存后会立即更新。</p>{!account.canPublish && <p class="writing-hint">站长尚未开通你的公开发布权限，可以先写成草稿。</p>}<a class="writing-profile-link" data-public-link href={post ? `/profile/${account.username}/${post.slug}/` : "#"} hidden={!post || writingStatus(post) !== "已公开"} target="_blank" rel="noreferrer">查看公开文章 ↗</a><button class="button secondary" type="button" data-unpublish hidden={!post || post.status !== "PUBLISHED"}>撤回为草稿</button></section>
-    <section class="writing-paper writing-settings" data-existing-tools hidden={!post}><details data-history><summary><RotateCcwClock size={16} />历史版本</summary><p class="writing-hint">最近 50 个版本。恢复会创建新版本；已公开的文章会同步更新。</p><div class="writing-history" data-history-list></div></details><button class="writing-archive" type="button" data-archive>归档文章</button><p class="writing-hint">归档后从公开入口移除，可以在文章列表的“归档”中找回。</p></section>
-  </aside></div>
+  <div class="writing-editor-grid">
+    <section class="writing-paper writing-manuscript">
+      <div id="writing-edit-pane" data-edit-pane>
+        <label class="writing-title-label"><span class="visually-hidden">文章标题</span><textarea class="writing-title-input" name="title" rows="1" maxlength="200" placeholder="给这篇文字起个名字" required readonly={!writable}>{post?.title ?? ""}</textarea></label>
+        <label class="writing-body-label"><span class="visually-hidden">文章正文，支持 Markdown</span><textarea class="writing-body-input" name="body" rows="12" placeholder="从一个念头开始…" maxlength="1000000" spellcheck="false" readonly={!writable} aria-describedby="writing-body-help">{post?.body ?? ""}</textarea></label>
+        <p class="writing-body-help" id="writing-body-help">选中文字可以加粗；小标题、列表和引用作用于当前段落。</p>
+      </div>
+      <article class="prose writing-preview" id="writing-preview-pane" data-preview-pane hidden><h1 data-preview-title>{post?.title}</h1><p class="writing-preview-note" data-preview-note hidden>当前预览包含未保存的修改。</p><div data-preview-html set:html={post?.html ?? ""} /></article>
+      <div class="writing-editor-foot"><span data-word-count>0 字</span><span>离开前记得保存<span class="writing-desktop-shortcut"> · ⌘ / Ctrl + S</span></span></div>
+    </section>
+    <aside class="writing-editor-aside" id="writing-settings-pane" aria-label="文章设置与发布">
+      <section class="writing-paper writing-settings">
+        <h2>文章设置</h2>
+        <label class="field"><span class="field-label">摘要</span><textarea class="input" name="description" rows="3" maxlength="500" placeholder="让读者知道这篇文章在说什么" readonly={!writable}>{post?.description ?? ""}</textarea></label>
+        <label class="field"><span class="field-label">标签</span><input class="input" name="tags" value={post?.tags.join("，") ?? ""} placeholder="随笔，生活" readonly={!writable} /><small>用逗号分隔，最多 20 个</small></label>
+        <label class="field"><span class="field-label">可见范围</span><select class="input" name="visibility" disabled={!writable}><option value="ADMIN_ONLY" selected={!post || post.visibility !== "PUBLIC"}>仅自己可见</option><option value="PUBLIC" selected={post?.visibility === "PUBLIC"}>允许公开</option></select></label>
+        <p class="writing-hint">选择「允许公开」后，还需要点击公开发布。已公开的文章保存后会立即更新。</p>
+        {!account.canPublish && <p class="writing-hint">站长尚未开通你的公开发布权限，可以先写成草稿。</p>}
+        {account.canPublish && <button class="button primary" type="button" data-publish disabled={!writable} hidden={post?.status === "PUBLISHED" && post.visibility === "PUBLIC"}><ArrowUpRight size={16} />公开发布</button>}
+        <a class="writing-profile-link" data-public-link href={post ? `/profile/${account.username}/${post.slug}/` : "#"} hidden={!post || writingStatus(post) !== "已公开"} target="_blank" rel="noreferrer">查看公开文章 ↗</a>
+        <button class="button secondary" type="button" data-unpublish disabled={!writable} hidden={!post || post.status !== "PUBLISHED"}>撤回为草稿</button>
+      </section>
+      <section class="writing-paper writing-settings" data-existing-tools hidden={!post}>
+        <details data-history><summary><RotateCcwClock size={16} />历史版本</summary><p class="writing-hint">最近 50 个版本。恢复会创建新版本；已公开的文章会同步更新。</p><div class="writing-history" data-history-list></div></details>
+        <button class="writing-archive" type="button" data-archive disabled={!writable}>归档文章</button><p class="writing-hint">归档后从公开入口移除，可以在文章列表的“归档”中找回。</p>
+      </section>
+    </aside>
+  </div>
+  {writable && <div class="writing-format-bar" role="group" aria-label="正文排版工具">
+    <button type="button" data-markdown="heading" aria-label="小标题"><Heading2 size={19} /><span>小标题</span></button>
+    <button type="button" data-markdown="bold" aria-label="加粗"><Bold size={18} /><span>加粗</span></button>
+    <button type="button" data-markdown="quote" aria-label="引用"><Quote size={18} /><span>引用</span></button>
+    <button type="button" data-markdown="list" aria-label="列表"><List size={19} /><span>列表</span></button>
+    <button type="button" data-markdown="link" aria-label="插入链接"><Link size={18} /><span>链接</span></button>
+    <button type="button" data-dismiss-keyboard aria-label="收起键盘"><Keyboard size={19} /><span>收起</span></button>
+  </div>}
 </form>
+<WritingLinkDialog />
 <script>
   import "../lib/writing/editor";
 </script>

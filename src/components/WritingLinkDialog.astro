@@ -1,0 +1,12 @@
+---
+import { X } from "@lucide/astro";
+---
+<dialog class="writing-dialog writing-link-dialog" data-writing-link-dialog aria-labelledby="writing-link-title">
+  <form novalidate data-link-form>
+    <header><h2 id="writing-link-title">插入链接</h2><button class="icon-button" type="button" data-link-cancel aria-label="关闭链接窗口"><X size={18} /></button></header>
+    <label class="field"><span class="field-label">链接文字</span><input class="input" name="label" maxlength="500" placeholder="读者看到的文字" /></label>
+    <label class="field"><span class="field-label">网址</span><input class="input" name="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://" required aria-describedby="writing-link-error" /></label>
+    <p id="writing-link-error" data-link-error role="alert" hidden></p>
+    <footer><button class="button secondary" type="button" data-link-cancel>取消</button><button class="button primary" type="submit">插入正文</button></footer>
+  </form>
+</dialog>

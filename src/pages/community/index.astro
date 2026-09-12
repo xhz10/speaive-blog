@@ -1,0 +1,23 @@
+---
+import { ArrowLeft, Feather } from "@lucide/astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import CommunityPostRow from "../../components/CommunityPostRow.astro";
+import { fetchStudioApi } from "../../lib/studio/server";
+import { type CommunityPosts, pageNumber } from "../../lib/writing/types";
+import "../../styles/member-writing.css";
+import "../../styles/writing-experience.css";
+const page = pageNumber(Astro.url.searchParams.get("page"));
+let posts: CommunityPosts | undefined;
+try { posts = await fetchStudioApi<CommunityPosts>(Astro.request, `/api/v1/public/community/posts?page=${page}`); }
+catch { Astro.response.status = 503; }
+Astro.response.headers.set("Cache-Control", "no-store");
+---
+<BaseLayout title="朋友的文字" description="在这里读到朋友们愿意分享的随笔、故事和念头。" noindex={!posts}>
+  <div class="community-page shell">
+    <header class="community-hero"><p class="section-label">不同的人，同一处写字的地方</p><h1>朋友的文字</h1><p>一些随笔，一些故事。看看别人眼里的日常。</p><div><span>最近更新优先 · 只展示作者主动公开的文章</span><a href="/writing/">我也想写一点 <Feather size={15} /></a></div></header>
+    {posts ? <>
+      {posts.items.length ? <section class="community-grid" aria-label="朋友公开的文章">{posts.items.map(post => <CommunityPostRow post={post} />)}</section> : <div class="writing-empty"><Feather size={30} /><h2>{page > 1 ? "这一页已经读完了" : "等一篇愿意分享的文字"}</h2><p>{page > 1 ? "可以返回前一页，继续读读朋友们的作品。" : "朋友们公开发布后，作品会出现在这里。"}</p><a class="button secondary" href={page > 1 ? `?page=${page - 1}` : "/archive/"}>{page > 1 ? "返回上一页" : "先读站长的文章"}</a></div>}
+      {(posts.total > posts.pageSize || page > 1) && <nav class="writing-pagination" aria-label="朋友文章分页">{page > 1 ? <a href={`?page=${page - 1}`}><ArrowLeft size={14} />上一页</a> : <span />}<span>第 {page} 页 · 共 {posts.total} 篇</span>{page * posts.pageSize < posts.total ? <a href={`?page=${page + 1}`}>下一页 →</a> : <span />}</nav>}
+    </> : <div class="writing-empty" role="alert"><h2>暂时没能读到文章</h2><p>连接出了点问题，可以稍后再试。</p><a class="button secondary" href={`?page=${page}`}>重新加载</a></div>}
+  </div>
+</BaseLayout>

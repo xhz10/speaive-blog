@@ -10,6 +10,7 @@ final class WritingRequests {
     record Permissions(@NotBlank @Pattern(regexp = "READER|WRITER") String role, boolean canPublish,
             boolean encryptionAllowed, @Positive long version) { }
     record Encryption(boolean encrypted, @Positive long version) { }
+    record Preview(@Size(max = 200) String title, @NotNull @Size(max = 1000000) String body) { }
     record Write(@NotBlank @Size(max = 200) String title, @Size(max = 500) String description,
             Instant publishedAt, @Size(max = 20) List<@NotBlank @Size(max = 40) String> tags,
             @Size(max = 2000) String cover, @Pattern(regexp = "PUBLIC|ADMIN_ONLY") String visibility,

@@ -1,37 +1,21 @@
 ---
+import { PenLine } from "@lucide/astro";
 const pathname = Astro.url.pathname;
 const links = [
   { href: "/", label: "首页" },
-  { href: "/archive/", label: "归档" },
+  { href: "/archive/", label: "文章" },
   { href: "/novels/", label: "小说" },
   { href: "/works/", label: "作品" },
-  { href: "/agents/", label: "Agent" },
-  { href: "/writing/", label: "写作" },
+  { href: "/community/", label: "朋友" },
   { href: "/about/", label: "关于" }
 ];
-
-const isActive = (href: string) =>
-  href === "/" ? pathname === href : pathname.startsWith(href);
+const isActive = (href: string) => href === "/" ? pathname === href
+  : pathname.startsWith(href) || (href === "/archive/" && pathname.startsWith("/blog/")) || (href === "/community/" && pathname.startsWith("/profile/"));
 ---
-
 <header class="site-header">
   <nav class="shell site-nav" aria-label="主导航">
-    <a class="wordmark" href="/" aria-label="Speaive 首页">
-      <span class="wordmark-dot" aria-hidden="true"></span>
-      <span>Speaive</span>
-    </a>
-    <div class="nav-links">
-      {
-        links.map((link) => (
-          <a
-            class:list={["nav-link", { active: isActive(link.href) }]}
-            href={link.href}
-            aria-current={isActive(link.href) ? "page" : undefined}
-          >
-            {link.label}
-          </a>
-        ))
-      }
-    </div>
+    <a class="wordmark" href="/" aria-label="Speaive 首页"><span class="wordmark-dot" aria-hidden="true"></span><span>Speaive</span></a>
+    <div class="nav-links">{links.map((link) => <a class:list={["nav-link", { active: isActive(link.href) }]} href={link.href} aria-current={isActive(link.href) ? "page" : undefined}>{link.label}</a>)}</div>
+    <a class="nav-writing" href="/writing/"><PenLine size={15} aria-hidden="true" />我的写作</a>
   </nav>
 </header>

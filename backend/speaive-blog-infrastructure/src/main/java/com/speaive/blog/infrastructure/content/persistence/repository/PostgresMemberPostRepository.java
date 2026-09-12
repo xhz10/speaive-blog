@@ -52,7 +52,8 @@ public final class PostgresMemberPostRepository implements MemberPostRepository 
     public void save(PostChange change, boolean encrypted) {
         Post post = change.current();
         MemberPostPo current = stored(post, encrypted, false);
-        int changed = post.archived() ? database.delete(current, change.expectedRevision())
+        int changed = change.previous().archived() ? database.recover(current, change.expectedRevision())
+                : post.archived() ? database.delete(current, change.expectedRevision())
                 : database.update(current, change.expectedRevision());
         if (changed != 1) throw new BlogException(BlogErrorCode.VERSION_CONFLICT, "文章已更新，请刷新后重试");
         if (database.insertRevision(stored(post, encrypted, true), change.eventType().name()) != 1) throw storage();
@@ -67,6 +68,33 @@ public final class PostgresMemberPostRepository implements MemberPostRepository 
     public Optional<Post> revision(String ownerId, String postId, long revision) {
         return Optional.ofNullable(database.revision(ownerId, postId, revision)).map(row -> read(row, true));
     }
+
+    @Override
+    public List<Post> listFiltered(String ownerId, MemberPostFilter filter, int page, int pageSize) {
+        boolean archived = filter == MemberPostFilter.ARCHIVED;
+        long offset = (long) (page - 1) * pageSize;
+        var rows = archived ? database.archivedList(ownerId, pageSize, offset)
+                : database.filtered(ownerId, filter.name(), pageSize, offset);
+        return rows.stream().map(row -> read(row, archived)).toList();
+    }
+
+    @Override
+    public long countFiltered(String ownerId, MemberPostFilter filter) {
+        return filter == MemberPostFilter.ARCHIVED ? database.archivedCount(ownerId) : database.filteredCount(ownerId, filter.name());
+    }
+
+    @Override
+    public Optional<Post> archived(String ownerId, String slug) {
+        return Optional.ofNullable(database.archived(ownerId, slug)).map(row -> read(row, true));
+    }
+
+    @Override
+    public List<Post> community(int page, int pageSize) {
+        return database.community(pageSize, (long) (page - 1) * pageSize).stream().map(row -> read(row, false)).toList();
+    }
+
+    @Override
+    public long communityCount() { return database.communityCount(); }
 
     @Override
     public void changeProtection(String ownerId, boolean encrypted) {

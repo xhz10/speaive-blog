@@ -1,0 +1,15 @@
+---
+import { ArrowUpRight } from "@lucide/astro";
+import type { StudioPostSummary } from "../lib/studio/types";
+import { writingDate } from "../lib/writing/types";
+interface Props { post: StudioPostSummary; heading?: "h2" | "h3"; }
+const { post, heading = "h2" } = Astro.props;
+const Heading = heading;
+const profile = `/profile/${encodeURIComponent(post.author.username)}/`;
+---
+<article class="community-post-row">
+  <a class="community-author" href={profile}><span class="writing-avatar small" aria-hidden="true">{post.author.displayName.slice(0, 1)}</span>{post.author.displayName}<span>@{post.author.username}</span></a>
+  <Heading><a href={`${profile}${encodeURIComponent(post.slug)}/`}>{post.title}<ArrowUpRight size={19} aria-hidden="true" /></a></Heading>
+  <p>{post.description}</p>
+  <footer><time datetime={post.updatedAt}>{writingDate(post.updatedAt)} 更新</time><span>{post.tags.slice(0, 3).join(" · ")}</span></footer>
+</article>

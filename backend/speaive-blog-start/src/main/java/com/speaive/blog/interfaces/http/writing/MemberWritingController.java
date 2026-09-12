@@ -1,6 +1,8 @@
 package com.speaive.blog.interfaces.http.writing;
 
 import com.speaive.blog.application.port.in.account.WritingAccountUseCase;
+import com.speaive.blog.application.error.BlogException;
+import com.speaive.blog.application.error.BlogErrorCode;
 import com.speaive.blog.application.port.in.post.MemberWritingUseCase;
 import com.speaive.blog.interfaces.http.post.PostHttpMapper;
 import com.speaive.blog.interfaces.http.post.PostResponses.PostDetail;
@@ -21,15 +23,28 @@ public class MemberWritingController {
             WritingHttpMapper mapper, PostHttpMapper postMapper) {
         this.posts = posts; this.accounts = accounts; this.mapper = mapper; this.postMapper = postMapper;
     }
+    /** 可选的编辑上下文只用于拒绝账号切换，绝不作为授权身份；真正所有者仍由会话决定。 */
+    @ModelAttribute
+    void checkEditingAccount(Authentication auth,
+            @RequestHeader(value = "X-Writing-Username", required = false) String expectedUsername) {
+        if (expectedUsername != null && !auth.getName().equals(expectedUsername)) {
+            throw new BlogException(BlogErrorCode.FORBIDDEN,
+                    "登录账号已改变，请重新登录原作者账号后继续；当前输入仍保留在本页");
+        }
+    }
     @GetMapping("/settings")
     ResponseEntity<WritingResponses.Account> settings(Authentication auth) { return ok(mapper.response(accounts.get(auth.getName()))); }
     @PutMapping("/settings/encryption")
     ResponseEntity<WritingResponses.Account> encryption(Authentication auth, @Valid @RequestBody WritingRequests.Encryption request) {
         return ok(mapper.response(accounts.setEncryption(auth.getName(), mapper.command(request))));
     }
+    @PostMapping("/preview")
+    ResponseEntity<WritingResponses.Preview> preview(Authentication auth, @Valid @RequestBody WritingRequests.Preview request) {
+        return ok(mapper.response(posts.preview(auth.getName(), mapper.command(request))));
+    }
     @GetMapping("/posts")
-    ResponseEntity<WritingResponses.Posts> list(Authentication auth, @RequestParam(defaultValue = "1") int page) {
-        return ok(mapper.response(posts.listOwn(auth.getName(), page)));
+    ResponseEntity<WritingResponses.Posts> list(Authentication auth, @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "ALL") String filter) {
+        return ok(mapper.response(posts.listOwn(auth.getName(), page, filter)));
     }
     @GetMapping("/posts/{slug}")
     ResponseEntity<PostDetail> get(Authentication auth, @PathVariable String slug) { return ok(postMapper.toResponse(posts.getOwn(auth.getName(), slug))); }
@@ -54,6 +69,10 @@ public class MemberWritingController {
     ResponseEntity<Void> archive(Authentication auth, @PathVariable String slug, @Valid @RequestBody WritingRequests.Version request) {
         posts.archive(auth.getName(), slug, request.version());
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+    }
+    @PostMapping("/posts/{slug}/recover")
+    ResponseEntity<PostDetail> recover(Authentication auth, @PathVariable String slug, @Valid @RequestBody WritingRequests.Version request) {
+        return ok(postMapper.toResponse(posts.recoverArchive(auth.getName(), slug, request.version())));
     }
     @GetMapping("/posts/{slug}/history")
     ResponseEntity<WritingResponses.History> history(Authentication auth, @PathVariable String slug) {

@@ -10,5 +10,6 @@ try {
 } catch (e) { Astro.response.status = isStudioApiError(e) && e.status === 404 ? 404 : 503; error = e instanceof Error ? e.message : "文章暂时无法打开"; }
 ---
 <WritingLayout title="编辑文章" username={account?.role === "WRITER" ? account.username : undefined}>
+  {!error && Astro.url.searchParams.get("recovered") === "1" && <p class="writing-notice" data-kind="success" role="status" data-recovered-note>文章已找回，现在是仅自己可见的草稿。需要再次公开时，请明确点击公开发布。</p>}
   {error ? <div class="writing-empty" role="alert"><h1>无法打开这篇文章</h1><p>{error}</p><a href="/writing/">返回我的文章</a></div> : account && <WritingEditor account={account} post={post} />}
 </WritingLayout>

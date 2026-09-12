@@ -161,6 +161,25 @@ class PostTests {
                 java.util.Arrays.stream(PostRevisionEventType.values()).map(Enum::name).toList());
     }
 
+    @Test
+    void recoversArchivedContentOnlyAsPrivateDraftWithFreshVersion() {
+        Post published = draft().update(content("Title"), PostVisibility.PUBLIC, "post-id:1", CREATED_AT)
+                .current().publish("post-id:2", CREATED_AT).current();
+        Post archived = published.archive(published.version(), CREATED_AT).current();
+        PostChange recovered = archived.recoverArchive(archived.version(), CREATED_AT.plusSeconds(1));
+        assertEquals(PostStatus.DRAFT, recovered.current().status());
+        assertEquals(PostVisibility.ADMIN_ONLY, recovered.current().visibility());
+        assertEquals(archived.content(), recovered.current().content());
+        assertEquals(archived.revision() + 1, recovered.current().revision());
+        assertFalse(recovered.current().archived());
+        assertVersionConflict(() -> archived.recoverArchive(published.version(), CREATED_AT));
+        assertThrows(DomainException.class, () -> published.recoverArchive(published.version(), CREATED_AT));
+        Post unsafe = Post.rehydrate(new PostSnapshot(archived.id(), archived.slugValue(), archived.content(),
+                archived.author(), PostStatus.PUBLISHED, PostVisibility.PUBLIC, archived.createdAt(), CREATED_AT,
+                archived.revision() + 1, false));
+        assertThrows(DomainException.class, () -> new PostChange(archived, unsafe, PostRevisionEventType.RESTORE));
+    }
+
     private static Post draft() {
         return Post.createDraft("post-id", "ddd-post", content("Title"), AUTHOR, CREATED_AT);
     }

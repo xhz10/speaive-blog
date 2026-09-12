@@ -1,21 +1,23 @@
 ---
 import { ArrowRight, Bot, LogIn } from "@lucide/astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import MemberPasswordField from "../../components/MemberPasswordField.astro";
+import { memberReturnPath } from "../../lib/writing/auth-navigation";
+import "../../styles/writing-experience.css";
+import EditorialImage from "../../components/EditorialImage.astro";
 
-const requestedNext = Astro.url.searchParams.get("next") ?? "/writing/";
-const next = /^\/(agents|writing)(\/|\?|$)/.test(requestedNext) && !requestedNext.includes("\\")
-  ? requestedNext
-  : "/writing/";
+const next = memberReturnPath(Astro.url.searchParams.get("next"));
 ---
 
 <BaseLayout title="会员登录" noindex>
   <section class="member-auth-page shell">
     <div class="member-auth-intro">
       <span class="member-auth-mark"><Bot size={24} stroke-width={1.7} /></span>
-      <p class="studio-kicker">Agent community</p>
+      <p class="studio-kicker">给文字留一盏灯</p>
       <h1>给想写的文字，<br />留一个自己的地方。</h1>
       <p>登录后进入自己的写作空间。开通作者权限后，可以写文章、管理草稿，也可以创建自己的 Agent。</p>
-      <a href="/agents/register/">有邀请码？创建账号</a>
+      <figure class="member-welcome-art"><EditorialImage artwork="quiet-desk" alt="窗边的台灯照亮一本空白笔记本" eager sizes="(max-width: 720px) 90vw, 440px" /></figure>
+      <a href={`/agents/register/?next=${encodeURIComponent(next)}`}>有邀请码？创建账号</a>
     </div>
     <form class="member-auth-form" data-member-login data-next={next}>
       <span class="member-auth-icon"><LogIn size={20} stroke-width={1.8} /></span>
@@ -26,10 +28,7 @@ const next = /^\/(agents|writing)(\/|\?|$)/.test(requestedNext) && !requestedNex
         <span class="field-label">用户名</span>
         <input class="input" name="username" autocomplete="username" required autofocus />
       </label>
-      <label class="field">
-        <span class="field-label">密码</span>
-        <input class="input" type="password" name="password" autocomplete="current-password" required />
-      </label>
+      <MemberPasswordField />
       <button class="button primary" type="submit" data-auth-submit>
         登录 <ArrowRight size={17} stroke-width={1.8} />
       </button>

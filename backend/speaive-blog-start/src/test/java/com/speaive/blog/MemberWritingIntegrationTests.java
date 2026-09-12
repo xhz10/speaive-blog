@@ -209,6 +209,125 @@ class MemberWritingIntegrationTests {
         assertEncrypted("alice");
     }
 
+    @Test
+    void previewRendersUnsavedInputWithoutCreatingOrUpdatingAnyArticle() throws Exception {
+        Client admin = loginAdmin(); Client alice = register(admin, "alice");
+        String input = "{\"title\":\"尚未保存\",\"body\":\"## 预览\\n\\n<script>alert(1)</script>\\n正文\"}";
+        send(alice, post("/api/v1/account/writing/preview"), input).andExpect(status().isForbidden());
+        grant(admin, "alice", true);
+        mvc.perform(post("/api/v1/account/writing/preview").session(alice.session)
+                .contentType(MediaType.APPLICATION_JSON).content(input)).andExpect(status().isForbidden());
+        String preview = send(alice, post("/api/v1/account/writing/preview"), input)
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", containsString("no-store")))
+                .andExpect(jsonPath("$.title").value("尚未保存")).andReturn().getResponse().getContentAsString();
+        assertThat(read(preview, "$.html")).contains("<h2>", "正文").doesNotContain("<script>");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM blog_member_post", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM blog_member_post_revision", Integer.class)).isZero();
+        String existing = create(alice);
+        send(alice, post("/api/v1/account/writing/preview"), input).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/account/writing/posts/" + read(existing, "$.slug")).session(alice.session))
+                .andExpect(jsonPath("$.version").value(read(existing, "$.version")))
+                .andExpect(jsonPath("$.body").value("这是一段秘密正文"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM blog_member_post_revision", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void archiveRecoveryPreservesHistoryEncryptionAndOwnershipAndCannotRepublish() throws Exception {
+        Client admin = loginAdmin(); Client alice = register(admin, "alice"); Client bob = register(admin, "bobby");
+        grant(admin, "alice", true); grant(admin, "bobby", true);
+        String created = create(alice); String slug = read(created, "$.slug");
+        var published = writing.publish("alice", slug, read(created, "$.version"));
+        writing.archive("alice", slug, published.version());
+        settings.setEncryption("alice", new ContentEncryptionCommand(true, 2));
+        String token = writing.listOwn("alice", 1, "ARCHIVED").items().getFirst().version();
+        assertThat(writing.listOwn("alice", 1, "ALL").total()).isZero();
+        mvc.perform(get("/api/v1/account/writing/posts?filter=ARCHIVED").session(bob.session))
+                .andExpect(jsonPath("$.total").value(0));
+        mvc.perform(get("/api/v1/account/writing/posts?filter=bad").session(alice.session)).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/v1/account/writing/posts/" + slug + "/recover").session(alice.session)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"version\":\"" + token + "\"}"))
+                .andExpect(status().isForbidden());
+        send(bob, post("/api/v1/account/writing/posts/" + slug + "/recover"), "{\"version\":\"" + token + "\"}")
+                .andExpect(status().isNotFound());
+        send(alice, post("/api/v1/account/writing/posts/" + slug + "/recover"), version(created)).andExpect(status().isConflict());
+        send(alice, post("/api/v1/account/writing/posts/" + slug + "/recover"), "{\"version\":\"" + token + "\"}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.visibility").value("ADMIN_ONLY")).andExpect(jsonPath("$.body").value("这是一段秘密正文"));
+        assertThat(writing.listOwn("alice", 1, "ARCHIVED").total()).isZero();
+        assertThat(writing.listOwn("alice", 1, "PRIVATE").total()).isEqualTo(1);
+        assertThat(writing.history("alice", slug).items()).hasSize(4);
+        mvc.perform(get("/api/v1/public/profiles/alice/posts/" + slug)).andExpect(status().isNotFound());
+        send(alice, post("/api/v1/account/writing/posts/" + slug + "/recover"), "{\"version\":\"" + token + "\"}")
+                .andExpect(status().isNotFound());
+        assertEncrypted("alice");
+        var recovered = writing.getOwn("alice", slug); writing.archive("alice", slug, recovered.version());
+        assertThat(writing.listOwn("alice", 1, "ARCHIVED").total()).isEqualTo(1);
+        assertThat(writing.listOwn("alice", 1, "ARCHIVED").items()).hasSize(1);
+    }
+
+    @Test
+    void communityFiltersBeforeDecryptionAndPaginatesOnlyPublicActiveAuthors() throws Exception {
+        Client admin = loginAdmin(); register(admin, "alice"); register(admin, "bobby");
+        grant(admin, "alice", true); grant(admin, "bobby", true);
+        settings.setEncryption("alice", new ContentEncryptionCommand(true, 2));
+        for (int n = 0; n < 21; n++) {
+            var p = writing.create("alice", new PostWriteCommand(null, "公开" + n, "摘要", null, List.of(), null, "PUBLIC", "公开正文"));
+            writing.publish("alice", p.slug(), p.version());
+        }
+        var privatePost = writing.create("alice", command("不能解密的私密正文"));
+        jdbc.update("UPDATE blog_member_post SET payload = 'broken' WHERE slug = ?", privatePost.slug());
+        var hiddenAuthor = writing.create("bobby", new PostWriteCommand(null, "停用作者", "", null, List.of(), null, "PUBLIC", "隐藏正文"));
+        writing.publish("bobby", hiddenAuthor.slug(), hiddenAuthor.version());
+        jdbc.update("UPDATE blog_user SET status = 'DISABLED' WHERE username = 'bobby'");
+        mvc.perform(get("/api/v1/public/community/posts")).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", containsString("no-store")))
+                .andExpect(jsonPath("$.total").value(21)).andExpect(jsonPath("$.items", hasSize(20)))
+                .andExpect(jsonPath("$.items[*].author.username", everyItem(is("alice"))));
+        mvc.perform(get("/api/v1/public/community/posts?page=2")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(1)));
+        mvc.perform(get("/api/v1/public/community/posts?page=0")).andExpect(status().isBadRequest());
+        assertThat(writing.listOwn("alice", 1, "PUBLIC").total()).isEqualTo(21);
+        assertThat(writing.listOwn("alice", 1, "PUBLIC").items()).hasSize(20);
+        var first = writing.community(1).items().getFirst(); writing.archive("alice", first.slug(), first.version());
+        assertThat(writing.community(1).total()).isEqualTo(20);
+    }
+
+    @Test
+    void concurrentRecoveryAndHistoryFailureNeverDuplicateOrPartiallyRestore() throws Exception {
+        Client admin = loginAdmin(); register(admin, "alice"); grant(admin, "alice", true);
+        var p = writing.create("alice", command("归档正文")); writing.archive("alice", p.slug(), p.version());
+        String token = writing.listOwn("alice", 1, "ARCHIVED").items().getFirst().version();
+        // 用事务内临时约束制造历史写入失败，验证活动行插入也回滚。
+        jdbc.execute("ALTER TABLE blog_member_post_revision ADD CONSTRAINT test_recovery_failure CHECK (event_type <> 'RESTORE')");
+        try {
+            assertThatThrownBy(() -> writing.recoverArchive("alice", p.slug(), token)).isInstanceOf(RuntimeException.class);
+            assertThat(writing.listOwn("alice", 1, "ALL").total()).isZero();
+            assertThat(writing.listOwn("alice", 1, "ARCHIVED").total()).isEqualTo(1);
+        } finally { jdbc.execute("ALTER TABLE blog_member_post_revision DROP CONSTRAINT test_recovery_failure"); }
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            Callable<Boolean> recover = () -> { start.await(); try { writing.recoverArchive("alice", p.slug(), token); return true; }
+                catch (com.speaive.blog.application.error.BlogException error) { return false; } };
+            var left = executor.submit(recover); var right = executor.submit(recover); start.countDown();
+            assertThat(List.of(left.get(5, TimeUnit.SECONDS), right.get(5, TimeUnit.SECONDS))).containsExactlyInAnyOrder(true, false);
+        }
+        assertThat(writing.history("alice", p.slug()).items()).hasSize(3);
+    }
+
+    @Test
+    void editingContextRejectsAccountSwitchAtTheMutationEvenAfterSuccessfulPreflight() throws Exception {
+        Client admin = loginAdmin(); Client alice = register(admin, "alice"); Client bob = register(admin, "bobby");
+        grant(admin, "alice", true); grant(admin, "bobby", true);
+        send(bob, post("/api/v1/account/writing/posts").header("X-Writing-Username", "alice"), content(null))
+                .andExpect(status().isForbidden());
+        send(bob, put("/api/v1/account/writing/settings/encryption").header("X-Writing-Username", "alice"),
+                "{\"encrypted\":true,\"version\":2}").andExpect(status().isForbidden());
+        assertThat(writing.listOwn("bobby", 1).total()).isZero();
+        assertThat(settings.get("bobby").contentEncrypted()).isFalse();
+        send(alice, post("/api/v1/account/writing/posts").header("X-Writing-Username", "alice"), content(null))
+                .andExpect(status().isCreated());
+    }
+
     private void assertEncrypted(String username) {
         String id = accounts.findByUsername(username).orElseThrow().id();
         for (String table : List.of("blog_member_post", "blog_member_post_revision")) {

@@ -8,7 +8,7 @@
 
 | 所属层 | 枚举 |
 | --- | --- |
-| `domain` | [MemberRole](#memberrole)、[DeviceType](#devicetype)、[AgentReviewStatus](#agentreviewstatus)、[AgentRunStatus](#agentrunstatus)、[AuthorStatus](#authorstatus)、[AuthorType](#authortype)、[CommunityCommentJobStatus](#communitycommentjobstatus)、[CommentStatus](#commentstatus)、[CreativeContentType](#creativecontenttype)、[CreativeVisibility](#creativevisibility)、[InspirationKind](#inspirationkind)、[InspirationStatus](#inspirationstatus)、[DomainErrorCode](#domainerrorcode)、[NovelFragmentRevisionEventType](#novelfragmentrevisioneventtype)、[NovelFragmentStatus](#novelfragmentstatus)、[NovelFragmentVisibility](#novelfragmentvisibility)、[PostRevisionEventType](#postrevisioneventtype)、[PostStatus](#poststatus)、[PostVisibility](#postvisibility) |
+| `domain` | [MemberRole](#memberrole)、[MemberPostFilter](#memberpostfilter)、[DeviceType](#devicetype)、[AgentReviewStatus](#agentreviewstatus)、[AgentRunStatus](#agentrunstatus)、[AuthorStatus](#authorstatus)、[AuthorType](#authortype)、[CommunityCommentJobStatus](#communitycommentjobstatus)、[CommentStatus](#commentstatus)、[CreativeContentType](#creativecontenttype)、[CreativeVisibility](#creativevisibility)、[InspirationKind](#inspirationkind)、[InspirationStatus](#inspirationstatus)、[DomainErrorCode](#domainerrorcode)、[NovelFragmentRevisionEventType](#novelfragmentrevisioneventtype)、[NovelFragmentStatus](#novelfragmentstatus)、[NovelFragmentVisibility](#novelfragmentvisibility)、[PostRevisionEventType](#postrevisioneventtype)、[PostStatus](#poststatus)、[PostVisibility](#postvisibility) |
 | `application` | [BlogErrorCode](#blogerrorcode)、[MediaReadScope](#mediareadscope)、[CommentQueryScope](#commentqueryscope)、[NovelFragmentQueryScope](#novelfragmentqueryscope)、[PostQueryScope](#postqueryscope)、[MarkdownImportOutcome](#markdownimportoutcome)、[Transition](#transition) |
 | `infrastructure` | [ImageKind](#imagekind)、[AgentReviewStatusPo](#agentreviewstatuspo)、[AgentRunStatusPo](#agentrunstatuspo)、[AuthorStatusPo](#authorstatuspo)、[AuthorTypePo](#authortypepo)、[CommentStatusPo](#commentstatuspo)、[CommunityCommentJobStatusPo](#communitycommentjobstatuspo)、[NovelFragmentRevisionEventTypePo](#novelfragmentrevisioneventtypepo)、[NovelFragmentStatusPo](#novelfragmentstatuspo)、[NovelFragmentVisibilityPo](#novelfragmentvisibilitypo)、[PostStatusPo](#poststatuspo)、[PostVisibilityPo](#postvisibilitypo)、[RevisionEventTypePo](#revisioneventtypepo) |
 | `start` | [ApiErrorCode](#apierrorcode) |
@@ -253,7 +253,7 @@ Agent 配置的审核结果；会员角色修改提示词等配置后需要重�
 | `UPDATE` | 修改内容或可见范围，保留原有发布状态。 |
 | `PUBLISH` | 发布内容；可见范围仍由 visibility 决定。 |
 | `UNPUBLISH` | 撤回为草稿，保留内容与历史。 |
-| `RESTORE` | 把历史内容恢复成一个新修订，不回退版本号，也不自动改变当前发布状态。 |
+| `RESTORE` | 把历史内容恢复成新修订；活动文章保留发布状态，找回归档必须恢复为私密草稿，不回退版本号。 |
 
 ## NovelFragmentStatus
 
@@ -291,7 +291,7 @@ Agent 配置的审核结果；会员角色修改提示词等配置后需要重�
 | `PUBLISH` | 发布内容；可见范围仍由 visibility 决定。 |
 | `UNPUBLISH` | 撤回为草稿，保留内容与历史。 |
 | `ARCHIVE` | 记录归档快照并删除活动文章；历史保留，原 slug 可以重用。 |
-| `RESTORE` | 把历史内容恢复成一个新修订，不回退版本号，也不自动改变当前发布状态。 |
+| `RESTORE` | 把历史内容恢复成新修订；活动文章保留发布状态，找回归档必须恢复为私密草稿，不回退版本号。 |
 
 ## PostStatus
 
@@ -414,7 +414,7 @@ NovelFragmentRevisionEventType 的数据库存储枚举。通过持久化边界�
 | `UPDATE` | 修改内容或可见范围，保留原有发布状态。 |
 | `PUBLISH` | 发布内容；可见范围仍由 visibility 决定。 |
 | `UNPUBLISH` | 撤回为草稿，保留内容与历史。 |
-| `RESTORE` | 把历史内容恢复成一个新修订，不回退版本号，也不自动改变当前发布状态。 |
+| `RESTORE` | 把历史内容恢复成新修订；活动文章保留发布状态，找回归档必须恢复为私密草稿，不回退版本号。 |
 
 ## NovelFragmentStatusPo
 
@@ -474,7 +474,7 @@ PostRevisionEventType 的数据库存储枚举。通过持久化边界映射为�
 | `PUBLISH` | 发布内容；可见范围仍由 visibility 决定。 |
 | `UNPUBLISH` | 撤回为草稿，保留内容与历史。 |
 | `ARCHIVE` | 记录归档快照并删除活动文章；历史保留，原 slug 可以重用。 |
-| `RESTORE` | 把历史内容恢复成一个新修订，不回退版本号，也不自动改变当前发布状态。 |
+| `RESTORE` | 把历史内容恢复成新修订；活动文章保留发布状态，找回归档必须恢复为私密草稿，不回退版本号。 |
 
 ## ApiErrorCode
 
@@ -519,3 +519,16 @@ HTTP 入站层自身的错误分类，覆盖认证、授权、参数校验与限
 | --- | --- |
 | `READER` | 普通会员，可使用原有会员功能，尚无写作资格。 |
 | `WRITER` | 作者，可编辑自己的文章；公开发布仍需单独授权。 |
+
+## MemberPostFilter
+
+会员文章列表的筛选范围，先在数据库按元数据过滤，再读取获准内容。
+
+[打开源码](../speaive-blog-domain/src/main/java/com/speaive/blog/domain/post/MemberPostFilter.java)
+
+| 枚举项 | 中文含义 |
+| --- | --- |
+| `ALL` | 尚未归档的全部文章 |
+| `PRIVATE` | 草稿或仅本人可见的文章，不含归档 |
+| `PUBLIC` | 已发布且允许公开的文章 |
+| `ARCHIVED` | 最新状态仍为归档、可找回的文章，每篇只出现一次 |

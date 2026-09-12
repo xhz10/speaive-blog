@@ -106,6 +106,14 @@ public final class Post {
                 requireNextTime(now), PostRevisionEventType.ARCHIVE);
     }
 
+    /** 找回归档时保留身份和内容，但必须回到私密草稿，避免旧公开内容意外重新上线。 */
+    public PostChange recoverArchive(String expectedVersion, Instant now) {
+        if (!archived()) throw new DomainException(DomainErrorCode.INVALID_STATE, "文章尚未归档");
+        assertVersion(expectedVersion);
+        return change(content(), PostStatus.DRAFT, PostVisibility.ADMIN_ONLY, false,
+                requireNextTime(now), PostRevisionEventType.RESTORE);
+    }
+
     public void assertVersion(String expectedVersion) {
         if (!version().equals(expectedVersion)) {
             throw new DomainException(DomainErrorCode.VERSION_CONFLICT,

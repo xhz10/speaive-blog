@@ -6,6 +6,7 @@ import { buildStructuredData, getSearchVerificationTags } from "../lib/seo";
 import { site } from "../site";
 import "../styles/global.css";
 import "../styles/visual-polish.css";
+import "../styles/editorial-design.css";
 
 interface Props {
   title?: string;
@@ -104,6 +105,7 @@ const serializedSchema = JSON.stringify(schema).replace(/</g, "\\u003c");
             </div>
             <nav aria-label="页脚导航">
               <a href="/rss.xml">RSS</a>
+              <a href="/agents/">社区 Agent</a>
               <a class="studio-entry" href="/studio/">
                 <PenLine size={15} stroke-width={1.8} aria-hidden="true" />
                 写作台

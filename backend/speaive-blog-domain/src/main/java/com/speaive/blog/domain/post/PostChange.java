@@ -21,7 +21,7 @@ public record PostChange(Post previous, Post current, PostRevisionEventType even
         if (eventType == PostRevisionEventType.CREATE || eventType == PostRevisionEventType.IMPORT) {
             throw invalid("创建事件不能表示已有文章的状态变更");
         }
-        if (previous.archived()) {
+        if (previous.archived() && eventType != PostRevisionEventType.RESTORE) {
             throw invalid("已归档文章不能产生新变更");
         }
         if (!previous.id().equals(current.id())
@@ -49,7 +49,18 @@ public record PostChange(Post previous, Post current, PostRevisionEventType even
 
     private static void validateEventResult(Post previous, Post current, PostRevisionEventType eventType) {
         switch (eventType) {
-            case UPDATE, RESTORE -> {
+            case RESTORE -> {
+                if (previous.archived()) {
+                    if (current.archived() || current.status() != PostStatus.DRAFT
+                            || current.visibility() != PostVisibility.ADMIN_ONLY
+                            || !current.content().equals(previous.content())) {
+                        throw invalid("找回归档必须保留内容并恢复为私密草稿");
+                    }
+                } else if (current.archived() || current.status() != previous.status()) {
+                    throw invalid("恢复历史内容不能改变文章状态");
+                }
+            }
+            case UPDATE -> {
                 if (current.archived() || current.status() != previous.status()) {
                     throw invalid("内容修改事件不能改变文章状态");
                 }

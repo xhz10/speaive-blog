@@ -7,7 +7,7 @@
 1. 站长在 `/studio/community/` 创建邀请码，朋友在 `/agents/register/` 注册。
 2. 站长打开 `/studio/members/`，把朋友的身份设为“作者”，分别决定是否允许“公开发布”和“加密存储”。注册不会自动获得这些权限。
 3. 作者在 `/writing/settings/` 选择“加密我的文章”。开启成功意味着当前文章及**全部历史版本，包括归档文章**都已转换；转换和账号开关一起提交。
-4. 在 `/writing/` 新建文章。默认草稿、仅自己可见；保存不会自动公开。拥有发布资格后，点击“公开发布”才会出现在主页。
+4. 在 `/writing/` 新建文章。默认草稿、仅自己可见；保存不会自动公开。拥有发布资格后，点击“公开发布”才会出现在主页和 `/community/` 的“朋友的文字”。
 5. 用户名为 `kuoshao` 时，主页为 `/profile/kuoshao/`。文章地址为 `/profile/kuoshao/{随机文章标识}/`，不用私密标题生成 URL。
 
 管理员的登录来源仍是现有配置，站长文章在 `blog_post` 中按原方式保存。无需给管理员开启或关闭会员加密。
@@ -152,14 +152,34 @@ keys.key-20260907=<32 字节随机密钥的标准 Base64>
 | `PUT /api/v1/studio/members/{username}/permissions` | 修改身份、发布及加密资格，携带 version |
 | `GET /api/v1/account/writing/settings` | 本人账号和存储设置 |
 | `PUT /api/v1/account/writing/settings/encryption` | 本人切换存储，携带 encrypted、version |
-| `GET/POST /api/v1/account/writing/posts` | 本人文章列表 / 新建草稿 |
+| `POST /api/v1/account/writing/preview` | 本人预览当前输入，HTML 清洗后返回，不创建文章或修订 |
+| `GET/POST /api/v1/account/writing/posts` | 本人文章列表 / 新建草稿；列表支持 `filter=ALL/PRIVATE/PUBLIC/ARCHIVED` 和 page |
 | `GET/PUT /api/v1/account/writing/posts/{slug}` | 本人读取 / 修改，修改携带 version |
 | `POST .../{slug}/publish、unpublish、archive` | 发布、撤回、归档，携带 version |
 | `GET .../{slug}/history` | 本人的最近 50 个版本 |
 | `POST .../{slug}/restore` | 恢复一个版本，携带 revision、version |
+| `POST .../{slug}/recover` | 找回归档为私密草稿，携带归档版本 version |
+| `GET /api/v1/public/community/posts` | 有效作者的公开作品列表，page 分页，不列只有私密作品的账号 |
 | `GET /api/v1/public/profiles/{username}` | 仅含公开已发布文章的主页，page 分页 |
 | `GET /api/v1/public/profiles/{username}/posts/{slug}` | 公开文章 |
 
 ## 验证内容
 
 领域测试验证资格与并发版本；应用假端口验证权限检查、转换顺序和失败后不保存开关；真实 PostgreSQL 测试覆盖旧库升级、两个会员的对象权限隔离、CSRF、明文/密文转换、超过 100 条修订、归档历史、CAS、并发账号锁及损坏密文的原子回滚。密码适配器测试覆盖随机 nonce、AAD、防篡改、缺失密钥和密钥轮换。原有站长接口与架构边界继续运行回归测试。
+
+## 作者体验：归档找回与会话恢复
+
+归档只移除活动记录，最新归档快照保留在修订表。筛选 `ARCHIVED` 时查询“最新修订仍为归档且不存在活动行”的文章，不能简单把历史表中所有 archived 行列出来，否则已找回又归档的文章会重复出现。
+
+找回流程在账号行锁与同一事务内执行：
+
+1. 用认证账号限定 owner，读取最新归档，比较客户端 version。
+2. 调用 `Post.recoverArchive`，保持 ID、slug、作者、正文与创建时间，revision 加一，强制改为 `DRAFT + ADMIN_ONLY`。
+3. 持久化层按旧归档版本条件插入活动行，再追加 `RESTORE` 修订；任一步失败回滚。恢复资格只要求作者身份，不要求公开发布资格。
+4. 新活动行和新修订使用账号当前的加密设置，历史不丢失；旧版找回请求不能覆盖已恢复文章。
+
+`V12` 只添加公开列表与归档筛选的元数据索引，不添加明文内容列。公开列表在 SQL 中限制 `PUBLISHED + PUBLIC + WRITER + ACTIVE` 后才解密，不接入 AI、全文搜索或缓存副本。
+
+写作请求遇到 401 时，前端保留当前输入并提供新窗口登录入口。每次操作先检查当前账号与编辑器账号一致；实际修改还携带可选的 `X-Writing-Username`，服务端在进入用例前比较它与认证身份，避免检查后另一个窗口切换账号而误提交。这个头只能使请求被拒绝，不能替代 Session 或授权。旧 API 调用方不携带此头仍兼容。409 冲突不会自动覆盖远端，作者可在新窗口查看已保存版本，手动比较当前输入。
+
+未保存内容只在当前页面内存中；关闭或刷新页面仍可能丢失尚未保存的输入。此轮没有增加浏览器明文缓存或隐式自动发布。

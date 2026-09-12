@@ -1,12 +1,17 @@
 package com.speaive.blog.application.port.in.post;
 
 import com.speaive.blog.application.command.post.PostWriteCommand;
+import com.speaive.blog.application.command.post.PreviewWritingCommand;
 import com.speaive.blog.application.result.post.*;
 
 /** 会员写作入口。authenticatedUsername 来自会话，任何写操作都不能由客户端选择所有者。 */
 public interface MemberWritingUseCase {
     MemberPostListResult listOwn(String authenticatedUsername, int page);
+    MemberPostListResult listOwn(String authenticatedUsername, int page, String filter);
+    CommunityPostListResult community(int page);
+    PostDetailResult recoverArchive(String authenticatedUsername, String slug, String version);
     PostDetailResult getOwn(String authenticatedUsername, String slug);
+    WritingPreviewResult preview(String authenticatedUsername, PreviewWritingCommand command);
     PostDetailResult create(String authenticatedUsername, PostWriteCommand command);
     PostDetailResult update(String authenticatedUsername, String slug, String version, PostWriteCommand command);
     PostDetailResult publish(String authenticatedUsername, String slug, String version);

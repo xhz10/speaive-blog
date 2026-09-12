@@ -8,6 +8,26 @@ import java.util.List;
 @Mapper
 public interface MemberPostDatabaseMapper {
     String COLUMNS = "id, owner_id AS \"ownerId\", slug, status, visibility, created_at AS \"createdAt\", updated_at AS \"updatedAt\", revision, archived, payload, payload_encrypted AS \"payloadEncrypted\"";
+    String FILTER = " owner_id = #{owner} AND (#{filter} = 'ALL' OR (#{filter} = 'PUBLIC' AND status = 'PUBLISHED' AND visibility = 'PUBLIC') OR (#{filter} = 'PRIVATE' AND NOT (status = 'PUBLISHED' AND visibility = 'PUBLIC')))";
+    String ARCHIVED = " r.owner_id = #{owner} AND r.archived AND NOT EXISTS (SELECT 1 FROM blog_member_post_revision n WHERE n.id = r.id AND n.revision > r.revision) AND NOT EXISTS (SELECT 1 FROM blog_member_post c WHERE c.id = r.id)";
+    String COMMUNITY = " status = 'PUBLISHED' AND visibility = 'PUBLIC' AND owner_id IN (SELECT a.id FROM blog_account a JOIN blog_user u ON u.id = a.id WHERE a.role = 'WRITER' AND u.status = 'ACTIVE')";
+    @Select("SELECT " + COLUMNS + " FROM blog_member_post WHERE" + FILTER + " ORDER BY updated_at DESC, id LIMIT #{limit} OFFSET #{offset}")
+    List<MemberPostPo> filtered(@Param("owner") String owner, @Param("filter") String filter, @Param("limit") int limit, @Param("offset") long offset);
+    @Select("SELECT COUNT(*) FROM blog_member_post WHERE" + FILTER)
+    long filteredCount(@Param("owner") String owner, @Param("filter") String filter);
+    @Select("SELECT " + COLUMNS + " FROM blog_member_post_revision r WHERE" + ARCHIVED + " ORDER BY updated_at DESC, id LIMIT #{limit} OFFSET #{offset}")
+    List<MemberPostPo> archivedList(@Param("owner") String owner, @Param("limit") int limit, @Param("offset") long offset);
+    @Select("SELECT COUNT(*) FROM blog_member_post_revision r WHERE" + ARCHIVED)
+    long archivedCount(@Param("owner") String owner);
+    @Select("SELECT " + COLUMNS + " FROM blog_member_post_revision r WHERE" + ARCHIVED + " AND r.slug = #{slug}")
+    MemberPostPo archived(@Param("owner") String owner, @Param("slug") String slug);
+    @Select("SELECT " + COLUMNS + " FROM blog_member_post WHERE" + COMMUNITY + " ORDER BY updated_at DESC, id LIMIT #{limit} OFFSET #{offset}")
+    List<MemberPostPo> community(@Param("limit") int limit, @Param("offset") long offset);
+    @Select("SELECT COUNT(*) FROM blog_member_post WHERE" + COMMUNITY)
+    long communityCount();
+    // 插入活动行仍比较最新归档版本；唯一键与历史主键共同阻止重复恢复。
+    @Insert("INSERT INTO blog_member_post (id, owner_id, slug, status, visibility, created_at, updated_at, revision, archived, payload, payload_encrypted) SELECT #{row.id}, #{row.ownerId}, #{row.slug}, #{row.status}, #{row.visibility}, #{row.createdAt}, #{row.updatedAt}, #{row.revision}, FALSE, #{row.payload}, #{row.payloadEncrypted} WHERE EXISTS (SELECT 1 FROM blog_member_post_revision r WHERE r.id = #{row.id} AND r.owner_id = #{row.ownerId} AND r.slug = #{row.slug} AND r.revision = #{expected} AND r.archived AND NOT EXISTS (SELECT 1 FROM blog_member_post_revision n WHERE n.id = r.id AND n.revision > r.revision)) ON CONFLICT DO NOTHING")
+    int recover(@Param("row") MemberPostPo row, @Param("expected") long expected);
     @Select("SELECT " + COLUMNS + " FROM blog_member_post WHERE owner_id = #{owner} AND (NOT #{published} OR (status = 'PUBLISHED' AND visibility = 'PUBLIC')) ORDER BY updated_at DESC, id LIMIT #{limit} OFFSET #{offset}")
     List<MemberPostPo> list(@Param("owner") String owner, @Param("published") boolean published, @Param("limit") int limit, @Param("offset") long offset);
     @Select("SELECT COUNT(*) FROM blog_member_post WHERE owner_id = #{owner} AND (NOT #{published} OR (status = 'PUBLISHED' AND visibility = 'PUBLIC'))")

@@ -69,6 +69,35 @@ class MemberWritingApplicationTests {
         assertEquals(BlogErrorCode.NOT_FOUND, assertThrows(BlogException.class, () -> service.profile("alice", 1)).code());
     }
 
+    @Test
+    void recoveryUsesAuthenticatedOwnerAndCurrentProtectionWithinTheAccountLock() {
+        var writer = writer().chooseContentEncryption(true, 2, NOW);
+        var original = com.speaive.blog.domain.post.Post.createDraft("p", "p", new com.speaive.blog.domain.post.PostContent(
+                "草稿", "", NOW, List.of(), null, "正文"), writer.identity(), NOW);
+        var archived = original.archive(original.version(), NOW).current();
+        List<String> calls = new ArrayList<>();
+        var accounts = fake(AccountRepository.class, (method, args) -> {
+            calls.add(method); assertEquals("alice", args[0]); return Optional.of(writer);
+        });
+        var posts = fake(MemberPostRepository.class, (method, args) -> {
+            calls.add(method);
+            if (method.equals("archived")) { assertEquals("member", args[0]); return Optional.of(archived); }
+            if (method.equals("save")) {
+                var change = (com.speaive.blog.domain.post.PostChange) args[0];
+                assertEquals(com.speaive.blog.domain.post.PostStatus.DRAFT, change.current().status());
+                assertEquals(true, args[1]); return null;
+            }
+            throw new AssertionError(method);
+        });
+        var markdown = fake(MarkdownPort.class, (method, args) -> "<p>正文</p>");
+        var service = new MemberWritingApplicationService(accounts, posts, markdown, TX, CLOCK);
+        assertEquals("p:3", service.recoverArchive("alice", "p", "p:2").version());
+        assertEquals(List.of("lockByUsername", "archived", "save"), calls);
+        assertEquals(BlogErrorCode.INVALID_REQUEST, assertThrows(BlogException.class,
+                () -> service.listOwn("alice", 1, "bad-filter")).code());
+        assertEquals(BlogErrorCode.INVALID_REQUEST, assertThrows(BlogException.class, () -> service.community(0)).code());
+    }
+
     private interface Call { Object run(String method, Object[] args); }
     private static <T> T fake(Class<T> type, Call call) {
         return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },

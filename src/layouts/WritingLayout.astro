@@ -1,7 +1,9 @@
 ---
 import { ArrowUpRight, PenLine, LogOut } from "@lucide/astro";
 import BaseLayout from "./BaseLayout.astro";
+import WritingConfirmation from "../components/WritingConfirmation.astro";
 import "../styles/member-writing.css";
+import "../styles/writing-experience.css";
 interface Props { title: string; username?: string; }
 const { title, username } = Astro.props;
 ---
@@ -12,16 +14,18 @@ const { title, username } = Astro.props;
       <div><a href="/writing/" aria-current={Astro.url.pathname === "/writing/" ? "page" : undefined}>文章</a><a href="/writing/settings/" aria-current={Astro.url.pathname.startsWith("/writing/settings") ? "page" : undefined}>账号设置</a>{username && <a href={`/profile/${encodeURIComponent(username)}/`} target="_blank" rel="noreferrer">个人主页<ArrowUpRight size={14} /></a>}<button class="icon-button" aria-label="退出会员登录" title="退出登录" data-writing-logout><LogOut size={17} /></button></div>
     </nav></header>
     <div class="writing-main"><slot /></div>
-    <footer class="writing-footer"><a href="/">← 回到博客</a><a href="/agents/">我的 Agent</a><span>文字可以慢慢写。</span></footer>
+    <footer class="writing-footer"><a href="/">← 回到博客</a><a href="/agents/">我的 Agent</a><a href="/agents/login/?next=%2Fwriting%2F" target="_blank" rel="noreferrer">重新登录</a><span>文字可以慢慢写。</span></footer>
   </div>
+  <WritingConfirmation />
 </BaseLayout>
 <script>
+  import { confirmWritingAction } from "../lib/writing/confirmation";
   import { studioRequest } from "../lib/studio/client";
   document.querySelector<HTMLButtonElement>("[data-writing-logout]")?.addEventListener("click", async (event) => {
-    if (document.querySelector("[data-writing-editor][data-dirty='true']") && !confirm("有未保存的文字，确定退出吗？")) return;
     const button = event.currentTarget as HTMLButtonElement;
+    if (document.querySelector("[data-writing-editor][data-dirty='true']") && !await confirmWritingAction("还有文字没有保存", "退出后，当前未保存的修改不会保留。你可以先返回编辑器保存。", "退出登录", true)) return;
     button.disabled = true;
-    try { await studioRequest("/account/logout", { method: "POST" }, { redirectOnUnauthorized: false }); window.location.assign("/agents/login/"); }
+    try { await studioRequest("/account/logout", { method: "POST" }, { redirectOnUnauthorized: false }); const editor = document.querySelector<HTMLElement>("[data-writing-editor]"); if (editor) editor.dataset.dirty = "false"; window.location.assign("/agents/login/"); }
     catch { button.disabled = false; alert("退出失败，请稍后重试。"); }
   });
 </script>

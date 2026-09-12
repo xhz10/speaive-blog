@@ -1,59 +1,47 @@
 ---
+import { ArrowDown, ArrowUpRight } from "@lucide/astro";
+import EditorialImage from "../components/EditorialImage.astro";
+import CommunityPostRow from "../components/CommunityPostRow.astro";
+import { fetchStudioApi } from "../lib/studio/server";
+import type { CommunityPosts } from "../lib/writing/types";
+import "../styles/writing-experience.css";
 import PostRow from "../components/PostRow.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { listPublishedPosts } from "../lib/public-api";
-import { site } from "../site";
-
-const posts = await listPublishedPosts();
+import { listPublishedPosts, type PublishedPostSummary } from "../lib/public-api";
+let posts: PublishedPostSummary[] = [];
+let unavailable = false;
+try { posts = await listPublishedPosts(); }
+catch { unavailable = true; Astro.response.status = 503; Astro.response.headers.set("Cache-Control", "no-store"); }
 const latestPosts = posts.slice(0, 8);
+let community: CommunityPosts | undefined;
+try { community = await fetchStudioApi<CommunityPosts>(Astro.request, "/api/v1/public/community/posts"); } catch { /* 独立入口仍提供明确错误与重试，不影响站长文章阅读。 */ }
+Astro.response.headers.set("Cache-Control", "no-store");
 ---
-
 <BaseLayout>
   <section class="home-intro" aria-labelledby="site-title">
     <div class="shell intro-grid">
       <div class="intro-copy">
-        <p class="eyebrow">Personal notes / 个人博客</p>
+        <p class="eyebrow">随笔 · 见闻 · 还没想明白的事</p>
         <h1 id="site-title">Speaive</h1>
-        <p class="intro-statement">写下想法、见闻，以及那些还没有完全想明白的事情。</p>
-        <p class="intro-note">这里不限定主题。文章可能来自一本书、一次出门、一件小事，也可能只是某天突然想留下的一段话。</p>
+        <p class="intro-statement">让一些想法，<br />在这里慢慢成形。</p>
+        <p class="intro-note">一本书、一次出门，或者某个普通日子里，<br class="intro-desktop-break" />突然想留下的一段话。</p>
+        <div class="intro-actions"><a class="button primary" href="#latest-title">从最近一篇读起 <ArrowDown size={16} /></a><a class="intro-about" href="/about/">关于这里 <ArrowUpRight size={15} /></a></div>
       </div>
       <figure class="intro-figure">
-        <img
-          src={site.defaultCover}
-          alt="正在纸页上书写的钢笔笔尖"
-          width="1800"
-          height="1352"
-          fetchpriority="high"
-        />
-        <figcaption>WRITE WHEN IT MATTERS</figcaption>
+        <EditorialImage artwork="paper-bird" alt="午后窗光下，纸鸟停在红色书脊的书上，旁边放着纸页和铅笔" eager />
+        <figcaption><span>01 / 日光与纸页</span><span>把日子写进文字</span></figcaption>
       </figure>
     </div>
   </section>
-
   <section class="content-section" aria-labelledby="latest-title">
     <div class="shell">
-      <div class="section-heading">
-        <div>
-          <p class="section-label">Latest writing</p>
-          <h2 id="latest-title">最近更新</h2>
-        </div>
-        {posts.length > latestPosts.length && <a class="section-link" href="/archive/">查看全部</a>}
-      </div>
-
-      {
-        latestPosts.length > 0 ? (
-          <div class="post-list">
-            {latestPosts.map((post) => <PostRow post={post} />)}
-          </div>
-        ) : (
-          <div class="empty-state">
-            <div>
-              <h2>还没有文章</h2>
-              <p>第一篇可以慢慢来。</p>
-            </div>
-          </div>
-        )
-      }
+      <div class="section-heading"><div><p class="section-label">翻开一页</p><h2 id="latest-title" tabindex="-1">最近更新</h2></div><a class="section-link" href="/archive/">全部文章 <ArrowUpRight size={15} /></a></div>
+      {unavailable ? <div class="empty-state" role="alert"><div><h2>文章暂时没能加载</h2><p>文字还在，连接暂时出了点问题。</p><a class="button secondary" href="/">重新加载</a></div></div> : latestPosts.length ? <div class="post-list">{latestPosts.map((post) => <PostRow post={post} heading="h3" />)}</div> : <div class="empty-state"><div><h3>第一篇，可以慢慢来。</h3><p>公开发布的文章会出现在这里。</p></div></div>}
     </div>
   </section>
+  {community && community.items.length > 0 && <section class="home-community shell" aria-labelledby="community-title"><div class="section-heading"><div><p class="section-label">也听听朋友的声音</p><h2 id="community-title">朋友的文字</h2></div><a class="section-link" href="/community/">去看看 <ArrowUpRight size={15} /></a></div><div class="community-grid">{community.items.slice(0, 3).map(post => <CommunityPostRow post={post} heading="h3" />)}</div></section>}
+  <section class="home-writing-invite" aria-labelledby="writing-invite-title"><div class="shell writing-invite-grid">
+    <figure><EditorialImage artwork="quiet-desk" alt="暮色中的窗边书桌，红色台灯照着摊开的空白笔记本" /><figcaption>02 / 留一盏写作的灯</figcaption></figure>
+    <div><p class="section-label">也给你的文字，一个位置</p><h2 id="writing-invite-title">有些话，<br />先写给自己就好。</h2><p>这里也欢迎朋友来写作。草稿可以先收好，<br class="intro-desktop-break" />等准备好了，再与读者见面。</p><a class="button secondary" href="/writing/">进入我的写作 <ArrowUpRight size={16} /></a><small>受邀注册 · 作者权限由站长开通</small></div>
+  </div></section>
 </BaseLayout>

@@ -1,0 +1,10 @@
+---
+import { ShieldCheck, X } from "@lucide/astro";
+---
+<dialog class="writing-dialog" data-writing-confirmation aria-labelledby="writing-confirm-title" aria-describedby="writing-confirm-description">
+  <form method="dialog">
+    <header><span class="writing-dialog-symbol"><ShieldCheck size={23} /></span><button class="icon-button" value="cancel" aria-label="关闭确认窗口"><X size={18} /></button></header>
+    <h2 id="writing-confirm-title"></h2><p id="writing-confirm-description"></p>
+    <footer><button class="button secondary" value="cancel" autofocus>先不操作</button><button class="button primary" value="confirm" data-confirm-action>确认</button></footer>
+  </form>
+</dialog>

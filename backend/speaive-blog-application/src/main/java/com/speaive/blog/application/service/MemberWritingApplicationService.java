@@ -1,6 +1,7 @@
 package com.speaive.blog.application.service;
 
 import com.speaive.blog.application.command.post.PostWriteCommand;
+import com.speaive.blog.application.command.post.PreviewWritingCommand;
 import com.speaive.blog.application.error.*;
 import com.speaive.blog.application.port.in.post.MemberWritingUseCase;
 import com.speaive.blog.application.port.out.persistence.*;
@@ -36,8 +37,56 @@ public final class MemberWritingApplicationService implements MemberWritingUseCa
     public MemberPostListResult listOwn(String username, int page) { return list(account(username, false), false, page); }
 
     @Override
+    public MemberPostListResult listOwn(String username, int page, String filter) {
+        checkPage(page);
+        MemberPostFilter scope;
+        try { scope = MemberPostFilter.valueOf(filter); }
+        catch (IllegalArgumentException | NullPointerException error) {
+            throw new BlogException(BlogErrorCode.INVALID_REQUEST, "文章筛选范围不合法");
+        }
+        MemberAccount account = account(username, false);
+        return new MemberPostListResult(account.identity().username(), account.identity().displayName(),
+                posts.countFiltered(account.id(), scope), page, PAGE_SIZE,
+                posts.listFiltered(account.id(), scope, page, PAGE_SIZE).stream().map(this::summary).toList());
+    }
+
+    @Override
+    public CommunityPostListResult community(int page) {
+        checkPage(page);
+        return new CommunityPostListResult(posts.communityCount(), page, PAGE_SIZE,
+                posts.community(page, PAGE_SIZE).stream().map(this::summary).toList());
+    }
+
+    @Override
+    public PostDetailResult recoverArchive(String username, String slug, String version) {
+        return PostApplicationSupport.withDomainErrors(() -> transactions.required(() -> {
+            MemberAccount account = account(username, true);
+            requireWrite(account);
+            Post archived = posts.archived(account.id(), slug).orElseThrow(PostApplicationSupport::notFound);
+            PostChange change = archived.recoverArchive(version, clock.instant());
+            posts.save(change, account.contentEncrypted());
+            return detail(change.current());
+        }));
+    }
+
+    private static void checkPage(int page) {
+        if (page < 1 || page > 100_000) throw new BlogException(BlogErrorCode.INVALID_REQUEST, "页码不合法");
+    }
+
+    @Override
     public PostDetailResult getOwn(String username, String slug) {
         return detail(own(account(username, false), slug));
+    }
+
+    @Override
+    public WritingPreviewResult preview(String username, PreviewWritingCommand command) {
+        requireWrite(account(username, false));
+        if (command == null || command.body() == null || command.body().length() > 1_000_000
+                || (command.title() != null && command.title().length() > 200)) {
+            throw new BlogException(BlogErrorCode.INVALID_REQUEST, "预览内容超出允许长度");
+        }
+        // 只渲染请求中的输入，不调用文章仓储，不增加修订，不进入 AI 或导出流程。
+        return new WritingPreviewResult(command.title() == null ? "" : command.title(), markdown.render(command.body()));
     }
 
     @Override

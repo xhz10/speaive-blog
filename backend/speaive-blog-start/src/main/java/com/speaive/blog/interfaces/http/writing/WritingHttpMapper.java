@@ -2,6 +2,7 @@ package com.speaive.blog.interfaces.http.writing;
 
 import com.speaive.blog.application.command.account.*;
 import com.speaive.blog.application.command.post.PostWriteCommand;
+import com.speaive.blog.application.command.post.PreviewWritingCommand;
 import com.speaive.blog.application.result.account.*;
 import com.speaive.blog.application.result.post.*;
 import com.speaive.blog.interfaces.http.post.PostHttpMapper;
@@ -11,6 +12,8 @@ import org.mapstruct.*;
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING, unmappedTargetPolicy = ReportingPolicy.ERROR,
         uses = PostHttpMapper.class)
 public interface WritingHttpMapper {
+    PreviewWritingCommand command(WritingRequests.Preview request);
+    WritingResponses.Preview response(WritingPreviewResult result);
     MemberPermissionsCommand command(WritingRequests.Permissions request);
     ContentEncryptionCommand command(WritingRequests.Encryption request);
     @Mapping(target = "slug", ignore = true)
@@ -22,5 +25,6 @@ public interface WritingHttpMapper {
     WritingResponses.Account response(WritingAccountResult result);
     WritingResponses.Accounts response(WritingAccountListResult result);
     WritingResponses.Posts response(MemberPostListResult result);
+    WritingResponses.Community response(CommunityPostListResult result);
     WritingResponses.History response(MemberPostHistoryResult result);
 }

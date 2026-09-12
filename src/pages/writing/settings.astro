@@ -11,7 +11,7 @@ catch (e) { Astro.response.status = 503; error = e instanceof Error ? e.message 
   <header class="writing-hero"><div><p class="writing-eyebrow">账号设置</p><h1>决定文字如何保存。</h1><p>公开范围由你选择，写作与发布资格由站长管理。</p></div></header>
   {error ? <p class="notice error" role="alert">{error}</p> : account && <div class="writing-settings-grid">
     <section class="writing-paper writing-settings"><div class="writing-section-icon"><LockKeyhole size={21} /></div><h2>加密存储</h2><p>开启后，数据库中的文章标题、摘要、正文、标签和历史版本会保存为密文。已有文章也会一起转换。</p>
-      <form data-encryption-form data-version={account.version} data-encrypted={String(account.contentEncrypted)}>
+      <form data-encryption-form data-username={account.username} data-version={account.version} data-encrypted={String(account.contentEncrypted)}>
         <label class="writing-switch"><span><strong>加密我的文章</strong><small>{account.contentEncrypted ? "正在使用加密存储" : "目前以普通方式存储"}</small></span><input type="checkbox" name="encrypted" checked={account.contentEncrypted} disabled={!account.contentEncrypted && (!account.encryptionAllowed || !account.encryptionAvailable)} /></label>
         {!account.encryptionAllowed && <p class="writing-hint">站长尚未为此账号开放加密资格。</p>}
         {account.encryptionAllowed && !account.encryptionAvailable && <p class="writing-hint">站长尚未配置可用的内容密钥，加密功能暂时不可用。</p>}
@@ -24,19 +24,22 @@ catch (e) { Astro.response.status = 503; error = e instanceof Error ? e.message 
   </div>}
 </WritingLayout>
 <script>
+  import { confirmWritingAction } from "../../lib/writing/confirmation";
+  import { ensureWritingIdentity } from "../../lib/writing/session";
   import { writingRequest, jsonRequest } from "../../lib/writing/client";
   import type { WritingAccount } from "../../lib/writing/types";
   const form = document.querySelector<HTMLFormElement>("[data-encryption-form]");
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const input = form.elements.namedItem("encrypted") as HTMLInputElement;
-    if (form.dataset.encrypted === "true" && !input.checked && !confirm("关闭后，全部文章和历史版本将恢复为明文存储。确定关闭吗？")) return;
+    if (form.dataset.encrypted === "true" && !input.checked && !await confirmWritingAction("关闭文章加密？", "全部文章与历史版本将恢复为明文存储。公开范围不会因此改变，但数据库查询将能直接读到文章内容。", "关闭加密", true)) return;
     const button = form.querySelector<HTMLButtonElement>("button[type=submit]")!;
     const notice = form.querySelector<HTMLElement>("[data-encryption-notice]")!;
     button.disabled = input.disabled = true;
     notice.hidden = false; notice.textContent = "正在转换文章和全部历史版本，请保持页面打开…";
     try {
-      const updated = await writingRequest<WritingAccount>("/settings/encryption", jsonRequest("PUT", { encrypted: input.checked, version: Number(form.dataset.version) }));
+      await ensureWritingIdentity(form.dataset.username!);
+      const updated = await writingRequest<WritingAccount>("/settings/encryption", jsonRequest("PUT", { encrypted: input.checked, version: Number(form.dataset.version) }, form.dataset.username));
       form.dataset.version = String(updated.version); form.dataset.encrypted = String(updated.contentEncrypted);
       input.checked = updated.contentEncrypted;
       form.querySelector("small")!.textContent = updated.contentEncrypted ? "正在使用加密存储" : "目前以普通方式存储";

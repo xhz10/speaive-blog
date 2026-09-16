@@ -7,7 +7,7 @@ import {
   syntaxHighlighting
 } from "@codemirror/language";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
-import { EditorSelection, EditorState } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState } from "@codemirror/state";
 import {
   drawSelection,
   dropCursor,
@@ -17,6 +17,7 @@ import {
   highlightSpecialChars,
   keymap,
   lineNumbers,
+  ViewPlugin,
   placeholder as editorPlaceholder
 } from "@codemirror/view";
 
@@ -24,7 +25,8 @@ export async function createMarkdownEditor(
   host: HTMLElement,
   source: HTMLTextAreaElement,
   onChange: (value: string) => void,
-  placeholder = "从这里开始写……"
+  placeholder = "从这里开始写……",
+  options: { mobileWriting?: boolean } = {}
 ): Promise<EditorView> {
   const { markdown } = await import("@codemirror/lang-markdown");
   const writerTheme = EditorView.theme({
@@ -54,22 +56,30 @@ export async function createMarkdownEditor(
     ".cm-cursor": { borderLeftColor: "#c83e2c" }
   });
 
+  const chrome = new Compartment();
+  const mobile = options.mobileWriting ? window.matchMedia("(max-width: 800px)") : null;
+  // 手机保留浏览器原生选区和光标；桌面继续显示行号、折叠和活动行。
+  // 使用 Compartment 切换扩展，不重新创建编辑器，横竖屏切换不会丢失撤销栈。
+  const editingChrome = () => mobile?.matches
+    ? [EditorView.cursorScrollMargin.of({ x: 8, y: 80 })]
+    : [lineNumbers(), highlightActiveLineGutter(), foldGutter(), drawSelection(),
+        highlightActiveLine(), highlightSelectionMatches(), EditorState.allowMultipleSelections.of(true)];
+
   return new EditorView({
     parent: host,
     doc: source.value,
     extensions: [
-      lineNumbers(),
-      highlightActiveLineGutter(),
+      chrome.of(editingChrome()),
+      ...(mobile ? [ViewPlugin.define(view => {
+        const reconfigure = () => view.dispatch({ effects: chrome.reconfigure(editingChrome()) });
+        mobile.addEventListener("change", reconfigure);
+        return { destroy: () => mobile.removeEventListener("change", reconfigure) };
+      })] : []),
       highlightSpecialChars(),
       history(),
-      foldGutter(),
-      drawSelection(),
       dropCursor(),
-      EditorState.allowMultipleSelections.of(true),
       indentOnInput(),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-      highlightActiveLine(),
-      highlightSelectionMatches(),
       keymap.of([
         { key: "Mod-b", run: (view) => toggleInlineMarkup(view, "**", "**", "加粗文字") },
         { key: "Mod-i", run: (view) => toggleInlineMarkup(view, "*", "*", "斜体文字") },

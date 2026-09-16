@@ -11,7 +11,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 登录入口的尝试次数限制器，限制短时间内的重复认证失败；不承担会员或作者业务状态管理。
+ * 认证入口的尝试次数限制器。各入口使用独立实例，成功后只重置该入口的计数。
+ * 固定窗口从首次尝试开始，拒绝后的重复提交不会延长等待时间；计数只存于当前进程内存。
  */
 public final class LoginAttemptLimiter {
     private static final Duration MAX_CLEANUP_INTERVAL = Duration.ofMinutes(1);
@@ -47,14 +48,17 @@ public final class LoginAttemptLimiter {
             current = null;
         }
         if (current != null && current.attempts() >= maxAttempts) {
-            throw rateLimited();
+            throw rateLimited(current.startedAt().plus(window), now);
         }
         if (current == null) {
             if (attempts.size() >= maxTrackedAddresses) {
                 cleanupExpiredIfDue(now, true);
             }
             if (attempts.size() >= maxTrackedAddresses) {
-                throw rateLimited();
+                // 容量耗尽时给出最早可释放槽位的时间，不让前端猜测等待多久。
+                Instant availableAt = attempts.values().stream().map(value -> value.startedAt().plus(window))
+                        .min(Instant::compareTo).orElse(now.plus(window));
+                throw rateLimited(availableAt, now);
             }
             attempts.put(key, new AttemptWindow(now, 1));
             return;
@@ -87,9 +91,10 @@ public final class LoginAttemptLimiter {
         return clientAddress == null || clientAddress.isBlank() ? "unknown" : clientAddress;
     }
 
-    private static ApiHttpException rateLimited() {
-        return new ApiHttpException(ApiErrorCode.RATE_LIMITED, "登录尝试过于频繁，请稍后再试",
-                HttpStatus.TOO_MANY_REQUESTS);
+    private static ApiHttpException rateLimited(Instant availableAt, Instant now) {
+        long seconds = Math.max(1, (Duration.between(now, availableAt).toMillis() + 999) / 1000);
+        return new ApiHttpException(ApiErrorCode.RATE_LIMITED,
+                "当前网络的操作次数过多，请在 " + seconds + " 秒后重试。", HttpStatus.TOO_MANY_REQUESTS, seconds);
     }
 
     private record AttemptWindow(Instant startedAt, int attempts) {

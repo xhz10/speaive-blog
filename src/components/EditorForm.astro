@@ -12,6 +12,7 @@ import {
   List,
   LockKeyhole,
   Quote,
+  Redo2,
   Save,
   Send,
   TriangleAlert,
@@ -21,6 +22,7 @@ import { formatDateTimeInput } from "../lib/date-time";
 import type { StudioPostDetail } from "../lib/studio/types";
 import AiCommentPanel from "./AiCommentPanel.astro";
 import CreativeToolsPanel from "./CreativeToolsPanel.astro";
+import "../styles/studio-mobile-writing.css";
 
 interface Props {
   post?: StudioPostDetail;
@@ -69,6 +71,12 @@ const previewHtml = post?.html.replace(
     </div>
   </div>
 
+  <nav class="studio-writing-tabs" aria-label="编辑视图">
+    <button type="button" data-studio-view="edit" aria-pressed="true">写作</button>
+    <button type="button" data-studio-view="preview" aria-pressed="false">预览</button>
+    <button type="button" data-studio-view="settings" aria-pressed="false">设置与工具</button>
+  </nav>
+
   <div class="editor-alert" role="alert" hidden data-editor-error>
     <TriangleAlert size={17} stroke-width={1.8} aria-hidden="true" />
     <span data-editor-error-text></span>
@@ -78,17 +86,17 @@ const previewHtml = post?.html.replace(
 
   <section class="editor-document-meta" aria-label="文章信息">
     <label class="visually-hidden" for="post-title">标题</label>
-    <input
+    <textarea
       id="post-title"
       class="editor-title-input"
-      type="text"
       name="title"
-      value={post?.title ?? ""}
+      rows="1"
       maxlength="200"
       placeholder="文章标题"
       required
       data-title
-    />
+    >{post?.title ?? ""}</textarea>
+    <div data-studio-settings>
     <label class="visually-hidden" for="post-description">摘要</label>
     <textarea
       id="post-description"
@@ -102,7 +110,7 @@ const previewHtml = post?.html.replace(
 
     <div class="editor-metadata-grid">
       <label class="field slug-field">
-        <span class="field-label">Slug</span>
+        <span class="field-label">文章地址</span>
         <div class="slug-input-wrap"><span>/blog/</span><input type="text" name="slug" value={post?.slug ?? ""} maxlength="100" pattern="[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*" required readonly={Boolean(post)} data-slug /></div>
       </label>
       <label class="field">
@@ -143,6 +151,7 @@ const previewHtml = post?.html.replace(
         <input class="input" type="text" name="cover" value={post?.cover ?? ""} placeholder="上传图片后可以设为封面" data-cover />
       </label>
     </div>
+    </div>
   </section>
 
   <div class="editor-workspace">
@@ -164,6 +173,13 @@ const previewHtml = post?.html.replace(
         </div>
       </div>
       <div class="markdown-toolbar" role="toolbar" aria-label="Markdown 格式工具">
+        <div class="studio-format-scroll">
+        <button class="studio-mobile-tool" type="button" title="撤销" aria-label="撤销编辑" data-editor-history="undo">
+          <Undo2 size={17} stroke-width={1.8} aria-hidden="true" />
+        </button>
+        <button class="studio-mobile-tool" type="button" title="重做" aria-label="重做编辑" data-editor-history="redo">
+          <Redo2 size={17} stroke-width={1.8} aria-hidden="true" />
+        </button>
         <button type="button" title="二级标题" aria-label="插入二级标题" data-markdown-action="heading">
           <Heading2 size={16} stroke-width={1.8} aria-hidden="true" />
         </button>
@@ -186,6 +202,8 @@ const previewHtml = post?.html.replace(
           <CodeXml size={16} stroke-width={1.8} aria-hidden="true" />
         </button>
         <span class="markdown-toolbar-hint">⌘/Ctrl+F 搜索</span>
+        </div>
+        <button class="studio-mobile-tool studio-keyboard-done" type="button" aria-label="收起键盘" data-studio-keyboard-done>完成</button>
       </div>
       <div class="media-result" hidden data-media-result>
         <Check size={15} stroke-width={1.8} aria-hidden="true" />
@@ -201,7 +219,7 @@ const previewHtml = post?.html.replace(
         data-body
       >{post?.body ?? ""}</textarea>
       <div class="markdown-editor-host" data-markdown-editor></div>
-      <div class="markdown-editor-status" aria-live="polite">
+      <div class="markdown-editor-status">
         <span data-document-count>0 字 · 1 行</span>
         <span>Markdown</span>
       </div>
@@ -227,10 +245,12 @@ const previewHtml = post?.html.replace(
 <script is:inline id="editor-initial-state" type="application/json" set:html={initialState}></script>
 
 <script>
+  import { redo, undo } from "@codemirror/commands";
   import type { EditorView } from "@codemirror/view";
   import { formatDateTimeInput, normalizeInstant, parseDateTimeInput } from "../lib/date-time";
   import { StudioClientError, studioRequest } from "../lib/studio/client";
   import { createDraftTabId } from "../lib/studio/draft-id";
+  import { initializeStudioMobileWriting } from "../lib/studio/mobile-writing";
   import {
     applyMarkdownAction as applySharedMarkdownAction,
     createMarkdownEditor,
@@ -256,7 +276,7 @@ const previewHtml = post?.html.replace(
   }
 
   async function setupEditor(editorForm: HTMLFormElement, initialPost: StudioPostDetail | null) {
-    const titleInput = editorForm.querySelector<HTMLInputElement>("[data-title]")!;
+    const titleInput = editorForm.querySelector<HTMLTextAreaElement>("[data-title]")!;
     const descriptionInput = editorForm.querySelector<HTMLTextAreaElement>("[data-description]")!;
     const slugInput = editorForm.querySelector<HTMLInputElement>("[data-slug]")!;
     const publishedAtInput = editorForm.querySelector<HTMLInputElement>("[data-published-at]")!;
@@ -311,6 +331,8 @@ const previewHtml = post?.html.replace(
     let tags = [...(initialPost?.tags ?? [])];
     let markdownView: EditorView | null = null;
     let syncingMarkdown = false;
+    let composing = false;
+    let mobileWriting: ReturnType<typeof initializeStudioMobileWriting> | undefined;
     const localDraftKey = resolveLocalDraftKey();
     let savedSnapshot = snapshot();
     const request = <T = void,>(path: string, init: RequestInit = {}) =>
@@ -326,7 +348,8 @@ const previewHtml = post?.html.replace(
       markDirty();
       updateDocumentCount();
       schedulePreview(450);
-    });
+    }, "从这里开始写……", { mobileWriting: true });
+    mobileWriting = initializeStudioMobileWriting(editorForm, markdownView, () => void refreshPreview());
     document.addEventListener("studio:request-editor-selection", (event) => {
       if (!markdownView) return;
       const request = (event as CustomEvent<{
@@ -348,8 +371,21 @@ const previewHtml = post?.html.replace(
     if (!post && bodyInput.value.trim()) schedulePreview(0);
 
     editorForm.addEventListener("submit", (event) => event.preventDefault());
+    // 拼音候选尚未确认时，不执行排版、标签提交和自动保存。
+    editorForm.addEventListener("compositionstart", () => {
+      composing = true;
+      window.clearTimeout(autosaveTimer);
+      window.clearTimeout(previewTimer);
+    });
+    editorForm.addEventListener("compositionend", () => {
+      composing = false;
+      // 等本次输入事件结束，使用 CodeMirror 已同步的最终正文。
+      queueMicrotask(() => { scheduleAutosave(); schedulePreview(450); });
+    });
     editorForm.addEventListener("input", (event) => {
       if (event.target === tagInput) return;
+      // CodeMirror 的事务监听已经更新正文，不能再用冒泡的原生 input 重复保存。
+      if (markdownHost.contains(event.target as Node)) return;
       if (event.target === titleInput && !slugTouched && !slugInput.readOnly) {
         slugInput.value = toSlug(titleInput.value);
       }
@@ -360,6 +396,8 @@ const previewHtml = post?.html.replace(
 
     tagInputShell.addEventListener("click", () => tagInput.focus());
     tagInput.addEventListener("keydown", (event) => {
+      // Safari 确认候选时可能先结束 composition，229 兼容该提交顺序。
+      if (composing || event.isComposing || event.keyCode === 229) return;
       if (event.key === "Enter" || event.key === "," || event.key === "，" || event.key === "、") {
         event.preventDefault();
         commitTagInput();
@@ -377,8 +415,18 @@ const previewHtml = post?.html.replace(
       removeTag(button.dataset.removeTag ?? "");
     });
 
-    for (const button of editorForm.querySelectorAll<HTMLButtonElement>("[data-markdown-action]")) {
-      button.addEventListener("click", () => applyMarkdownAction(button.dataset.markdownAction ?? ""));
+    for (const button of editorForm.querySelectorAll<HTMLButtonElement>("[data-markdown-action], [data-editor-history]")) {
+      // 点工具时保留正文焦点，避免键盘反复收起和重新弹出。
+      button.addEventListener("pointerdown", (event) => {
+        if (markdownView?.hasFocus) event.preventDefault();
+      });
+      button.addEventListener("click", () => {
+        if (!markdownView || composing || markdownView.compositionStarted) return;
+        if (button.dataset.editorHistory) {
+          (button.dataset.editorHistory === "undo" ? undo : redo)(markdownView);
+          markdownView.focus();
+        } else applyMarkdownAction(button.dataset.markdownAction ?? "");
+      });
     }
 
     saveButton.addEventListener("click", () => void runCommand(async () => {
@@ -565,7 +613,7 @@ const previewHtml = post?.html.replace(
     async function saveDraft(explicit: boolean): Promise<StudioPostDetail | null> {
       window.clearTimeout(autosaveTimer);
       while (activeSave) await activeSave;
-      if (conflicted || (status === "PUBLISHED" && !explicit)) return post;
+      if (composing || conflicted || (status === "PUBLISHED" && !explicit)) return post;
       if (!dirty && post) {
         setSaveState("saved", "已保存");
         return post;
@@ -607,7 +655,7 @@ const previewHtml = post?.html.replace(
 
     function scheduleAutosave() {
       window.clearTimeout(autosaveTimer);
-      if (!dirty || conflicted || busy || status !== "DRAFT" || !validateDocument(false)) return;
+      if (composing || !dirty || conflicted || busy || status !== "DRAFT" || !validateDocument(false)) return;
       autosaveTimer = window.setTimeout(() => void saveDraft(false), 4_000);
     }
 
@@ -728,6 +776,7 @@ const previewHtml = post?.html.replace(
 
     function schedulePreview(delay: number) {
       window.clearTimeout(previewTimer);
+      if (composing) return;
       previewState.textContent = "等待更新";
       previewTimer = window.setTimeout(() => void refreshPreview(), delay);
     }
@@ -884,10 +933,16 @@ const previewHtml = post?.html.replace(
     }
 
     function validateDocument(interactive: boolean): boolean {
+      // 手机设置默认折叠，先展示错误所在视图，再交给浏览器聚焦。
+      if (interactive) {
+        const invalid = editorForm.querySelector<HTMLElement>(":invalid");
+        if (invalid) mobileWriting?.revealField(invalid);
+      }
       const valid = interactive ? editorForm.reportValidity() : editorForm.checkValidity();
       if (!valid) return false;
       if (!slugInput.value.trim()) {
         if (interactive) {
+          mobileWriting?.revealField(slugInput);
           slugInput.focus();
           showError("请先填写文章 slug。");
         }

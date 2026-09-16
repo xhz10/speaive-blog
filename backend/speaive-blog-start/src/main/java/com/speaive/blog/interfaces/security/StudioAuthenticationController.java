@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Qualifier;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -37,7 +38,7 @@ public class StudioAuthenticationController {
             AuthenticationManager authenticationManager,
             SecurityContextRepository securityContextRepository,
             CookieCsrfTokenRepository csrfTokenRepository,
-            LoginAttemptLimiter loginAttemptLimiter) {
+            @Qualifier("loginAttemptLimiter") LoginAttemptLimiter loginAttemptLimiter) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.csrfTokenRepository = csrfTokenRepository;

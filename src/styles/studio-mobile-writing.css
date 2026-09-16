@@ -1,0 +1,136 @@
+/* 仅作用于站长文章 /studio/new、/studio/edit；小说和会员编辑器保持各自布局。 */
+.studio-writing-tabs,
+#post-form .studio-mobile-tool { display: none; }
+
+#post-form .studio-format-scroll { display: contents; }
+#post-form .editor-title-input { overflow: hidden; }
+
+@media (max-width: 800px) {
+  /* 视图切换由编辑器恢复位置，避免浏览器另选底部状态栏作为滚动锚点。 */
+  html:has(#post-form[data-mobile-view]) { overflow-anchor: none; }
+  .studio-shell:has(#post-form[data-mobile-view]) > .studio-header { display: none; }
+  .studio-main:has(#post-form[data-mobile-view]) {
+    width: min(calc(100% - 24px), 720px);
+    padding: 16px 0 calc(100px + env(safe-area-inset-bottom));
+  }
+  #post-form[data-mobile-view] .editor-commandbar {
+    position: static;
+    gap: 10px;
+    padding: 12px;
+    flex-direction: column;
+  }
+  #post-form .editor-actions { display: flex; gap: 8px; }
+  #post-form .editor-actions > .button { flex: 1; min-width: 0; min-height: 44px; padding-inline: 8px; }
+  #post-form .editor-actions > .icon-button { width: 44px; min-height: 44px; }
+  #post-form .editor-state-line { width: 100%; min-width: 0; gap: 8px; }
+  #post-form .save-indicator { margin-left: auto; min-width: 0; }
+  #post-form .studio-writing-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    display: flex;
+    gap: 4px;
+    margin: 14px 0 0;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper, #f5f2eb);
+  }
+  #post-form .studio-writing-tabs button {
+    flex: 1;
+    min-height: 46px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #post-form .studio-writing-tabs button[aria-pressed="true"] {
+    border-bottom-color: var(--accent);
+    color: var(--ink);
+    font-weight: 700;
+  }
+  #post-form .editor-document-meta { padding: 24px 6px 18px; }
+  #post-form .editor-title-input { font-size: 28px; line-height: 1.4; }
+  #post-form [data-studio-settings] { margin-top: 24px; }
+  #post-form [data-studio-settings] input,
+  #post-form [data-studio-settings] select,
+  #post-form [data-studio-settings] textarea { font-size: 16px; }
+  #post-form .editor-metadata-grid { grid-template-columns: minmax(0, 1fr); }
+  #post-form .editor-workspace { display: block; overflow: visible; box-shadow: none; }
+  #post-form .editor-pane { min-height: 0; border: 0; border-radius: inherit; }
+  #post-form .editor-pane > .editor-toolbar { border-radius: inherit; min-height: 48px; padding: 6px 12px; }
+  #post-form .editor-pane .compact-checkbox { display: none; }
+  #post-form .editor-toolbar .icon-button { width: 44px; min-height: 44px; }
+  #post-form .markdown-editor-host .cm-editor {
+    height: auto;
+    min-height: 45svh;
+    font-size: 17px;
+  }
+  #post-form .markdown-editor-host .cm-scroller {
+    overflow: visible;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.9;
+  }
+  #post-form .markdown-editor-host .cm-content { padding: 18px 0 36px; }
+  #post-form .markdown-editor-host .cm-line { padding-inline: 16px; overflow-wrap: anywhere; }
+  #post-form .markdown-editor-host .cm-content::selection,
+  #post-form .markdown-editor-host .cm-content ::selection { background: #f3d8d2; color: #252723; }
+  #post-form .editor-textarea { font-size: 17px; }
+  #post-form .markdown-editor-status { padding: 10px 14px; font-size: 12px; }
+  #post-form .markdown-toolbar {
+    position: fixed;
+    z-index: 50;
+    inset: auto 0 var(--studio-keyboard-inset, 0px);
+    display: flex;
+    gap: 0;
+    overflow: hidden;
+    min-height: 54px;
+    padding: 4px max(8px, env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    border: 0;
+    border-top: 1px solid var(--line);
+    background: #fffefa;
+    box-shadow: 0 -3px 18px rgb(40 35 25 / 5%);
+  }
+  #post-form[data-keyboard-open="true"] .markdown-toolbar { padding-bottom: 4px; }
+  #post-form .studio-format-scroll {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    gap: 2px;
+    overflow-x: auto;
+    touch-action: pan-x;
+    scrollbar-width: none;
+  }
+  #post-form .studio-format-scroll::-webkit-scrollbar { display: none; }
+  #post-form .markdown-toolbar button {
+    flex: 0 0 44px;
+    width: 44px;
+    min-width: 44px;
+    height: 46px;
+    border-radius: 7px;
+    font-size: 14px;
+    touch-action: manipulation;
+  }
+  #post-form .markdown-toolbar .studio-mobile-tool { display: grid; }
+  #post-form .markdown-toolbar .studio-keyboard-done {
+    flex-basis: 52px;
+    margin-left: 5px;
+    border-left: 1px solid var(--line);
+    border-radius: 0;
+    color: var(--ink);
+    font-weight: 650;
+  }
+  #post-form .markdown-toolbar-hint { display: none; }
+  #post-form .preview-pane { min-height: 45svh; border-radius: inherit; }
+  #post-form .preview-content { height: auto; min-height: 0; overflow: visible; padding: 22px 18px 32px; }
+  #post-form[data-mobile-view="edit"] [data-studio-settings],
+  #post-form[data-mobile-view="preview"] [data-studio-settings],
+  #post-form[data-mobile-view="edit"] .preview-pane,
+  #post-form[data-mobile-view="preview"] .editor-pane,
+  #post-form[data-mobile-view="settings"] .editor-workspace,
+  #post-form[data-mobile-view="edit"] > .ai-comment-panel,
+  #post-form[data-mobile-view="edit"] > .creative-tools,
+  #post-form[data-mobile-view="preview"] > .ai-comment-panel,
+  #post-form[data-mobile-view="preview"] > .creative-tools { display: none; }
+}

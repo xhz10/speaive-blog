@@ -50,8 +50,11 @@ public record Invitation(
     }
 
     public Invitation consume(Instant now) {
-        if (!usableAt(now)) {
-            throw invalid("邀请码无效、已用完或已经过期");
+        if (usedCount >= maxUses) {
+            throw invalid("邀请码的使用次数已用完。如果刚刚提交过注册，请先尝试登录。");
+        }
+        if (!now.isBefore(expiresAt)) {
+            throw invalid("邀请码已过期，请联系站长重新生成。");
         }
         return new Invitation(id, codeHash, maxUses, usedCount + 1, expiresAt, createdAt, now);
     }

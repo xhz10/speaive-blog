@@ -71,6 +71,8 @@ speaive:
     secure-cookies: ${SPEAIVE_SECURE_COOKIES:false}
     login-max-attempts: ${SPEAIVE_LOGIN_MAX_ATTEMPTS:5}
     login-window-seconds: ${SPEAIVE_LOGIN_WINDOW_SECONDS:900}
+    registration-max-attempts: ${SPEAIVE_REGISTRATION_MAX_ATTEMPTS:10}
+    registration-window-seconds: ${SPEAIVE_REGISTRATION_WINDOW_SECONDS:900}
     login-max-tracked-addresses: ${SPEAIVE_LOGIN_MAX_TRACKED_ADDRESSES:10000}
   ai:
     enabled: ${SPEAIVE_AI_ENABLED:false}

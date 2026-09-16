@@ -109,6 +109,24 @@ public class WebSecurityConfiguration {
         return new LoginAttemptLimiter(maxAttempts, Duration.ofSeconds(windowSeconds), maxTrackedAddresses);
     }
 
+    /** 会员登录不再与管理员登录或注册共用次数。 */
+    @Bean
+    LoginAttemptLimiter memberLoginAttemptLimiter(
+            @Value("${speaive.security.login-max-attempts:5}") int maxAttempts,
+            @Value("${speaive.security.login-window-seconds:900}") long windowSeconds,
+            @Value("${speaive.security.login-max-tracked-addresses:10000}") int maxTrackedAddresses) {
+        return new LoginAttemptLimiter(maxAttempts, Duration.ofSeconds(windowSeconds), maxTrackedAddresses);
+    }
+
+    /** 注册独立配置；邀请码和用户名校验失败仍计数，防止穷举。 */
+    @Bean
+    LoginAttemptLimiter registrationAttemptLimiter(
+            @Value("${speaive.security.registration-max-attempts:10}") int maxAttempts,
+            @Value("${speaive.security.registration-window-seconds:900}") long windowSeconds,
+            @Value("${speaive.security.login-max-tracked-addresses:10000}") int maxTrackedAddresses) {
+        return new LoginAttemptLimiter(maxAttempts, Duration.ofSeconds(windowSeconds), maxTrackedAddresses);
+    }
+
     @Bean
     SecurityFilterChain webSecurityFilterChain(
             HttpSecurity http,

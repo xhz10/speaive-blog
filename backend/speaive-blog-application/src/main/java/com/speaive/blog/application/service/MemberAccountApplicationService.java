@@ -66,7 +66,7 @@ public final class MemberAccountApplicationService implements MemberAccountUseCa
             Instant now = clock.instant();
             String codeHash = hashInvitationCode(command.invitationCode());
             Invitation invitation = invitations.lockByCodeHash(codeHash)
-                    .orElseThrow(() -> invalid("邀请码无效、已用完或已经过期"));
+                    .orElseThrow(() -> invalid("未找到这个邀请码，请完整复制，并保留原有大小写。"));
             Invitation consumed = invitation.consume(now);
             MemberAccount account = MemberAccount.register(
                     UUID.randomUUID().toString(), username, command.displayName(), command.passwordHash(), now);
@@ -135,9 +135,14 @@ public final class MemberAccountApplicationService implements MemberAccountUseCa
     }
 
     private static String hashInvitationCode(String code) {
-        String normalized = code == null ? "" : code.trim();
+        // 邀请码字符集不含空白：兼容聊天复制产生的换行、全角空格与零宽字符，保留大小写。
+        if (code == null || code.length() > 100) throw invalid("邀请码格式不完整，请重新复制。");
+        String normalized = code.codePoints()
+                .filter(value -> !Character.isWhitespace(value) && !Character.isSpaceChar(value)
+                        && value != 0x200B && value != 0x200C && value != 0x200D && value != 0xFEFF)
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append).toString();
         if (normalized.length() < 12 || normalized.length() > 100) {
-            throw invalid("邀请码无效、已用完或已经过期");
+            throw invalid("邀请码格式不完整，请重新复制。");
         }
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")

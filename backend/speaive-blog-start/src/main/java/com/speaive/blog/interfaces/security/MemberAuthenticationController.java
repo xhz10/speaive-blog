@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -40,6 +42,8 @@ public class MemberAuthenticationController {
     private final SecurityContextRepository securityContextRepository;
     private final CookieCsrfTokenRepository csrfTokenRepository;
     private final LoginAttemptLimiter loginAttemptLimiter;
+    private final LoginAttemptLimiter registrationAttemptLimiter;
+    private final String adminUsername;
 
     public MemberAuthenticationController(
             MemberAccountUseCase accounts,
@@ -47,13 +51,17 @@ public class MemberAuthenticationController {
             AuthenticationManager authenticationManager,
             SecurityContextRepository securityContextRepository,
             CookieCsrfTokenRepository csrfTokenRepository,
-            LoginAttemptLimiter loginAttemptLimiter) {
+            @Qualifier("memberLoginAttemptLimiter") LoginAttemptLimiter loginAttemptLimiter,
+            @Qualifier("registrationAttemptLimiter") LoginAttemptLimiter registrationAttemptLimiter,
+            @Value("${speaive.security.admin-username:admin}") String adminUsername) {
         this.accounts = accounts;
         this.passwords = passwords;
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.csrfTokenRepository = csrfTokenRepository;
         this.loginAttemptLimiter = loginAttemptLimiter;
+        this.registrationAttemptLimiter = registrationAttemptLimiter;
+        this.adminUsername = adminUsername.trim();
     }
 
     @GetMapping("/csrf")
@@ -73,11 +81,16 @@ public class MemberAuthenticationController {
             HttpServletRequest servletRequest,
             HttpServletResponse response) {
         String clientAddress = servletRequest.getRemoteAddr();
-        loginAttemptLimiter.consume(clientAddress);
+        registrationAttemptLimiter.consume(clientAddress);
+        // 管理员名由认证配置保留；必须在注册事务前拒绝，避免建号扣码后自动登录失败。
+        if (adminUsername.equalsIgnoreCase(request.username())) {
+            throw new ApiHttpException(ApiErrorCode.INVALID_REQUEST, "此用户名由站长使用，请换一个用户名。", HttpStatus.BAD_REQUEST);
+        }
         MemberResult member = accounts.register(new RegisterMemberCommand(
                 request.username(), request.displayName(), passwords.encode(request.password()),
                 request.invitationCode()));
-        authenticate(request.username(), request.password(), servletRequest, response, clientAddress);
+        authenticate(request.username(), request.password(), servletRequest, response);
+        registrationAttemptLimiter.reset(clientAddress);
         return member;
     }
 
@@ -89,7 +102,8 @@ public class MemberAuthenticationController {
         String clientAddress = servletRequest.getRemoteAddr();
         loginAttemptLimiter.consume(clientAddress);
         Authentication authentication = authenticate(
-                request.username(), request.password(), servletRequest, response, clientAddress);
+                request.username(), request.password(), servletRequest, response);
+        loginAttemptLimiter.reset(clientAddress);
         return accounts.getMember(authentication.getName());
     }
 
@@ -104,8 +118,7 @@ public class MemberAuthenticationController {
             String username,
             String password,
             HttpServletRequest request,
-            HttpServletResponse response,
-            String clientAddress) {
+            HttpServletResponse response) {
         try {
             Authentication authentication = authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(username, password));
@@ -123,7 +136,6 @@ public class MemberAuthenticationController {
             securityContextRepository.saveContext(context, request, response);
             CsrfToken rotated = csrfTokenRepository.generateToken(request);
             csrfTokenRepository.saveToken(rotated, request, response);
-            loginAttemptLimiter.reset(clientAddress);
             return authentication;
         } catch (AuthenticationException exception) {
             throw new ApiHttpException(

@@ -1,136 +1,185 @@
 /* 仅作用于站长文章 /studio/new、/studio/edit；小说和会员编辑器保持各自布局。 */
-.studio-writing-tabs,
+.studio-confirm-dialog { width: min(420px, calc(100% - 32px)); padding: 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper, #fffdf8); color: var(--ink); }
+.studio-confirm-dialog::backdrop { background: rgb(28 28 25 / 35%); }
+.studio-confirm-dialog h2 { margin: 0 0 16px; font-family: system-ui, sans-serif; font-size: 22px; line-height: 1.4; }
+.studio-confirm-dialog p { margin: 0 0 24px; font-family: system-ui, sans-serif; font-size: 16px; line-height: 1.7; }
+.studio-confirm-actions { display: flex; gap: 12px; }
+.studio-confirm-actions .button { flex: 1; min-height: 48px; }
+
+.studio-mobile-commandbar,
+.studio-mobile-document-info,
+.studio-settings-intro,
+.studio-mobile-publication,
+.studio-mobile-visibility-options,
+.studio-mobile-management,
+.studio-mobile-preview-heading,
+.studio-mobile-preview-return,
+.studio-description-label,
+.studio-tool-label,
+.studio-format-extra,
+#post-form [data-mobile-visibility-hint],
 #post-form .studio-mobile-tool { display: none; }
 
 #post-form .studio-format-scroll { display: contents; }
 #post-form .editor-title-input { overflow: hidden; }
+.editor-mobile-header,
+.studio-advanced-settings { display: contents; }
+.studio-advanced-settings > summary { display: none; }
 
 @media (max-width: 800px) {
-  /* 视图切换由编辑器恢复位置，避免浏览器另选底部状态栏作为滚动锚点。 */
+  /* 光标、页面滚动和视图恢复由同一个编辑器管理，不采用浏览器滚动锚定。 */
   html:has(#post-form[data-mobile-view]) { overflow-anchor: none; }
-  .studio-shell:has(#post-form[data-mobile-view]) > .studio-header { display: none; }
+  .studio-shell:has(#post-form[data-mobile-view]) > .studio-header,
+  .studio-main:has(#post-form[data-mobile-view]) > .studio-editor-head { display: none; }
   .studio-main:has(#post-form[data-mobile-view]) {
-    width: min(calc(100% - 24px), 720px);
-    padding: 16px 0 calc(100px + env(safe-area-inset-bottom));
+    width: 100%;
+    padding: 0 0 calc(80px + env(safe-area-inset-bottom));
   }
-  #post-form[data-mobile-view] .editor-commandbar {
-    position: static;
-    gap: 10px;
-    padding: 12px;
-    flex-direction: column;
+  #post-form {
+    background: var(--paper, #fffdf8);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   }
-  #post-form .editor-actions { display: flex; gap: 8px; }
-  #post-form .editor-actions > .button { flex: 1; min-width: 0; min-height: 44px; padding-inline: 8px; }
-  #post-form .editor-actions > .icon-button { width: 44px; min-height: 44px; }
-  #post-form .editor-state-line { width: 100%; min-width: 0; gap: 8px; }
-  #post-form .save-indicator { margin-left: auto; min-width: 0; }
-  #post-form .studio-writing-tabs {
+  #post-form .editor-mobile-header {
+    display: block;
     position: sticky;
     top: 0;
     z-index: 40;
-    display: flex;
-    gap: 4px;
-    margin: 14px 0 0;
-    border-bottom: 1px solid var(--line);
-    background: var(--paper, #f5f2eb);
+    background: var(--paper, #fffdf8);
   }
-  #post-form .studio-writing-tabs button {
-    flex: 1;
-    min-height: 46px;
+  #post-form .editor-commandbar { display: none; }
+  #post-form .studio-mobile-commandbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 56px;
+    padding: 4px 8px;
+    background: var(--paper, #fffdf8);
+  }
+  #post-form .studio-mobile-commandbar > a,
+  #post-form .studio-mobile-commandbar > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    min-height: 48px;
+    padding: 4px 8px;
     border: 0;
-    border-bottom: 2px solid transparent;
+    border-radius: 6px;
     background: transparent;
-    color: var(--muted);
+    color: var(--ink);
     font: inherit;
     font-size: 14px;
+    font-weight: 550;
+    text-decoration: none;
     cursor: pointer;
+    touch-action: manipulation;
   }
-  #post-form .studio-writing-tabs button[aria-pressed="true"] {
-    border-bottom-color: var(--accent);
-    color: var(--ink);
-    font-weight: 700;
+  #post-form .studio-mobile-commandbar > button:disabled { opacity: .55; cursor: default; }
+  #post-form .studio-mobile-commandbar > button:focus-visible,
+  #post-form .studio-mobile-commandbar > a:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+  #post-form .studio-mobile-commandbar .studio-mobile-save {
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-start;
+    gap: 6px;
+    padding-inline: 4px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 400;
   }
-  #post-form .editor-document-meta { padding: 24px 6px 18px; }
-  #post-form .editor-title-input { font-size: 28px; line-height: 1.4; }
-  #post-form [data-studio-settings] { margin-top: 24px; }
+  #post-form [data-mobile-save-label] { white-space: nowrap; }
+  #post-form .studio-mobile-save[data-state="saved"] .save-indicator-dot { background: var(--green); }
+  #post-form .studio-mobile-save[data-state="saving"] .save-indicator-dot { background: var(--warning); animation: studio-pulse 1s ease-in-out infinite; }
+  #post-form .studio-mobile-save[data-state="error"],
+  #post-form .studio-mobile-save[data-state="conflict"] { color: var(--danger); }
+  #post-form .studio-mobile-save[data-state="error"] .save-indicator-dot,
+  #post-form .studio-mobile-save[data-state="conflict"] .save-indicator-dot { background: var(--danger); }
+  #post-form .editor-alert { margin: 0 8px 8px; max-height: 25svh; overflow-y: auto; }
+
+  #post-form .editor-document-meta { padding: 24px 24px 16px; }
+  #post-form .editor-title-input { padding: 0; font-family: inherit; font-size: 28px; font-weight: 700; line-height: 1.4; letter-spacing: 0; }
+  #post-form .studio-mobile-document-info { display: block; margin: 16px 0 0; color: var(--muted); font-size: 12px; line-height: 19px; }
+  #post-form [data-studio-settings] { margin-top: 0; }
+  #post-form .studio-settings-intro { display: block; margin-bottom: 24px; }
+  #post-form .studio-settings-intro h2 { margin: 0 0 24px; color: var(--ink); font-family: inherit; font-size: 28px; font-weight: 700; line-height: 1.4; }
+  #post-form .studio-settings-intro p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+  #post-form .studio-description-label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 550; }
+  #post-form .editor-description-input { margin: 0; font-size: 17px; line-height: 1.8; }
   #post-form [data-studio-settings] input,
   #post-form [data-studio-settings] select,
   #post-form [data-studio-settings] textarea { font-size: 16px; }
-  #post-form .editor-metadata-grid { grid-template-columns: minmax(0, 1fr); }
-  #post-form .editor-workspace { display: block; overflow: visible; box-shadow: none; }
-  #post-form .editor-pane { min-height: 0; border: 0; border-radius: inherit; }
-  #post-form .editor-pane > .editor-toolbar { border-radius: inherit; min-height: 48px; padding: 6px 12px; }
-  #post-form .editor-pane .compact-checkbox { display: none; }
-  #post-form .editor-toolbar .icon-button { width: 44px; min-height: 44px; }
-  #post-form .markdown-editor-host .cm-editor {
-    height: auto;
-    min-height: 45svh;
-    font-size: 17px;
-  }
-  #post-form .markdown-editor-host .cm-scroller {
-    overflow: visible;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-    line-height: 1.9;
-  }
-  #post-form .markdown-editor-host .cm-content { padding: 18px 0 36px; }
-  #post-form .markdown-editor-host .cm-line { padding-inline: 16px; overflow-wrap: anywhere; }
+  #post-form .editor-metadata-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; margin-top: 24px; }
+  #post-form .studio-visibility-field { padding: 16px; background: var(--surface-muted, #f4f1ea); }
+  #post-form .studio-visibility-field select { display: none; }
+  #post-form .studio-mobile-visibility-options { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0; padding: 0; border: 0; }
+  #post-form .studio-mobile-visibility-options label { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: var(--ink); font-size: 17px; }
+  #post-form .studio-mobile-visibility-options input { width: 18px; height: 18px; margin: 0; accent-color: var(--ink); }
+  #post-form [data-mobile-visibility-hint] { display: block; font-size: 12px; line-height: 1.6; }
+  #post-form .studio-mobile-publication { display: block; margin-top: 24px; }
+  #post-form .studio-mobile-publication .button { width: 100%; min-height: 48px; border-radius: 0; font-size: 14px; }
+  #post-form .studio-mobile-publication p { margin: 16px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+  #post-form .studio-advanced-settings { display: block; margin-top: 24px; }
+  #post-form .studio-advanced-settings > summary { display: list-item; min-height: 48px; padding: 12px 0; color: var(--ink); font-size: 14px; cursor: pointer; }
+  #post-form .studio-advanced-settings .editor-metadata-grid { gap: 16px; margin-top: 16px; }
+  #post-form .studio-mobile-management { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; border-top: 1px solid var(--line); padding-top: 16px; }
+  #post-form .studio-secondary-tools { margin-top: 0; padding: 0 24px; }
+
+  #post-form .editor-workspace { display: block; overflow: visible; border: 0; border-radius: 0; background: var(--paper); box-shadow: none; }
+  #post-form .editor-pane { min-height: 0; border: 0; border-radius: 0; }
+  #post-form .editor-pane > .editor-toolbar,
+  #post-form .markdown-editor-status { display: none; }
+  #post-form .markdown-editor-host .cm-editor { height: auto; min-height: 45svh; background: var(--paper, #fffdf8); color: var(--ink); font-size: 17px; }
+  #post-form .markdown-editor-host .cm-scroller { overflow: visible; font-family: inherit; line-height: 1.85; }
+  #post-form .markdown-editor-host .cm-content { padding: 0 0 36px; }
+  #post-form .markdown-editor-host .cm-line { padding-inline: 24px; overflow-wrap: anywhere; }
   #post-form .markdown-editor-host .cm-content::selection,
-  #post-form .markdown-editor-host .cm-content ::selection { background: #f3d8d2; color: #252723; }
+  #post-form .markdown-editor-host .cm-content ::selection { background: #f3d8d2; color: var(--ink); }
   #post-form .editor-textarea { font-size: 17px; }
-  #post-form .markdown-editor-status { padding: 10px 14px; font-size: 12px; }
+
   #post-form .markdown-toolbar {
     position: fixed;
     z-index: 50;
     inset: auto 0 var(--studio-keyboard-inset, 0px);
     display: flex;
-    gap: 0;
-    overflow: hidden;
-    min-height: 54px;
-    padding: 4px max(8px, env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    align-items: center;
+    gap: 4px;
+    min-height: 48px;
+    /* 二级排版菜单位于工具栏上方，不能继承桌面的横向滚动裁切。 */
+    overflow: visible;
+    padding: 0 max(8px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(8px, env(safe-area-inset-left));
     border: 0;
     border-top: 1px solid var(--line);
-    background: #fffefa;
+    border-radius: 0;
+    background: var(--paper, #fffdf8);
     box-shadow: 0 -3px 18px rgb(40 35 25 / 5%);
   }
-  #post-form[data-keyboard-open="true"] .markdown-toolbar { padding-bottom: 4px; }
-  #post-form .studio-format-scroll {
-    display: flex;
-    flex: 1;
-    min-width: 0;
-    gap: 2px;
-    overflow-x: auto;
-    touch-action: pan-x;
-    scrollbar-width: none;
-  }
-  #post-form .studio-format-scroll::-webkit-scrollbar { display: none; }
-  #post-form .markdown-toolbar button {
-    flex: 0 0 44px;
-    width: 44px;
-    min-width: 44px;
-    height: 46px;
-    border-radius: 7px;
-    font-size: 14px;
-    touch-action: manipulation;
-  }
+  #post-form[data-keyboard-open="true"] .markdown-toolbar { padding-bottom: 0; }
+  #post-form .studio-format-scroll { display: grid; flex: 1; min-width: 0; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  #post-form .markdown-toolbar button { width: 100%; min-width: 0; min-height: 48px; height: 48px; border-radius: 6px; padding: 4px; font-size: 14px; touch-action: manipulation; }
   #post-form .markdown-toolbar .studio-mobile-tool { display: grid; }
-  #post-form .markdown-toolbar .studio-keyboard-done {
-    flex-basis: 52px;
-    margin-left: 5px;
-    border-left: 1px solid var(--line);
-    border-radius: 0;
-    color: var(--ink);
-    font-weight: 650;
-  }
+  #post-form .markdown-toolbar svg { display: none; }
+  #post-form .markdown-toolbar .studio-tool-label { display: inline; }
+  #post-form .markdown-toolbar .studio-keyboard-done { flex: 0 0 56px; width: 56px; color: var(--ink); font-weight: 550; }
   #post-form .markdown-toolbar-hint { display: none; }
-  #post-form .preview-pane { min-height: 45svh; border-radius: inherit; }
-  #post-form .preview-content { height: auto; min-height: 0; overflow: visible; padding: 22px 18px 32px; }
+  #post-form .studio-format-extra { position: absolute; bottom: 100%; inset-inline: 0; padding: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; border-bottom: 1px solid var(--line); background: var(--paper); box-shadow: 0 -6px 16px rgb(40 35 25 / 6%); }
+  #post-form[data-format-expanded="true"] .studio-format-extra { display: grid; }
+  #post-form:not([data-body-tools-active="true"]) .markdown-toolbar { display: none; }
+
+  #post-form .preview-pane { min-height: 45svh; border: 0; border-radius: 0; background: var(--paper); font-family: inherit; }
+  #post-form .studio-mobile-preview-heading { display: block; padding: 24px 24px 0; }
+  #post-form .studio-mobile-preview-heading h1 { margin: 24px 0 16px; font-family: inherit; font-size: 28px; font-weight: 700; line-height: 1.4; letter-spacing: 0; }
+  #post-form .studio-mobile-preview-heading p { margin: 0; color: var(--muted); font-family: inherit; font-size: 12px; line-height: 19px; }
+  #post-form .preview-toolbar { display: none; }
+  #post-form .preview-content { height: auto; min-height: 0; overflow: visible; padding: 16px 24px 32px; font-family: inherit; font-size: 17px; line-height: 1.85; }
+  #post-form .preview-content blockquote { border: 0; border-radius: 0; background: var(--surface-muted, #f4f1ea); padding: 16px; color: var(--ink); }
+  #post-form .studio-mobile-preview-return { display: block; min-height: 48px; margin: 0 24px 24px; padding: 8px 16px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
   #post-form[data-mobile-view="edit"] [data-studio-settings],
-  #post-form[data-mobile-view="preview"] [data-studio-settings],
+  #post-form[data-mobile-view="preview"] .editor-document-meta,
   #post-form[data-mobile-view="edit"] .preview-pane,
   #post-form[data-mobile-view="preview"] .editor-pane,
+  #post-form[data-mobile-view="settings"] .editor-title-input,
+  #post-form[data-mobile-view="settings"] .studio-mobile-document-info,
   #post-form[data-mobile-view="settings"] .editor-workspace,
-  #post-form[data-mobile-view="edit"] > .ai-comment-panel,
-  #post-form[data-mobile-view="edit"] > .creative-tools,
-  #post-form[data-mobile-view="preview"] > .ai-comment-panel,
-  #post-form[data-mobile-view="preview"] > .creative-tools { display: none; }
+  #post-form[data-mobile-view="edit"] [data-studio-secondary-tools],
+  #post-form[data-mobile-view="preview"] [data-studio-secondary-tools] { display: none; }
 }

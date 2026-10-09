@@ -1,4 +1,5 @@
 import { formatMarkdown, markdownLink, type MarkdownAction, type MarkdownEdit } from "./markdown";
+import { initializeBodyToolTarget } from "./body-tools";
 
 /** 写作、预览、设置是界面视图，不改变文章的可见范围。 */
 type WritingView = "edit" | "preview" | "settings";
@@ -7,6 +8,7 @@ export function initializeWritingExperience(form: HTMLFormElement) {
   const body = form.elements.namedItem("body") as HTMLTextAreaElement;
   const title = form.elements.namedItem("title") as HTMLTextAreaElement;
   const mobile = window.matchMedia("(max-width: 800px)");
+  const canFormatBody = initializeBodyToolTarget(form, target => target === body);
   let view: WritingView = "edit";
   let editScroll = 0;
   let composing = false;
@@ -125,7 +127,7 @@ export function initializeWritingExperience(form: HTMLFormElement) {
     // 工具按钮不抢走原生选区和输入焦点，避免每次排版都收起再弹出键盘。
     button.addEventListener("pointerdown", event => { if (document.activeElement === body) event.preventDefault(); });
     button.addEventListener("click", () => {
-      if (body.readOnly || body.disabled || composing) return;
+      if (!canFormatBody() || body.readOnly || body.disabled || composing) return;
       if (button.dataset.markdown === "link") openLink();
       else applyEdit(formatMarkdown(body.value, body.selectionStart, body.selectionEnd, button.dataset.markdown as MarkdownAction));
     });

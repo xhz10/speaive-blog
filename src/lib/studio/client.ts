@@ -27,7 +27,7 @@ export async function studioRequest<T = void>(
     headers.set(csrf.headerName, csrf.token);
   }
 
-  const response = await fetch(`/api/v1${path}`, {
+  const response = await fetchResponse(`/api/v1${path}`, {
     ...init,
     method,
     headers,
@@ -58,7 +58,7 @@ export function resetCsrfToken(): void {
 }
 
 function getCsrfToken(): Promise<CsrfToken> {
-  csrfPromise ??= fetch("/api/v1/studio/csrf", {
+  csrfPromise ??= fetchResponse("/api/v1/studio/csrf", {
     credentials: "same-origin",
     cache: "no-store",
     headers: { Accept: "application/json" }
@@ -75,6 +75,20 @@ function getCsrfToken(): Promise<CsrfToken> {
       throw error;
     });
   return csrfPromise;
+}
+
+/** 浏览器的断网错误没有 HTTP 状态码，转换为可展示的中文提示。
+ * 保留其他异常；主动取消请求不按断网处理。
+ */
+async function fetchResponse(path: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(path, init);
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new StudioClientError(0, "NETWORK_ERROR", "暂时无法连接服务器，请检查网络后重试。");
+    }
+    throw error;
+  }
 }
 
 async function readError(response: Response): Promise<ApiErrorBody> {

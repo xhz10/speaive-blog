@@ -19,6 +19,7 @@
 .writing-format-bar button:active { background:var(--green-soft); }
 .writing-format-bar [data-dismiss-keyboard] { display:none; }
 .writing-editor:not([data-view=edit]) .writing-format-bar { display:none; }
+.writing-editor[data-body-tools-active="false"] .writing-format-bar { display:none; }
 .writing-editor[data-dirty=true] [data-save-state] { color:#9d4b24; }
 .writing-editor-aside .button { width:100%; justify-content:center; min-height:44px; }
 .writing-editor .writing-archive,.writing-editor summary { min-height:44px; }

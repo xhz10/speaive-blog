@@ -38,6 +38,16 @@ const previewHtml = post?.html.replace(
 ---
 
 <form id="post-form" class="studio-editor-form" novalidate data-dirty="false" data-studio-editor-form>
+  <div class="editor-mobile-header">
+  <nav class="studio-mobile-commandbar" aria-label="手机写作操作">
+    <a href="/studio/" class="studio-mobile-back" aria-label="返回文章列表">返回</a>
+    <button type="button" class="studio-mobile-save" data-mobile-save data-state={post ? "saved" : "dirty"} aria-label="保存文章">
+      <span class="save-indicator-dot" aria-hidden="true"></span>
+      <span data-mobile-save-label aria-live="polite">{post ? "已保存" : "未保存"}</span>
+    </button>
+    <button type="button" data-studio-view="preview" data-studio-toggle aria-pressed="false" aria-controls="studio-preview-pane">预览</button>
+    <button type="button" data-studio-view="settings" data-studio-toggle aria-pressed="false" aria-controls="studio-settings">更多</button>
+  </nav>
   <div class="editor-commandbar">
     <div class="editor-state-line">
       <span class:list={["status-badge", { draft: !post || post.status === "DRAFT" }]} data-post-status>
@@ -71,17 +81,12 @@ const previewHtml = post?.html.replace(
     </div>
   </div>
 
-  <nav class="studio-writing-tabs" aria-label="编辑视图">
-    <button type="button" data-studio-view="edit" aria-pressed="true">写作</button>
-    <button type="button" data-studio-view="preview" aria-pressed="false">预览</button>
-    <button type="button" data-studio-view="settings" aria-pressed="false">设置与工具</button>
-  </nav>
-
   <div class="editor-alert" role="alert" hidden data-editor-error>
     <TriangleAlert size={17} stroke-width={1.8} aria-hidden="true" />
     <span data-editor-error-text></span>
     <a class="button ghost" href="/studio/login" target="_blank" rel="noreferrer" hidden data-login-again>重新登录</a>
     <button class="button ghost" type="button" hidden data-reload>重新加载</button>
+  </div>
   </div>
 
   <section class="editor-document-meta" aria-label="文章信息">
@@ -96,8 +101,10 @@ const previewHtml = post?.html.replace(
       required
       data-title
     >{post?.title ?? ""}</textarea>
-    <div data-studio-settings>
-    <label class="visually-hidden" for="post-description">摘要</label>
+    <p class="studio-mobile-document-info"><span data-mobile-document-info></span></p>
+    <div id="studio-settings" data-studio-settings>
+    <div class="studio-settings-intro"><h2>准备好再分享</h2><p>先检查摘要、标签和可见范围，再决定是否公开。</p></div>
+    <label class="studio-description-label" for="post-description">摘要</label>
     <textarea
       id="post-description"
       class="editor-description-input"
@@ -109,21 +116,6 @@ const previewHtml = post?.html.replace(
     >{post?.description ?? ""}</textarea>
 
     <div class="editor-metadata-grid">
-      <label class="field slug-field">
-        <span class="field-label">文章地址</span>
-        <div class="slug-input-wrap"><span>/blog/</span><input type="text" name="slug" value={post?.slug ?? ""} maxlength="100" pattern="[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*" required readonly={Boolean(post)} data-slug /></div>
-      </label>
-      <label class="field">
-        <span class="field-label">发布时间（北京时间）</span>
-        <input class="input" type="datetime-local" name="publishedAt" value={publishedAt} step="1" required data-published-at />
-      </label>
-      <label class="field">
-        <span class="field-label">谁可以看</span>
-        <select class="input" name="visibility" data-visibility>
-          <option value="ADMIN_ONLY" selected={!post || post.visibility === "ADMIN_ONLY"}>仅自己（管理员）</option>
-          <option value="PUBLIC" selected={post?.visibility === "PUBLIC"}>所有访客</option>
-        </select>
-      </label>
       <div class="field">
         <span class="field-label">标签</span>
         <div class="tag-input-shell" data-tag-input-shell>
@@ -146,11 +138,45 @@ const previewHtml = post?.html.replace(
         </div>
         <span class="field-hint">回车生成标签，最多 20 个</span>
       </div>
+      <div class="field studio-visibility-field">
+        <label class="field-label" for="post-visibility">谁可以看</label>
+        <select class="input" id="post-visibility" name="visibility" data-visibility>
+          <option value="ADMIN_ONLY" selected={!post || post.visibility === "ADMIN_ONLY"}>仅自己（管理员）</option>
+          <option value="PUBLIC" selected={post?.visibility === "PUBLIC"}>所有访客</option>
+        </select>
+        <fieldset class="studio-mobile-visibility-options">
+          <legend class="visually-hidden">谁可以看</legend>
+          <label><input type="radio" name="mobileVisibility" value="ADMIN_ONLY" checked={!post || post.visibility === "ADMIN_ONLY"} data-mobile-visibility />仅自己</label>
+          <label><input type="radio" name="mobileVisibility" value="PUBLIC" checked={post?.visibility === "PUBLIC"} data-mobile-visibility />所有访客</label>
+        </fieldset>
+        <span class="field-hint" data-mobile-visibility-hint>只有你登录后可以看到，访客无法阅读。</span>
+      </div>
+    </div>
+    <div class="studio-mobile-publication">
+      <button class="button primary" type="button" data-mobile-publish><span data-mobile-publish-label>保存私密草稿</span></button>
+      <p data-mobile-publish-hint>文字保留为草稿，只有你可以看到。</p>
+    </div>
+    <details class="studio-advanced-settings" open>
+      <summary>封面、文章地址与更多管理</summary>
+      <div class="editor-metadata-grid">
       <label class="field cover-field">
         <span class="field-label">封面</span>
         <input class="input" type="text" name="cover" value={post?.cover ?? ""} placeholder="上传图片后可以设为封面" data-cover />
       </label>
+      <label class="field slug-field">
+        <span class="field-label">文章地址</span>
+        <div class="slug-input-wrap"><span>/blog/</span><input type="text" name="slug" value={post?.slug ?? ""} maxlength="100" pattern="[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*" required readonly={Boolean(post)} data-slug /></div>
+      </label>
+      <label class="field">
+        <span class="field-label">发布时间（北京时间）</span>
+        <input class="input" type="datetime-local" name="publishedAt" value={publishedAt} step="1" required data-published-at />
+      </label>
     </div>
+    <div class="studio-mobile-management">
+      <button class="button secondary" type="button" data-mobile-unpublish hidden={post?.status !== "PUBLISHED"}>撤回为草稿</button>
+      <button class="button ghost" type="button" data-mobile-archive hidden={!post}>归档文章</button>
+    </div>
+    </details>
     </div>
   </section>
 
@@ -176,33 +202,45 @@ const previewHtml = post?.html.replace(
         <div class="studio-format-scroll">
         <button class="studio-mobile-tool" type="button" title="撤销" aria-label="撤销编辑" data-editor-history="undo">
           <Undo2 size={17} stroke-width={1.8} aria-hidden="true" />
+          <span class="studio-tool-label">撤销</span>
         </button>
         <button class="studio-mobile-tool" type="button" title="重做" aria-label="重做编辑" data-editor-history="redo">
           <Redo2 size={17} stroke-width={1.8} aria-hidden="true" />
+          <span class="studio-tool-label">重做</span>
         </button>
         <button type="button" title="二级标题" aria-label="插入二级标题" data-markdown-action="heading">
           <Heading2 size={16} stroke-width={1.8} aria-hidden="true" />
+          <span class="studio-tool-label">H₂</span>
         </button>
         <button type="button" title="加粗（⌘/Ctrl+B）" aria-label="加粗" data-markdown-action="bold">
           <Bold size={16} stroke-width={1.8} aria-hidden="true" />
+          <span class="studio-tool-label">B</span>
         </button>
         <button type="button" title="斜体（⌘/Ctrl+I）" aria-label="斜体" data-markdown-action="italic">
           <Italic size={16} stroke-width={1.8} aria-hidden="true" />
+          <span class="studio-tool-label">斜体</span>
         </button>
         <button type="button" title="链接" aria-label="插入链接" data-markdown-action="link">
           <Link2 size={16} stroke-width={1.8} aria-hidden="true" />
+          <span class="studio-tool-label">链接</span>
         </button>
         <button type="button" title="无序列表" aria-label="插入无序列表" data-markdown-action="list">
           <List size={16} stroke-width={1.8} aria-hidden="true" />
+          <span class="studio-tool-label">列表</span>
         </button>
         <button type="button" title="引用" aria-label="插入引用" data-markdown-action="quote">
           <Quote size={16} stroke-width={1.8} aria-hidden="true" />
+          <span class="studio-tool-label">引用</span>
         </button>
         <button type="button" title="代码块" aria-label="插入代码块" data-markdown-action="code">
           <CodeXml size={16} stroke-width={1.8} aria-hidden="true" />
+          <span class="studio-tool-label">代码块</span>
         </button>
         <span class="markdown-toolbar-hint">⌘/Ctrl+F 搜索</span>
+        <button class="studio-mobile-tool" type="button" data-mobile-upload aria-label="上传图片">图片</button>
+        <button class="studio-mobile-tool" type="button" data-studio-format-toggle aria-label="更多排版工具" aria-expanded="false" aria-controls="studio-format-extra">排版</button>
         </div>
+        <div class="studio-format-extra" id="studio-format-extra" data-studio-format-extra></div>
         <button class="studio-mobile-tool studio-keyboard-done" type="button" aria-label="收起键盘" data-studio-keyboard-done>完成</button>
       </div>
       <div class="media-result" hidden data-media-result>
@@ -226,7 +264,8 @@ const previewHtml = post?.html.replace(
       <div class="drop-overlay" hidden data-drop-overlay>松开以上传图片</div>
     </section>
 
-    <section class="preview-pane prose" aria-label="文章预览">
+    <section class="preview-pane prose" id="studio-preview-pane" aria-label="文章预览">
+      <div class="studio-mobile-preview-heading"><p>只有你能看到此预览</p><h1 data-mobile-preview-title>{post?.title ?? "文章标题"}</h1><p data-mobile-preview-date></p></div>
       <div class="editor-toolbar preview-toolbar">
         <div><strong>预览</strong><span data-preview-state>{post ? "已同步" : "等待正文"}</span></div>
         <button class="icon-button" type="button" title="立即刷新预览" aria-label="立即刷新预览" data-preview>
@@ -236,15 +275,29 @@ const previewHtml = post?.html.replace(
       <div class="preview-content" data-preview-pane>
         {previewHtml ? <Fragment set:html={previewHtml} /> : <div class="preview-placeholder"><span>预览会显示在这里</span></div>}
       </div>
+      <button class="studio-mobile-preview-return" type="button" data-studio-view="edit">返回写作</button>
     </section>
   </div>
-  <AiCommentPanel post={post} />
-  <CreativeToolsPanel contentType="POST" slug={post?.slug} version={post?.version} />
+  <details class="studio-advanced-settings studio-secondary-tools" open data-studio-secondary-tools>
+    <summary>历史版本、私密分享与 AI 工具</summary>
+    <AiCommentPanel post={post} />
+    <CreativeToolsPanel contentType="POST" slug={post?.slug} version={post?.version} />
+  </details>
 </form>
+
+<dialog class="studio-confirm-dialog" data-studio-confirm aria-labelledby="studio-confirm-title" aria-describedby="studio-confirm-message">
+  <h2 id="studio-confirm-title" data-confirm-title></h2>
+  <p id="studio-confirm-message" data-confirm-message></p>
+  <div class="studio-confirm-actions">
+    <button class="button secondary" type="button" data-confirm-cancel autofocus>取消</button>
+    <button class="button primary" type="button" data-confirm-accept>确认</button>
+  </div>
+</dialog>
 
 <script is:inline id="editor-initial-state" type="application/json" set:html={initialState}></script>
 
 <script>
+  import { initializeStudioConfirmation } from "../lib/studio/confirmation";
   import { redo, undo } from "@codemirror/commands";
   import type { EditorView } from "@codemirror/view";
   import { formatDateTimeInput, normalizeInstant, parseDateTimeInput } from "../lib/date-time";
@@ -306,6 +359,19 @@ const previewHtml = post?.html.replace(
     const previewPane = editorForm.querySelector<HTMLElement>("[data-preview-pane]")!;
     const previewState = editorForm.querySelector<HTMLElement>("[data-preview-state]")!;
     const mediaButton = editorForm.querySelector<HTMLButtonElement>("[data-upload-media]")!;
+    const mobileUpload = editorForm.querySelector<HTMLButtonElement>("[data-mobile-upload]")!;
+    const mobileSave = editorForm.querySelector<HTMLButtonElement>("[data-mobile-save]")!;
+    const mobileSaveLabel = editorForm.querySelector<HTMLElement>("[data-mobile-save-label]")!;
+    const mobilePublish = editorForm.querySelector<HTMLButtonElement>("[data-mobile-publish]")!;
+    const mobilePublishLabel = editorForm.querySelector<HTMLElement>("[data-mobile-publish-label]")!;
+    const mobilePublishHint = editorForm.querySelector<HTMLElement>("[data-mobile-publish-hint]")!;
+    const mobileUnpublish = editorForm.querySelector<HTMLButtonElement>("[data-mobile-unpublish]")!;
+    const mobileArchive = editorForm.querySelector<HTMLButtonElement>("[data-mobile-archive]")!;
+    const mobileDocumentInfo = editorForm.querySelector<HTMLElement>("[data-mobile-document-info]")!;
+    const mobileVisibilityHint = editorForm.querySelector<HTMLElement>("[data-mobile-visibility-hint]")!;
+    const mobileVisibilityOptions = [...editorForm.querySelectorAll<HTMLInputElement>("[data-mobile-visibility]")];
+    const mobilePreviewTitle = editorForm.querySelector<HTMLElement>("[data-mobile-preview-title]")!;
+    const mobilePreviewDate = editorForm.querySelector<HTMLElement>("[data-mobile-preview-date]")!;
     const mediaPicker = editorForm.querySelector<HTMLInputElement>("[data-media-picker]")!;
     const setCover = editorForm.querySelector<HTMLInputElement>("[data-set-cover]")!;
     const mediaResult = editorForm.querySelector<HTMLElement>("[data-media-result]")!;
@@ -313,6 +379,7 @@ const previewHtml = post?.html.replace(
     const useCoverButton = editorForm.querySelector<HTMLButtonElement>("[data-use-cover]")!;
     const dropZone = editorForm.querySelector<HTMLElement>("[data-drop-zone]")!;
     const dropOverlay = editorForm.querySelector<HTMLElement>("[data-drop-overlay]")!;
+    const confirmAction = initializeStudioConfirmation(document.querySelector<HTMLDialogElement>("[data-studio-confirm]")!);
 
     if (!initialPost) publishedAtInput.value = formatDateTimeInput(new Date());
 
@@ -368,6 +435,7 @@ const previewHtml = post?.html.replace(
     if (snapshot() !== savedSnapshot) markDirty();
     else syncDirtyFlag();
     syncControls();
+    setSaveState(dirty || !post ? "dirty" : "saved", dirty || !post ? "未保存" : "已保存");
     if (!post && bodyInput.value.trim()) schedulePreview(0);
 
     editorForm.addEventListener("submit", (event) => event.preventDefault());
@@ -384,6 +452,8 @@ const previewHtml = post?.html.replace(
     });
     editorForm.addEventListener("input", (event) => {
       if (event.target === tagInput) return;
+      const target = event.target as HTMLInputElement;
+      if (target.matches("[data-mobile-visibility]")) visibilityInput.value = target.value;
       // CodeMirror 的事务监听已经更新正文，不能再用冒泡的原生 input 重复保存。
       if (markdownHost.contains(event.target as Node)) return;
       if (event.target === titleInput && !slugTouched && !slugInput.readOnly) {
@@ -421,11 +491,12 @@ const previewHtml = post?.html.replace(
         if (markdownView?.hasFocus) event.preventDefault();
       });
       button.addEventListener("click", () => {
-        if (!markdownView || composing || markdownView.compositionStarted) return;
+        if (!markdownView || !mobileWriting?.canFormatBody() || composing || markdownView.compositionStarted) return;
         if (button.dataset.editorHistory) {
           (button.dataset.editorHistory === "undo" ? undo : redo)(markdownView);
           markdownView.focus();
         } else applyMarkdownAction(button.dataset.markdownAction ?? "");
+        mobileWriting?.closeFormatTools();
       });
     }
 
@@ -436,10 +507,27 @@ const previewHtml = post?.html.replace(
     publishButton.addEventListener("click", () => void runCommand(publish));
     unpublishButton.addEventListener("click", () => void runCommand(unpublish));
     archiveButton.addEventListener("click", () => void runCommand(archive));
+    // 手机状态按钮复用保存与公开稿更新流程；公开内容仍需要原有更新确认。
+    mobileSave.addEventListener("pointerdown", event => {
+      if (markdownView?.hasFocus) event.preventDefault();
+    });
+    mobileSave.addEventListener("click", () => (status === "PUBLISHED" ? publishButton : saveButton).click());
+    mobilePublish.addEventListener("click", () => void runCommand(async () => {
+      if (status === "DRAFT" && visibilityInput.value === "ADMIN_ONLY") await saveDraft(true);
+      else await publish();
+    }));
+    mobileUnpublish.addEventListener("click", () => unpublishButton.click());
+    mobileArchive.addEventListener("click", () => archiveButton.click());
     reloadButton.addEventListener("click", () => window.location.reload());
     previewButton.addEventListener("click", () => void refreshPreview());
 
     mediaButton.addEventListener("click", () => mediaPicker.click());
+    mobileUpload.addEventListener("pointerdown", event => {
+      if (markdownView?.hasFocus) event.preventDefault();
+    });
+    mobileUpload.addEventListener("click", () => {
+      if (!composing && !markdownView?.compositionStarted) mediaButton.click();
+    });
     mediaPicker.addEventListener("change", () => {
       const file = mediaPicker.files?.[0];
       if (file) void uploadImage(file);
@@ -591,6 +679,15 @@ const previewHtml = post?.html.replace(
       const characters = Array.from(bodyInput.value.replace(/\s/g, "")).length;
       const lines = bodyInput.value.split("\n").length;
       documentCount.textContent = `${characters} 字符 · ${lines} 行`;
+      syncDocumentLabels(characters);
+    }
+
+    function syncDocumentLabels(characters = Array.from(bodyInput.value.replace(/\s/g, "")).length) {
+      const privatePost = visibilityInput.value === "ADMIN_ONLY";
+      mobileDocumentInfo.textContent = `${privatePost ? "仅自己可见" : status === "PUBLISHED" ? "已公开" : "准备公开"} · ${status === "PUBLISHED" ? "已发布" : "草稿"} · ${characters} 字`;
+      mobilePreviewTitle.textContent = titleInput.value.trim() || "文章标题";
+      const date = new Date(publishedAtInput.value);
+      mobilePreviewDate.textContent = Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" });
     }
 
     function setMarkdownValue(value: string) {
@@ -664,7 +761,7 @@ const previewHtml = post?.html.replace(
 
       if (status === "PUBLISHED") {
         const scope = visibilityInput.value === "PUBLIC" ? "所有访客" : "仅你自己";
-        if (dirty && !window.confirm(`确定更新文章吗？保存后将${scope}可见。`)) return;
+        if (dirty && !await confirmAction({ title: "更新文章", message: `保存后将${scope}可见。确认更新当前版本吗？`, confirmLabel: "确认更新" })) return;
         if (dirty) {
           const updated = await saveDraft(true);
           if (!updated) return;
@@ -676,7 +773,7 @@ const previewHtml = post?.html.replace(
       const publishMessage = visibilityInput.value === "PUBLIC"
         ? "发布后文章会立即出现在公开博客，确定继续吗？"
         : "发布后文章仍然只有登录后的管理员可以阅读，确定继续吗？";
-      if (!window.confirm(publishMessage)) return;
+      if (!await confirmAction({ title: visibilityInput.value === "PUBLIC" ? "公开发布文章" : "发布私密文章", message: publishMessage, confirmLabel: "确认发布" })) return;
 
       const saved = await saveDraft(true);
       if (!saved || conflicted) return;
@@ -695,7 +792,7 @@ const previewHtml = post?.html.replace(
 
     async function unpublish() {
       if (!post || status !== "PUBLISHED") return;
-      if (!window.confirm("撤回后文章将从公开博客隐藏，并回到草稿。")) return;
+      if (!await confirmAction({ title: "撤回为草稿", message: "撤回后文章将从公开博客隐藏，并回到草稿。", confirmLabel: "确认撤回" })) return;
       const hadLocalChanges = dirty;
       const draft = await request<StudioPostDetail>(`/studio/posts/${encodeURIComponent(post.slug)}/unpublish`, {
         method: "POST",
@@ -718,7 +815,7 @@ const previewHtml = post?.html.replace(
       const warning = dirty && status === "PUBLISHED"
         ? "当前未发布修改不会保留。确定归档这篇文章吗？"
         : "归档后文章将不再公开，确定继续吗？";
-      if (!window.confirm(warning)) return;
+      if (!await confirmAction({ title: "归档文章", message: warning, confirmLabel: "确认归档" })) return;
       if (status === "DRAFT" && dirty) {
         const saved = await saveDraft(true);
         if (!saved) return;
@@ -783,6 +880,7 @@ const previewHtml = post?.html.replace(
 
     async function uploadImage(file: File) {
       mediaButton.disabled = true;
+      mobileUpload.disabled = true;
       mediaResult.hidden = true;
       try {
         const body = new FormData();
@@ -804,6 +902,7 @@ const previewHtml = post?.html.replace(
         showError(error instanceof Error ? error.message : "图片上传失败");
       } finally {
         mediaButton.disabled = false;
+        mobileUpload.disabled = false;
         mediaPicker.value = "";
       }
     }
@@ -880,6 +979,8 @@ const previewHtml = post?.html.replace(
       unpublishButton.hidden = !published;
       archiveButton.hidden = !post;
       publishLabel.textContent = published ? "更新发布" : "发布";
+      mobileUnpublish.hidden = !published;
+      mobileArchive.hidden = !post;
       syncDisabledState();
     }
 
@@ -887,10 +988,15 @@ const previewHtml = post?.html.replace(
       const privatePost = visibilityInput.value === "ADMIN_ONLY";
       visibilityBadge.classList.toggle("private", privatePost);
       visibilityLabel.textContent = privatePost ? "仅自己" : "公开";
+      mobilePublishLabel.textContent = status === "PUBLISHED" ? privatePost ? "更新私密文章" : "更新公开文章" : privatePost ? "保存私密草稿" : "公开发布";
+      mobilePublishHint.textContent = privatePost ? "只有你登录后可以阅读，访客无法看到。" : "确认发布后，文章会出现在公开博客，访客无需登录即可阅读。";
+      mobileVisibilityHint.textContent = privatePost ? "只有你登录后可以看到，访客无法阅读。" : "公开发布后，访客无需登录即可阅读。";
+      mobileVisibilityOptions.forEach(option => { option.checked = option.value === visibilityInput.value; });
+      syncDocumentLabels();
     }
 
     function syncDisabledState() {
-      for (const button of [saveButton, publishButton, unpublishButton, archiveButton]) {
+      for (const button of [saveButton, publishButton, unpublishButton, archiveButton, mobileSave, mobilePublish, mobileUnpublish, mobileArchive]) {
         button.disabled = busy || conflicted;
       }
     }
@@ -898,6 +1004,11 @@ const previewHtml = post?.html.replace(
     function setSaveState(state: "dirty" | "saving" | "saved" | "conflict" | "error", label: string) {
       saveIndicator.dataset.state = state;
       saveLabel.textContent = label;
+      mobileSave.dataset.state = state;
+      const savedTime = post ? new Date(post.updatedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }) : "";
+      const mobileLabel = state === "error" ? "保存失败 · 重试" : state === "saved" && savedTime ? `已保存 · ${savedTime}` : label;
+      mobileSaveLabel.textContent = mobileLabel;
+      mobileSave.setAttribute("aria-label", `${status === "PUBLISHED" ? "更新发布" : "保存草稿"}：${mobileLabel}`);
     }
 
     function handleRequestError(error: unknown, fallback: string) {

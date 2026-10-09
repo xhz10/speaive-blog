@@ -14,6 +14,28 @@ describe("会员登录返回路径", () => {
 });
 
 describe("写作中断恢复", () => {
+  it("站长断网时提示中文，恢复网络后重新获取令牌并保存", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(Response.json({ headerName: "X-XSRF-TOKEN", token: "test" }))
+      .mockResolvedValueOnce(Response.json({ slug: "p", body: "仍保留的正文" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { studioRequest } = await import("../src/lib/studio/client");
+    const init = { method: "PUT", body: JSON.stringify({ body: "仍保留的正文" }) };
+    await expect(studioRequest("/studio/posts/p", init)).rejects.toMatchObject({
+      code: "NETWORK_ERROR", message: "暂时无法连接服务器，请检查网络后重试。"
+    });
+    await expect(studioRequest("/studio/posts/p", init)).resolves.toMatchObject({ body: "仍保留的正文" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][1].body).toBe(init.body);
+  });
+  it("站长保存请求本身断网时也提示中文", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(Response.json({ headerName: "X-XSRF-TOKEN", token: "test" }))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch")));
+    const { studioRequest } = await import("../src/lib/studio/client");
+    await expect(studioRequest("/studio/posts/p", { method: "PUT" })).rejects.toMatchObject({ code: "NETWORK_ERROR" });
+  });
   it("登录过期只返回错误，不导航离开当前输入", async () => {
     const assign = vi.fn(); vi.stubGlobal("window", { location: { assign } });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ code: "UNAUTHORIZED", message: "未登录" }, { status: 401 })));

@@ -1,13 +1,16 @@
 ---
 interface Props {
-  artwork: "paper-bird" | "quiet-desk";
+  artwork: "paper-bird" | "quiet-desk" | "writing-pages-v2";
   alt: string;
   eager?: boolean;
   sizes?: string;
 }
 const { artwork, alt, eager = false, sizes = "(max-width: 720px) 100vw, 50vw" } = Astro.props;
 const path = `/images/editorial/${artwork}`;
+const portrait = artwork === "writing-pages-v2";
+const largestWidth = portrait ? 1086 : 1536;
+const imageHeight = portrait ? 1448 : 1024;
 ---
-<img src={`${path}-960.webp`} srcset={`${path}-480.webp 480w, ${path}-960.webp 960w, ${path}-1536.webp 1536w`}
-  sizes={sizes} width="1536" height="1024" alt={alt}
+<img src={`${path}-960.webp`} srcset={`${path}-480.webp 480w, ${path}-960.webp 960w, ${path}-${largestWidth}.webp ${largestWidth}w`}
+  sizes={sizes} width={largestWidth} height={imageHeight} alt={alt}
   loading={eager ? "eager" : "lazy"} fetchpriority={eager ? "high" : "auto"} decoding="async" />

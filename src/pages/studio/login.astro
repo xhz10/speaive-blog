@@ -1,6 +1,7 @@
 ---
 import { ArrowRight, LoaderCircle, LogIn } from "@lucide/astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import EditorialImage from "../../components/EditorialImage.astro";
 
 const requestedNext = Astro.url.searchParams.get("next") ?? "/studio/";
 const next = requestedNext.startsWith("/studio") && !requestedNext.startsWith("//")
@@ -11,7 +12,7 @@ const next = requestedNext.startsWith("/studio") && !requestedNext.startsWith("/
 <BaseLayout title="写作台登录" noindex bare>
   <div class="login-page">
     <div class="login-visual" aria-hidden="true">
-      <img src="/images/editorial-writing.jpg" alt="" width="1800" height="1352" />
+      <EditorialImage artwork="writing-pages-v2" alt="" eager sizes="(max-width: 900px) 1px, 60vw" />
       <div class="login-caption">
         <strong>Speaive</strong>
         <span>把今天值得留下的部分写下来。</span>

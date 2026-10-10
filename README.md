@@ -137,7 +137,7 @@ pnpm build
 
 ## Credits
 
-默认公共封面图 `public/images/editorial-writing.jpg` 来源于 [Unsplash](https://unsplash.com/)（资源标识：`photo-1455390582262-044cdead277a`）。
+默认分享图使用原创纸鸟摄影风格配图，写作台登录使用原创窗边笔记本配图，生成说明与文件见 [图片清单](docs/design/image-assets.md)。旧素材 `public/images/editorial-writing.jpg` 保留，来源于 [Unsplash](https://unsplash.com/)（资源标识：`photo-1455390582262-044cdead277a`）。
 # speaive-blog
 
 ## 后端架构与访客统计

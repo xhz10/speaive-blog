@@ -3,7 +3,7 @@ export const site = {
   title: "Speaive｜个人博客",
   description: "一些文章，以及偶尔出现的更新。主题不被工作、技术或某一种兴趣限定。",
   locale: "zh-CN",
-  defaultCover: "/images/editorial-writing.jpg",
+  defaultCover: "/images/editorial/paper-bird-1536.webp",
   alternateNames: ["speaive.cn"],
   identity: {
     name: "Speaive",

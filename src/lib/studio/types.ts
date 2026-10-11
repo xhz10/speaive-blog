@@ -200,6 +200,15 @@ export interface Invitation {
   usedCount: number;
   expiresAt: string;
   createdAt: string;
+  /** 兼容尚未返回备注和撤销状态的旧服务端。 */
+  note?: string | null;
+  revokedAt?: string | null;
+}
+
+export interface MemberPasswordReset {
+  username: string;
+  token: string;
+  expiresAt: string;
 }
 
 export interface InvitationList {

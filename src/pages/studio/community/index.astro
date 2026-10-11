@@ -1,8 +1,10 @@
 ---
 import { ArrowLeft, Bot, Check, Copy, KeyRound, ShieldCheck, X } from "@lucide/astro";
 import StudioLayout from "../../../layouts/StudioLayout.astro";
+import StudioActionConfirmation from "../../../components/StudioActionConfirmation.astro";
 import { fetchStudioApi } from "../../../lib/studio/server";
 import type { InvitationList, StudioAgentList } from "../../../lib/studio/types";
+import { invitationCanRevoke, invitationStatus } from "../../../lib/studio/invitations";
 
 let agents: StudioAgentList = { items: [], aiAvailable: false };
 let invitations: InvitationList = { items: [] };
@@ -17,7 +19,6 @@ try {
 }
 const communityAgents = agents.items.filter((agent) => agent.ownerAccountId !== null);
 const pendingCount = communityAgents.filter((agent) => agent.reviewStatus === "PENDING").length;
-const initialState = JSON.stringify({ agents: communityAgents, invitations: invitations.items }).replace(/</g, "\\u003c");
 ---
 
 <StudioLayout title="社区 Agent 审核">
@@ -45,22 +46,26 @@ const initialState = JSON.stringify({ agents: communityAgents, invitations: invi
     <form class="community-invite-form" data-invite-form>
       <label class="field"><span class="field-label">有效天数</span><input class="input" type="number" name="validDays" min="1" max="365" value="30" required /></label>
       <label class="field"><span class="field-label">可使用次数</span><input class="input" type="number" name="maxUses" min="1" max="100" value="1" required /></label>
+      <label class="field community-invite-note-field"><span class="field-label">备注（选填）</span><input class="input" type="text" name="note" maxlength="200" placeholder="例如：给哪位朋友或哪次活动" /><span class="auth-input-hint">仅供站长识别，最多 200 个字符。</span></label>
       <button class="button primary" type="submit">生成邀请码</button>
     </form>
     <div class="community-new-code" hidden data-new-code>
       <div><small>请现在复制并交给受邀者</small><code data-new-code-value></code></div>
       <button class="button ghost" type="button" data-copy-code><Copy size={15} stroke-width={1.8} />复制</button>
     </div>
-    <p class="notice" hidden data-invite-notice></p>
+    <p class="notice" role="status" aria-live="polite" hidden data-invite-notice></p>
     <div class="community-invite-history" data-invite-history>
       {invitations.items.map((invite) => (
-        <article>
-          <span>{invite.usedCount >= invite.maxUses ? "已用完" : Date.now() >= new Date(invite.expiresAt).getTime() ? "已过期" : "可使用"}</span>
-          <strong>{invite.usedCount} / {invite.maxUses} 次</strong>
-          <small>到期：{new Date(invite.expiresAt).toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" })}</small>
+        <article data-invite-id={invite.id}>
+          <span data-invite-status>{invitationStatus(invite)}</span>
+          <strong data-invite-uses>{invite.usedCount} / {invite.maxUses} 次</strong>
+          <small data-invite-expiry>到期：{new Date(invite.expiresAt).toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" })}</small>
+          <p class="community-invite-note" data-invite-note>{invite.note || "无备注"}</p>
+          <button class="button ghost danger" type="button" data-revoke-invite disabled={!invitationCanRevoke(invite)}>撤销邀请码</button>
+          <p data-invite-row-notice role="status" aria-live="polite" hidden></p>
         </article>
       ))}
-      {invitations.items.length === 0 && <p>还没有发放过邀请码。</p>}
+      {invitations.items.length === 0 && <p data-invite-empty>还没有发放过邀请码。</p>}
     </div>
   </section>
 
@@ -102,70 +107,10 @@ const initialState = JSON.stringify({ agents: communityAgents, invitations: invi
       {communityAgents.length === 0 && <div class="community-review-empty"><Bot size={28} stroke-width={1.4} /><strong>暂时没有会员 Agent</strong><p>先发一枚邀请码，等朋友创建角色。</p></div>}
     </div>
   </section>
+  <StudioActionConfirmation />
 </StudioLayout>
 
-<script is:inline id="community-admin-state" type="application/json" set:html={initialState}></script>
-
 <script>
-  import { studioRequest } from "../../../lib/studio/client";
-  import type { Invitation, StudioAgent } from "../../../lib/studio/types";
-
-  const inviteForm = document.querySelector<HTMLFormElement>("[data-invite-form]")!;
-  const inviteNotice = document.querySelector<HTMLElement>("[data-invite-notice]")!;
-  const newCode = document.querySelector<HTMLElement>("[data-new-code]")!;
-  const codeValue = document.querySelector<HTMLElement>("[data-new-code-value]")!;
-  const reviewNotice = document.querySelector<HTMLElement>("[data-review-notice]")!;
-
-  inviteForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!inviteForm.reportValidity()) return;
-    const data = new FormData(inviteForm);
-    try {
-      const invitation = await studioRequest<Invitation>("/studio/invitations", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ validDays: Number(data.get("validDays")), maxUses: Number(data.get("maxUses")) })
-      });
-      codeValue.textContent = invitation.code ?? "";
-      newCode.hidden = false;
-      show(inviteNotice, "邀请码已创建。明文不会再次显示，请现在复制。", false);
-    } catch (error) {
-      show(inviteNotice, error instanceof Error ? error.message : "邀请码创建失败", true);
-    }
-  });
-
-  document.querySelector("[data-copy-code]")?.addEventListener("click", async () => {
-    await navigator.clipboard.writeText(codeValue.textContent ?? "");
-    show(inviteNotice, "邀请码已复制。", false);
-  });
-
-  document.querySelector("[data-review-list]")?.addEventListener("click", async (event) => {
-    const target = event.target as HTMLElement;
-    const approve = target.closest<HTMLButtonElement>("[data-review-approve]");
-    const reject = target.closest<HTMLButtonElement>("[data-review-reject]");
-    const button = approve ?? reject;
-    if (!button) return;
-    let note: string | null = null;
-    if (reject) {
-      note = window.prompt("告诉对方需要修改什么（必填，最多 500 字）：")?.trim() ?? null;
-      if (!note) return;
-    }
-    button.disabled = true;
-    try {
-      const saved = await studioRequest<StudioAgent>(
-        `/studio/agents/${encodeURIComponent(button.dataset.agentId ?? "")}/${approve ? "approve" : "reject"}`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: Number(button.dataset.version), note }) }
-      );
-      show(reviewNotice, saved.reviewStatus === "APPROVED" ? "Agent 已审核通过，可以参与评论。" : "已退回修改。", false);
-      window.setTimeout(() => window.location.reload(), 450);
-    } catch (error) {
-      button.disabled = false;
-      show(reviewNotice, error instanceof Error ? error.message : "审核失败", true);
-    }
-  });
-
-  function show(node: HTMLElement, message: string, error: boolean) {
-    node.textContent = message;
-    node.className = `notice${error ? " error" : " success"}`;
-    node.hidden = false;
-  }
+  import { initializeCommunityManagement } from "../../../lib/studio/community";
+  initializeCommunityManagement();
 </script>

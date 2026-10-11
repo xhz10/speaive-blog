@@ -11,7 +11,7 @@ import java.time.Instant;
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING, unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface MemberPersistenceMapStructMapper {
     BlogAccountPo account(String id, String passwordHash, Instant createdAt, Instant updatedAt, MemberRole role,
-            boolean canPublish, boolean encryptionAllowed, boolean contentEncrypted, long settingsVersion);
+            boolean canPublish, boolean encryptionAllowed, boolean contentEncrypted, long settingsVersion, long credentialVersion);
     MemberPostContentPo content(PostContent content);
     PostContent content(MemberPostContentPo content);
     @Mapping(target = "ownerId", source = "snapshot.author.id")

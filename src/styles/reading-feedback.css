@@ -1,0 +1,3 @@
+/* 附属阅读内容失败时保留正文，用低干扰的说明提供重试。 */
+.reading-section-notice { color: var(--muted); font-size: .8rem; line-height: 1.8; }
+.reading-section-notice a { margin-left: 8px; text-decoration: underline; }

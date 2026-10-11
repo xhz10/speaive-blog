@@ -27,11 +27,13 @@ public final class MemberAccount {
     private final boolean contentEncrypted;
     /** 账号设置的乐观并发版本，不是文章修订号。 */
     private final long settingsVersion;
+    /** 密码凭证版本；每次换密推进，使所有旧会话和找回凭证失效。 */
+    private final long credentialVersion;
     private final Instant createdAt;
     private final Instant updatedAt;
 
     private MemberAccount(Author identity, String passwordHash, Instant createdAt, Instant updatedAt,
-            MemberRole role, boolean canPublish, boolean encryptionAllowed, boolean contentEncrypted, long settingsVersion) {
+            MemberRole role, boolean canPublish, boolean encryptionAllowed, boolean contentEncrypted, long settingsVersion, long credentialVersion) {
         this.identity = requireMember(identity);
         this.passwordHash = requirePasswordHash(passwordHash);
         this.role = Objects.requireNonNull(role, "会员身份");
@@ -42,6 +44,8 @@ public final class MemberAccount {
         this.encryptionAllowed = encryptionAllowed;
         this.contentEncrypted = contentEncrypted;
         this.settingsVersion = settingsVersion;
+        if (credentialVersion < 1) throw invalid("密码凭证版本不合法");
+        this.credentialVersion = credentialVersion;
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
         this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
         if (updatedAt.isBefore(createdAt)) {
@@ -53,19 +57,38 @@ public final class MemberAccount {
             String id, String username, String displayName, String passwordHash, Instant now) {
         Author identity = new Author(
                 id, username, displayName, AuthorType.HUMAN, null, AuthorStatus.ACTIVE);
-        return new MemberAccount(identity, passwordHash, now, now, MemberRole.READER, false, false, false, 1);
+        return new MemberAccount(identity, passwordHash, now, now, MemberRole.READER, false, false, false, 1, 1);
     }
 
     public static MemberAccount rehydrate(
             Author identity, String passwordHash, Instant createdAt, Instant updatedAt) {
-        return new MemberAccount(identity, passwordHash, createdAt, updatedAt, MemberRole.READER, false, false, false, 1);
+        return new MemberAccount(identity, passwordHash, createdAt, updatedAt, MemberRole.READER, false, false, false, 1, 1);
     }
 
     public static MemberAccount rehydrate(Author identity, String passwordHash, Instant createdAt, Instant updatedAt,
             MemberRole role, boolean canPublish, boolean encryptionAllowed, boolean contentEncrypted, long settingsVersion) {
         return new MemberAccount(identity, passwordHash, createdAt, updatedAt, role, canPublish,
-                encryptionAllowed, contentEncrypted, settingsVersion);
+                encryptionAllowed, contentEncrypted, settingsVersion, 1);
     }
+
+    public static MemberAccount rehydrate(Author identity, String passwordHash, Instant createdAt, Instant updatedAt,
+            MemberRole role, boolean canPublish, boolean encryptionAllowed, boolean contentEncrypted,
+            long settingsVersion, long credentialVersion) {
+        return new MemberAccount(identity, passwordHash, createdAt, updatedAt, role, canPublish,
+                encryptionAllowed, contentEncrypted, settingsVersion, credentialVersion);
+    }
+
+    /** 密码验证由安全适配层完成；锁内只接受已验证的凭证版本和新哈希，保留身份与内容设置。 */
+    public MemberAccount changePassword(String nextHash, long expectedCredentialVersion, Instant now) {
+        if (!enabled()) throw invalid("账号已停用");
+        if (credentialVersion != expectedCredentialVersion) {
+            throw new DomainException(DomainErrorCode.VERSION_CONFLICT, "密码已更新，请重新登录后再试");
+        }
+        return new MemberAccount(identity, nextHash, createdAt, now, role, canPublish,
+                encryptionAllowed, contentEncrypted, settingsVersion, credentialVersion + 1);
+    }
+
+    public long credentialVersion() { return credentialVersion; }
 
     /** 管理员修改资格；不能借撤销资格把已经加密的私密内容自动改成明文。 */
     public MemberAccount changeWritingPermissions(MemberRole nextRole, boolean publish, boolean allowEncryption,
@@ -73,7 +96,7 @@ public final class MemberAccount {
         assertSettingsVersion(expectedVersion);
         if (contentEncrypted && !allowEncryption) throw invalid("账号正在使用加密，不能直接撤销加密资格");
         return new MemberAccount(identity, passwordHash, createdAt, now, nextRole, publish,
-                allowEncryption, contentEncrypted, settingsVersion + 1);
+                allowEncryption, contentEncrypted, settingsVersion + 1, credentialVersion);
     }
 
     /** 作者修改存储偏好；应用必须和内容迁移一起提交，避免出现设置与数据库内容不一致。 */
@@ -82,7 +105,7 @@ public final class MemberAccount {
         if (!enabled()) throw invalid("账号已停用");
         if (encrypted && !encryptionAllowed) throw invalid("管理员尚未开放加密资格");
         return new MemberAccount(identity, passwordHash, createdAt, now, role, canPublish,
-                encryptionAllowed, encrypted, settingsVersion + 1);
+                encryptionAllowed, encrypted, settingsVersion + 1, credentialVersion);
     }
 
     public void ensureCanWrite() {

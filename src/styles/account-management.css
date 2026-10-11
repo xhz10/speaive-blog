@@ -1,0 +1,36 @@
+/* 账号操作沿用米白纸张和系统字体，长链接与备注在窄屏内换行。 */
+.account-confirm-dialog { width:min(460px,calc(100% - 32px)); max-height:calc(100dvh - 40px); overflow:auto; padding:26px; border:1px solid var(--line); border-radius:12px; background:var(--paper); color:var(--ink); }
+.account-confirm-dialog::backdrop { background:rgb(28 28 25 / 35%); }
+.account-confirm-dialog h2 { margin:0 0 14px; font:600 22px/1.5 system-ui,sans-serif; }
+.account-confirm-dialog p { margin:0 0 24px; font:14px/1.85 system-ui,sans-serif; white-space:pre-line; }
+.account-confirm-actions { display:flex; gap:12px; }
+.account-confirm-actions .button { flex:1; min-height:48px; }
+.account-password-form { display:grid; gap:18px; }
+.account-password-form .field { margin-top:0; }
+.account-password-form .button { min-height:48px; }
+.account-password-settings { margin-top:24px; max-width:660px; }
+.account-password-login { display:inline-flex; margin-top:12px; }
+.account-recovery { margin-top:22px; padding-top:20px; border-top:1px solid var(--line); }
+.account-recovery h3 { margin:0 0 8px; font:600 14px/1.5 system-ui,sans-serif; }
+.account-recovery p { margin:0 0 12px; font-size:12px; line-height:1.8; color:var(--muted); }
+.account-recovery-result { display:grid; gap:12px; margin-top:15px; }
+.account-recovery-result code { display:block; padding:12px; border:1px solid var(--line); border-radius:6px; background:var(--page); font-size:12px; overflow-wrap:anywhere; user-select:all; }
+.account-recovery-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.account-recovery-actions .button { min-height:44px; }
+.account-forgot-password { border-top:1px solid var(--line); padding-top:18px; font-size:12px; line-height:1.8; color:var(--muted); }
+.account-forgot-password summary { color:var(--ink); cursor:pointer; min-height:32px; }
+.account-forgot-password p { margin:8px 0 0; }
+.account-reset-page { max-width:1080px; }
+.account-reset-page h1,.account-reset-page h2 { font-family:system-ui,sans-serif; line-height:1.35; letter-spacing:-.025em; }
+.account-reset-page .member-auth-form { min-width:0; }
+.account-reset-page fieldset { min-width:0; margin:0; padding:0; border:0; }
+.account-reset-page legend { margin-bottom:12px; font-size:12px; color:var(--muted); }
+.account-reset-page [hidden],.community-invite-panel [hidden] { display:none !important; }
+.community-invite-form { grid-template-columns:140px 140px minmax(180px,1fr) auto; }
+.community-invite-history article { gap:7px; min-width:0; }
+.community-invite-note-field .auth-input-hint { display:block; margin-top:7px; color:var(--muted); font-size:12px; line-height:1.7; }
+.community-invite-history .community-invite-note { margin:3px 0; font-size:12px; line-height:1.7; color:var(--ink); overflow-wrap:anywhere; white-space:pre-wrap; }
+.community-invite-history .button { justify-self:start; min-height:44px; margin-top:6px; }
+.community-invite-history [data-invite-row-notice] { margin:4px 0 0; font-size:12px; line-height:1.7; color:var(--muted); }
+@media(max-width:1000px) { .community-invite-form { grid-template-columns:repeat(2,minmax(0,1fr)); }.community-invite-note-field { grid-column:1/-1; }.community-invite-form>.button { grid-column:1/-1; justify-self:start; } }
+@media(max-width:560px) { .account-password-settings { max-width:none; }.account-recovery-actions .button { flex:1; }.community-invite-history { grid-template-columns:minmax(0,1fr); }.community-invite-form { grid-template-columns:minmax(0,1fr); }.community-invite-note-field { grid-column:auto; } }

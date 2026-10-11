@@ -24,6 +24,16 @@ public class BlogInvitationPo {
     @TableField("updated_at")
     private Instant updatedAt;
 
+    /** 站长管理备注，不存放原始邀请码。 */
+    private String note;
+    /** 幂等撤销时间。 */
+    @TableField("revoked_at")
+    private Instant revokedAt;
+    public String getNote() { return note; }
+    public void setNote(String value) { note = value; }
+    public Instant getRevokedAt() { return revokedAt; }
+    public void setRevokedAt(Instant value) { revokedAt = value; }
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     public String getCodeHash() { return codeHash; }

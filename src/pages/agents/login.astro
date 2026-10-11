@@ -4,6 +4,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 import MemberPasswordField from "../../components/MemberPasswordField.astro";
 import { memberReturnPath } from "../../lib/writing/auth-navigation";
 import "../../styles/writing-experience.css";
+import "../../styles/account-management.css";
 import EditorialImage from "../../components/EditorialImage.astro";
 
 const next = memberReturnPath(Astro.url.searchParams.get("next"));
@@ -32,6 +33,7 @@ const next = memberReturnPath(Astro.url.searchParams.get("next"));
       <button class="button primary" type="submit" data-auth-submit>
         登录 <ArrowRight size={17} stroke-width={1.8} />
       </button>
+      <details class="account-forgot-password"><summary>忘记密码？</summary><p>本站没有邮箱找回功能。请联系站长，先确认是账号本人，再获取 30 分钟内有效的一次性找回链接。</p></details>
     </form>
   </section>
 </BaseLayout>
@@ -41,13 +43,14 @@ const next = memberReturnPath(Astro.url.searchParams.get("next"));
   import type { MemberSession } from "../../lib/studio/types";
 
   const form = document.querySelector<HTMLFormElement>("[data-member-login]");
+  let submitting = false;
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!form.reportValidity()) return;
+    if (submitting || !form.reportValidity()) return;
     const submit = form.querySelector<HTMLButtonElement>("[data-auth-submit]")!;
     const errorBox = form.querySelector<HTMLElement>("[data-auth-error]")!;
     const data = new FormData(form);
-    submit.disabled = true;
+    submitting = true; submit.disabled = true;
     errorBox.hidden = true;
     try {
       await studioRequest<MemberSession>("/account/login", {
@@ -64,6 +67,7 @@ const next = memberReturnPath(Astro.url.searchParams.get("next"));
         ? "尝试次数过多，请稍后再试。"
         : error instanceof Error ? error.message : "登录失败，请稍后再试。";
       errorBox.hidden = false;
+      submitting = false;
       submit.disabled = false;
     }
   });

@@ -7,6 +7,9 @@ import com.speaive.blog.interfaces.http.account.InvitationResponses.InvitationLi
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,13 +28,17 @@ public class StudioInvitationController {
     }
 
     @GetMapping
-    InvitationList list() {
-        return mapper.toResponse(accounts.listInvitations());
+    ResponseEntity<InvitationList> list() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(mapper.toResponse(accounts.listInvitations()));
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    InvitationDetail create(@Valid @RequestBody CreateInvitationRequest request) {
-        return mapper.toResponse(accounts.createInvitation(mapper.toCommand(request)));
+    ResponseEntity<InvitationDetail> create(@Valid @RequestBody CreateInvitationRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore()).body(mapper.toResponse(accounts.createInvitation(mapper.toCommand(request))));
+    }
+    @PostMapping("/{id}/revoke")
+    ResponseEntity<InvitationDetail> revoke(@PathVariable String id) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(mapper.toResponse(accounts.revokeInvitation(id)));
     }
 }

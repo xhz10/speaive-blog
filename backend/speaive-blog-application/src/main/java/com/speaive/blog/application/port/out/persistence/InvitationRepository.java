@@ -13,6 +13,9 @@ public interface InvitationRepository {
 
     Optional<Invitation> lockByCodeHash(String codeHash);
 
+    /** 管理员撤销与注册消费锁同一行。 */
+    Optional<Invitation> lockById(String id);
+
     void add(Invitation invitation);
 
     void save(Invitation invitation, int expectedUsedCount);

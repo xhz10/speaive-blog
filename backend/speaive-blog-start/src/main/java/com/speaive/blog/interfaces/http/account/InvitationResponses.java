@@ -13,7 +13,9 @@ final class InvitationResponses {
             int maxUses,
             int usedCount,
             Instant expiresAt,
-            Instant createdAt
+            Instant createdAt,
+            String note,
+            Instant revokedAt
     ) {
     }
 

@@ -54,4 +54,45 @@ class MemberAccountTests {
         assertTrue(publisher.contentEncrypted());
         assertFalse(publisher.chooseContentEncryption(false, 4, NOW).contentEncrypted());
     }
+    @Test
+    void passwordChangesPreserveIdentityPermissionsAndEncryptionSettings() {
+        MemberAccount protectedWriter = MemberAccount.register("member", "writer", "作者", "old-hash", NOW)
+                .changeWritingPermissions(MemberRole.WRITER, true, true, 1, NOW)
+                .chooseContentEncryption(true, 2, NOW);
+        MemberAccount changed = protectedWriter.changePassword("new-hash", 1, NOW.plusSeconds(1));
+        assertEquals(2, changed.credentialVersion());
+        assertEquals(protectedWriter.settingsVersion(), changed.settingsVersion());
+        assertEquals(protectedWriter.identity(), changed.identity());
+        assertTrue(changed.contentEncrypted());
+        assertTrue(changed.canPublish());
+        assertThrows(DomainException.class, () -> changed.changePassword("another", 1, NOW.plusSeconds(2)));
+    }
+
+    @Test
+    void revokedInvitationIsIdempotentAndNeverConsumesFurtherUses() {
+        Invitation invite = Invitation.create("00000000-0000-0000-0000-000000000010", "a".repeat(64),
+                2, NOW.plusSeconds(3600), NOW, "  朋友  ").consume(NOW.plusSeconds(1));
+        Invitation revoked = invite.revoke(NOW.plusSeconds(2));
+        assertEquals("朋友", revoked.note());
+        assertEquals(1, revoked.usedCount());
+        assertEquals(revoked, revoked.revoke(NOW.plusSeconds(3)));
+        assertFalse(revoked.usableAt(NOW.plusSeconds(3)));
+        assertThrows(DomainException.class, () -> revoked.consume(NOW.plusSeconds(3)));
+        assertThrows(DomainException.class, () -> Invitation.create("00000000-0000-0000-0000-000000000010", "a".repeat(64),
+                1, NOW.plusSeconds(3600), NOW, "长".repeat(201)));
+    }
+
+    @Test
+    void resetRejectsConsumedExpiredAndSupersededCredentials() {
+        MemberAccount account = MemberAccount.register("member", "writer", "作者", "old-hash", NOW);
+        PasswordReset reset = new PasswordReset("a".repeat(64), account.id(), 1, NOW.plusSeconds(1800), NOW, null);
+        PasswordReset consumed = reset.consume(account, NOW.plusSeconds(1));
+        assertThrows(DomainException.class, () -> consumed.consume(account, NOW.plusSeconds(2)));
+        assertThrows(DomainException.class, () -> reset.consume(account, NOW.plusSeconds(1800)));
+        assertThrows(DomainException.class, () -> reset.consume(account.changePassword("new-hash", 1, NOW), NOW));
+        var disabledIdentity = new com.speaive.blog.domain.author.Author(account.id(), "writer", "作者",
+                com.speaive.blog.domain.author.AuthorType.HUMAN, null, com.speaive.blog.domain.author.AuthorStatus.DISABLED);
+        var disabled = MemberAccount.rehydrate(disabledIdentity, "old-hash", NOW, NOW);
+        assertThrows(DomainException.class, () -> reset.consume(disabled, NOW));
+    }
 }

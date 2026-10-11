@@ -1424,6 +1424,7 @@ main:focus {
 .field,
 .checkbox-field {
   display: grid;
+  min-width: 0;
   gap: 7px;
 }
 
@@ -1439,6 +1440,8 @@ main:focus {
 .textarea,
 .file-input {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: #ffffff;
@@ -1630,13 +1633,25 @@ main:focus {
 
 .editor-metadata-grid {
   display: grid;
-  grid-template-columns: minmax(230px, 1.2fr) minmax(150px, 0.55fr) minmax(180px, 0.8fr) minmax(240px, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 14px;
   margin-top: 24px;
 }
 
+.editor-metadata-grid .input,
+.editor-metadata-grid .slug-input-wrap,
+.editor-metadata-grid .tag-input-shell {
+  min-height: 50px;
+}
+
+.editor-publication-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(290px, 1fr);
+}
+
 .slug-input-wrap {
   display: flex;
+  min-width: 0;
   min-height: 44px;
   align-items: center;
   border: 1px solid var(--line);
@@ -1654,6 +1669,7 @@ main:focus {
 }
 
 .slug-input-wrap input {
+  width: 0;
   min-width: 0;
   flex: 1;
   border: 0;
@@ -2104,10 +2120,6 @@ main:focus {
 .studio-post-item {
   grid-template-columns: minmax(0, 1fr) 120px 92px 112px 100px 170px;
   gap: 14px;
-}
-
-.editor-metadata-grid {
-  grid-template-columns: minmax(220px, 1.2fr) minmax(180px, 0.65fr) minmax(170px, 0.7fr) minmax(190px, 0.8fr) minmax(220px, 1fr);
 }
 
 .studio-reading-banner {
@@ -3492,8 +3504,12 @@ main:focus {
     grid-template-columns: 1fr;
   }
 
-  .editor-metadata-grid {
+  .editor-publication-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editor-publication-grid .cover-field {
+    grid-column: 1 / -1;
   }
 
   .ai-agent-picker {

@@ -1,14 +1,19 @@
 ---
 import { ArrowLeft } from "@lucide/astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import ReadingRetry from "../../components/ReadingRetry.astro";
 import { formatDateTime } from "../../lib/date-time";
-import { getPublishedNovelFragment, getPublishedWorkNavigation } from "../../lib/public-api";
+import { loadNovelPage } from "../../lib/reading-page";
+import "../../styles/reading-feedback.css";
 
 const slug = Astro.params.slug ?? "";
 const workSlug = Astro.url.searchParams.get("work") || undefined;
-const fragment = await getPublishedNovelFragment(slug);
-const navigation = fragment ? await getPublishedWorkNavigation("NOVEL", slug, workSlug) : null;
-if (!fragment) Astro.response.status = 404;
+const result = await loadNovelPage(slug, workSlug);
+const ready = result.state === "ready" ? result : null;
+const fragment = ready?.fragment;
+const navigation = ready?.navigation;
+if (!ready) Astro.response.status = result.state === "missing" ? 404 : 503;
+Astro.response.headers.set("Cache-Control", "no-store");
 ---
 
 {fragment ? (
@@ -47,6 +52,7 @@ if (!fragment) Astro.response.status = 404;
           </div>
         </nav>
       )}
+      {ready?.navigationUnavailable && <div class="novel-reading-width reading-section-notice">作品集导航暂时没能加载。<ReadingRetry>重新加载</ReadingRetry></div>}
       <footer class="novel-reading-end">
         <div class="novel-reading-width">
           <span aria-hidden="true">∗</span>
@@ -57,9 +63,9 @@ if (!fragment) Astro.response.status = 404;
     </article>
   </BaseLayout>
 ) : (
-  <BaseLayout title="小说片段不存在" noindex>
+  <BaseLayout title={result.state === "missing" ? "小说片段不存在" : "小说片段暂时无法加载"} noindex>
     <section class="not-found">
-      <div><h1>这个故事没有公开</h1><p>它可能仍在草稿里，或已经被作者收回。</p><a class="button primary" href="/novels/">返回小说片段</a></div>
+      <div><h1>{result.state === "missing" ? "这个故事没有公开" : "小说片段暂时没能加载"}</h1><p>{result.state === "missing" ? "它可能仍在草稿里，或已经被作者收回。" : "连接暂时出了点问题，请稍后重新打开。"}</p>{result.state === "missing" ? <a class="button primary" href="/novels/">返回小说片段</a> : <ReadingRetry buttonClass="button primary">重新加载</ReadingRetry>}</div>
     </section>
   </BaseLayout>
 )}

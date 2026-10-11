@@ -48,6 +48,18 @@ public final class PostgresAccountRepository implements AccountRepository {
     }
 
     @Override
+    public Optional<MemberAccount> lockById(String id) {
+        return Optional.ofNullable(database.lockAccountById(id)).map(this::rehydrate);
+    }
+
+    @Override
+    public void savePassword(MemberAccount account, long expectedCredentialVersion) {
+        if (database.updatePassword(toPo(account), expectedCredentialVersion) != 1) {
+            throw new BlogException(BlogErrorCode.VERSION_CONFLICT, "密码已更新，请重新登录后再试");
+        }
+    }
+
+    @Override
     public void add(MemberAccount account) {
         BlogAccountPo po = toPo(account);
         try {
@@ -75,7 +87,7 @@ public final class PostgresAccountRepository implements AccountRepository {
 
     private BlogAccountPo toPo(MemberAccount account) {
         return memberMapping.account(account.id(), account.passwordHash(), account.createdAt(), account.updatedAt(),
-                account.role(), account.canPublish(), account.encryptionAllowed(), account.contentEncrypted(), account.settingsVersion());
+                account.role(), account.canPublish(), account.encryptionAllowed(), account.contentEncrypted(), account.settingsVersion(), account.credentialVersion());
     }
 
     private MemberAccount rehydrate(BlogAccountPo account) {
@@ -85,7 +97,7 @@ public final class PostgresAccountRepository implements AccountRepository {
         }
         return MemberAccount.rehydrate(mapping.toAuthor(author), account.getPasswordHash(),
                 account.getCreatedAt(), account.getUpdatedAt(), MemberRole.valueOf(account.getRole()),
-                account.getCanPublish(), account.getEncryptionAllowed(), account.getContentEncrypted(), account.getSettingsVersion());
+                account.getCanPublish(), account.getEncryptionAllowed(), account.getContentEncrypted(), account.getSettingsVersion(), account.getCredentialVersion());
     }
 
     private static BlogException storage(String message) {

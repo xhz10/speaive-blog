@@ -63,6 +63,9 @@ public class StudioAuthenticationController {
         String clientAddress = request.getRemoteAddr();
         loginAttemptLimiter.consume(clientAddress);
         try {
+            if (!MemberPasswordPolicy.fitsBcryptLimit(login.password())) {
+                throw new org.springframework.security.authentication.BadCredentialsException("password too long");
+            }
             Authentication authentication = authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(login.username(), login.password()));
             boolean admin = authentication.getAuthorities().stream()
@@ -100,6 +103,7 @@ public class StudioAuthenticationController {
             @NotBlank(message = "用户名不能为空") String username,
             @NotBlank(message = "密码不能为空") String password
     ) {
+        @Override public String toString() { return "LoginRequest[凭证已隐藏]"; }
     }
 
     record SessionResponse(String username) {

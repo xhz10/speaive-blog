@@ -9,6 +9,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -47,7 +48,7 @@ public class ApiExceptionHandler {
     }
 
     @ExceptionHandler({BindException.class, ConstraintViolationException.class,
-            MissingServletRequestParameterException.class, MissingServletRequestPartException.class,
+            MissingServletRequestParameterException.class, MissingServletRequestPartException.class, MissingRequestHeaderException.class,
             HttpMessageNotReadableException.class})
     ResponseEntity<ApiError> handleBadRequest(Exception exception) {
         return response(HttpStatus.BAD_REQUEST, ApiErrorCode.INVALID_REQUEST.name(), "请求内容不合法");

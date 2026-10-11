@@ -2,6 +2,7 @@ package com.speaive.blog.interfaces.http.account;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 
 final class InvitationRequests {
     private InvitationRequests() {
@@ -13,7 +14,8 @@ final class InvitationRequests {
             int validDays,
             @Min(value = 1, message = "邀请码至少允许使用 1 次")
             @Max(value = 100, message = "邀请码最多允许使用 100 次")
-            int maxUses
+            int maxUses,
+            @Size(max = 200, message = "邀请码备注不能超过 200 个字符") String note
     ) {
     }
 }

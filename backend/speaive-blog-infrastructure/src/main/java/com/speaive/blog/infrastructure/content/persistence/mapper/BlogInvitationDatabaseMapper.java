@@ -13,7 +13,8 @@ import java.util.List;
 public interface BlogInvitationDatabaseMapper extends BaseMapper<BlogInvitationPo> {
     @Select("""
             SELECT id, code_hash AS "codeHash", max_uses AS "maxUses", used_count AS "usedCount",
-                   expires_at AS "expiresAt", created_at AS "createdAt", updated_at AS "updatedAt"
+                   expires_at AS "expiresAt", created_at AS "createdAt", updated_at AS "updatedAt",
+                   note, revoked_at AS "revokedAt"
             FROM blog_invitation
             ORDER BY created_at DESC, id DESC
             """)
@@ -21,16 +22,23 @@ public interface BlogInvitationDatabaseMapper extends BaseMapper<BlogInvitationP
 
     @Select("""
             SELECT id, code_hash AS "codeHash", max_uses AS "maxUses", used_count AS "usedCount",
-                   expires_at AS "expiresAt", created_at AS "createdAt", updated_at AS "updatedAt"
+                   expires_at AS "expiresAt", created_at AS "createdAt", updated_at AS "updatedAt",
+                   note, revoked_at AS "revokedAt"
             FROM blog_invitation
             WHERE code_hash = #{codeHash}
             FOR UPDATE
             """)
     BlogInvitationPo lockByCodeHash(@Param("codeHash") String codeHash);
 
+    @Select("""
+            SELECT * FROM blog_invitation WHERE id = #{id} FOR UPDATE
+            """)
+    BlogInvitationPo lockById(@Param("id") String id);
+
     @Update("""
             UPDATE blog_invitation
-            SET used_count = #{invitation.usedCount}, updated_at = #{invitation.updatedAt}
+            SET used_count = #{invitation.usedCount}, updated_at = #{invitation.updatedAt},
+                revoked_at = #{invitation.revokedAt}
             WHERE id = #{invitation.id} AND used_count = #{expectedUsedCount}
             """)
     int updateUsage(

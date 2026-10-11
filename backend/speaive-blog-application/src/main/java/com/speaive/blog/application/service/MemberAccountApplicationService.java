@@ -63,10 +63,10 @@ public final class MemberAccountApplicationService implements MemberAccountUseCa
             if (accounts.findByUsername(username).isPresent()) {
                 throw invalid("用户名已经存在");
             }
-            Instant now = clock.instant();
             String codeHash = hashInvitationCode(command.invitationCode());
             Invitation invitation = invitations.lockByCodeHash(codeHash)
                     .orElseThrow(() -> invalid("未找到这个邀请码，请完整复制，并保留原有大小写。"));
+            Instant now = clock.instant();
             Invitation consumed = invitation.consume(now);
             MemberAccount account = MemberAccount.register(
                     UUID.randomUUID().toString(), username, command.displayName(), command.passwordHash(), now);
@@ -85,7 +85,7 @@ public final class MemberAccountApplicationService implements MemberAccountUseCa
     public Optional<AccountCredentialsResult> findCredentials(String username) {
         return withDomainErrors(() -> transactions.required(() -> accounts.findByUsername(normalizeUsername(username))
                 .map(account -> new AccountCredentialsResult(
-                        account.identity().username(), account.passwordHash(), account.enabled()))));
+                        account.identity().username(), account.passwordHash(), account.enabled(), account.credentialVersion()))));
     }
 
     @Override
@@ -99,7 +99,7 @@ public final class MemberAccountApplicationService implements MemberAccountUseCa
             String code = generateInvitationCode();
             Invitation invitation = Invitation.create(
                     UUID.randomUUID().toString(), hashInvitationCode(code), command.maxUses(),
-                    now.plus(Duration.ofDays(command.validDays())), now);
+                    now.plus(Duration.ofDays(command.validDays())), now, command.note());
             invitations.add(invitation);
             return result(invitation, code);
         }));
@@ -109,6 +109,17 @@ public final class MemberAccountApplicationService implements MemberAccountUseCa
     public InvitationListResult listInvitations() {
         return withDomainErrors(() -> transactions.required(() -> new InvitationListResult(
                 invitations.findAll().stream().map(invitation -> result(invitation, null)).toList())));
+    }
+
+    @Override
+    public InvitationResult revokeInvitation(String id) {
+        return withDomainErrors(() -> transactions.required(() -> {
+            Invitation invitation = invitations.lockById(id)
+                    .orElseThrow(() -> new BlogException(BlogErrorCode.NOT_FOUND, "邀请码不存在"));
+            Invitation revoked = invitation.revoke(clock.instant());
+            if (revoked != invitation) invitations.save(revoked, invitation.usedCount());
+            return result(revoked, null);
+        }));
     }
 
     private MemberAccount requiredAccount(String username) {
@@ -125,7 +136,7 @@ public final class MemberAccountApplicationService implements MemberAccountUseCa
     private static InvitationResult result(Invitation invitation, String code) {
         return new InvitationResult(
                 invitation.id(), code, invitation.maxUses(), invitation.usedCount(),
-                invitation.expiresAt(), invitation.createdAt());
+                invitation.expiresAt(), invitation.createdAt(), invitation.note(), invitation.revokedAt());
     }
 
     private static String generateInvitationCode() {

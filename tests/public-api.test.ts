@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getPublishedPost, listPublishedPosts } from "../src/lib/public-api";
+import { getPublishedPost, listPublishedPosts, listPublishedComments } from "../src/lib/public-api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -64,5 +64,12 @@ describe("public blog API", () => {
 
     await expect(getPublishedPost("temporarily-unavailable"))
       .rejects.toThrow("博客服务请求失败：503");
+  });
+  it("passes an abort deadline to auxiliary requests and surfaces cancellation", async () => {
+    const abort = new DOMException("Timed out", "TimeoutError");
+    const fetchMock = vi.fn().mockRejectedValue(abort);
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(listPublishedComments("note")).rejects.toBe(abort);
+    expect(fetchMock.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
   });
 });

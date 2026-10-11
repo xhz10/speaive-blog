@@ -1,8 +1,10 @@
 ---
-import { LockKeyhole, ShieldCheck, ArrowUpRight } from "@lucide/astro";
+import { LockKeyhole, ShieldCheck, ArrowUpRight, KeyRound } from "@lucide/astro";
+import MemberPasswordField from "../../components/MemberPasswordField.astro";
 import WritingLayout from "../../layouts/WritingLayout.astro";
 import { fetchStudioApi } from "../../lib/studio/server";
 import type { WritingAccount } from "../../lib/writing/types";
+import "../../styles/account-management.css";
 let account: WritingAccount | undefined; let error = "";
 try { account = await fetchStudioApi<WritingAccount>(Astro.request, "/api/v1/account/writing/settings"); }
 catch (e) { Astro.response.status = 503; error = e instanceof Error ? e.message : "设置暂时不可用"; }
@@ -22,13 +24,28 @@ catch (e) { Astro.response.status = 503; error = e instanceof Error ? e.message 
     </section>
     <aside class="writing-paper writing-settings"><div class="writing-section-icon"><ShieldCheck size={21} /></div><h2>{account.displayName}</h2><p>@{account.username}</p><dl class="writing-permissions"><div><dt>账号身份</dt><dd>{account.role === "WRITER" ? "作者" : "普通会员"}</dd></div><div><dt>公开发布</dt><dd>{account.canPublish ? "已开通" : "未开通"}</dd></div><div><dt>加密资格</dt><dd>{account.encryptionAllowed ? "已开通" : "未开通"}</dd></div></dl>{account.role === "WRITER" && <a class="writing-profile-link" href={`/profile/${encodeURIComponent(account.username)}/`} target="_blank" rel="noreferrer">查看个人主页 <ArrowUpRight size={16} /><small>/profile/{account.username}</small></a>}<p class="writing-hint">需要调整权限时，请联系站长。</p></aside>
   </div>}
+  {account && <section class="writing-paper writing-settings account-password-settings">
+    <div class="writing-section-icon"><KeyRound size={21} /></div>
+    <h2>更改登录密码</h2>
+    <p>更改成功后，已有登录会失效，需要使用新密码重新登录。加密文章和存储设置不会改变。</p>
+    <form class="account-password-form" data-password-change data-username={account.username}>
+      <MemberPasswordField name="currentPassword" label="当前密码" autocomplete="current-password" />
+      <MemberPasswordField creating name="newPassword" label="新密码" autocomplete="new-password" hint="10–100 个字符，最多 72 字节。中文和表情会占用更多字节。" />
+      <MemberPasswordField creating name="confirmPassword" label="再次输入新密码" autocomplete="new-password" hint={false} />
+      <p class="writing-notice" data-password-notice role="status" aria-live="polite" hidden></p>
+      <button class="button primary" type="submit">更改密码</button>
+    </form>
+    <a class="account-password-login" data-password-login href="/agents/login/?next=%2Fwriting%2Fsettings%2F" target="_blank" rel="noreferrer" hidden>在新窗口使用新密码重新登录 →</a>
+  </section>}
 </WritingLayout>
 <script>
+  import { initializePasswordChange } from "../../lib/writing/password-settings";
   import { confirmWritingAction } from "../../lib/writing/confirmation";
   import { ensureWritingIdentity } from "../../lib/writing/session";
   import { writingRequest, jsonRequest } from "../../lib/writing/client";
   import type { WritingAccount } from "../../lib/writing/types";
   const form = document.querySelector<HTMLFormElement>("[data-encryption-form]");
+  initializePasswordChange(document.querySelector<HTMLFormElement>("[data-password-change]"));
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const input = form.elements.namedItem("encrypted") as HTMLInputElement;

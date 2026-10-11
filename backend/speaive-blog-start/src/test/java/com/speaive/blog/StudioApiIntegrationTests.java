@@ -1721,13 +1721,29 @@ class StudioApiIntegrationTests {
         mockMvc.perform(post("/api/v1/public/posts/private-visitor/visits").cookie(cookie).header("X-XSRF-TOKEN", token)
                 .contentType(MediaType.APPLICATION_JSON).content(body.replace("000010", "000011"))).andExpect(status().isNotFound());
         mockMvc.perform(get("/api/v1/studio/analytics")).andExpect(status().isUnauthorized());
-        var memberSession = new MockHttpSession();
-        var memberContext = org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
-        memberContext.setAuthentication(org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(
+        var legacySession = new MockHttpSession();
+        var legacyContext = org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
+        legacyContext.setAuthentication(org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(
                 "reader", null, List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_MEMBER"))));
-        memberSession.setAttribute("SPRING_SECURITY_CONTEXT", memberContext);
-        mockMvc.perform(get("/api/v1/studio/analytics").session(memberSession)).andExpect(status().isForbidden());
+        legacySession.setAttribute("SPRING_SECURITY_CONTEXT", legacyContext);
+        mockMvc.perform(get("/api/v1/studio/analytics").session(legacySession)).andExpect(status().isUnauthorized());
+        assertThat(legacySession.isInvalid()).isTrue();
         Client admin = login();
+        var invitation = mockMvc.perform(post("/api/v1/studio/invitations")
+                        .session(admin.session()).cookie(admin.csrfCookie()).header(admin.csrfHeader(), admin.csrfToken())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"validDays\":7,\"maxUses\":1}"))
+                .andExpect(status().isCreated()).andReturn();
+        String invitationCode = JsonPath.read(invitation.getResponse().getContentAsString(), "$.code");
+        var registration = mockMvc.perform(post("/api/v1/account/register").cookie(cookie).header("X-XSRF-TOKEN", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"reader","displayName":"读者","password":"member-password-123","invitationCode":"%s"}
+                                """.formatted(invitationCode)))
+                .andExpect(status().isCreated()).andReturn();
+        MockHttpSession memberSession = (MockHttpSession) registration.getRequest().getSession(false);
+        mockMvc.perform(get("/api/v1/account/session").session(memberSession))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.username").value("reader"));
+        mockMvc.perform(get("/api/v1/studio/analytics").session(memberSession)).andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/public/posts/visitor-story/visits").session(admin.session()).cookie(admin.csrfCookie())
                 .header(admin.csrfHeader(), admin.csrfToken()).contentType(MediaType.APPLICATION_JSON)
                 .content(body.replace("000010", "000012"))).andExpect(status().isNoContent());

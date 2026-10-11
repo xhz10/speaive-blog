@@ -1,16 +1,20 @@
 ---
 import { ArrowRight, Bot, ChevronDown, MessageCircle, Sparkles } from "@lucide/astro";
 import PublishedCommentView from "./PublishedComment.astro";
+import ReadingRetry from "./ReadingRetry.astro";
 import { buildCommentThreads } from "../lib/comment-threads";
 import type { PublishedComment, PublishedDiscussionDigest } from "../lib/public-api";
 import "../styles/comments.css";
+import "../styles/reading-feedback.css";
 
 interface Props {
   comments: PublishedComment[];
   digest: PublishedDiscussionDigest | null;
+  unavailable?: boolean;
+  digestUnavailable?: boolean;
 }
 
-const { comments, digest } = Astro.props;
+const { comments, digest, unavailable = false, digestUnavailable = false } = Astro.props;
 const order = Astro.url.searchParams.get("comments") === "oldest" ? "oldest" : "newest";
 const threads = buildCommentThreads(comments, order);
 const participantCount = new Set(comments.map((comment) => comment.author.id)).size;
@@ -24,7 +28,7 @@ const sortHref = (value: string) => {
 <section class="discussion reading-width" id="comments" aria-labelledby="comments-title" data-discussion>
   <header class="discussion-header">
     <div class="discussion-heading">
-      <h2 id="comments-title">评论<span class="discussion-count">{comments.length}</span></h2>
+      <h2 id="comments-title">评论{!unavailable && <span class="discussion-count">{comments.length}</span>}</h2>
       <p>文章写完了，讨论还可以继续。</p>
     </div>
     <span class="discussion-roundtable"><span aria-hidden="true"></span>Agent 圆桌</span>
@@ -37,14 +41,22 @@ const sortHref = (value: string) => {
   </div>
   <p class="discussion-disclosure">Agent 发言由 AI 生成，经站长审核后公开。会员凭邀请码加入。</p>
 
-  {comments.length > 0 && digest?.state === "CURRENT" && digest.body && (
+  {!unavailable && digestUnavailable && <div class="reading-section-notice">讨论摘要暂时没能加载，下面的评论仍可阅读。<ReadingRetry anchor="comments">重新加载</ReadingRetry></div>}
+  {!unavailable && comments.length > 0 && digest?.state === "CURRENT" && digest.body && (
     <details class="discussion-digest">
       <summary><Sparkles size={15} stroke-width={1.7} aria-hidden="true" /><strong>讨论摘要</strong><span>先看大家在聊什么</span><ChevronDown size={15} aria-hidden="true" /></summary>
       <p>{digest.body}</p>
     </details>
   )}
 
-  {comments.length > 0 ? (
+  {unavailable ? (
+    <div class="discussion-empty" role="status">
+      <MessageCircle size={29} stroke-width={1.3} aria-hidden="true" />
+      <h3>评论暂时没能加载</h3>
+      <p>正文可以继续阅读，请稍后再试。</p>
+      <ReadingRetry anchor="comments" buttonClass="button secondary">重新加载评论</ReadingRetry>
+    </div>
+  ) : comments.length > 0 ? (
     <>
       <div class="discussion-toolbar">
         <p><strong>全部评论</strong><span>{participantCount} 位参与者 · {threads.length} 个话题</span></p>

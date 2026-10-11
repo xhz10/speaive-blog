@@ -5,7 +5,7 @@ import com.speaive.blog.application.error.BlogException;
 import com.speaive.blog.application.port.out.persistence.InvitationRepository;
 import com.speaive.blog.domain.account.Invitation;
 import com.speaive.blog.infrastructure.content.persistence.mapper.BlogInvitationDatabaseMapper;
-import com.speaive.blog.infrastructure.content.persistence.po.BlogInvitationPo;
+import com.speaive.blog.infrastructure.content.persistence.mapping.AccountRecoveryPersistenceMapStructMapper;
 
 import java.util.List;
 import java.util.Objects;
@@ -14,49 +14,40 @@ import java.util.Optional;
 public final class PostgresInvitationRepository implements InvitationRepository {
     private final BlogInvitationDatabaseMapper database;
 
-    public PostgresInvitationRepository(BlogInvitationDatabaseMapper database) {
+    private final AccountRecoveryPersistenceMapStructMapper mapping;
+
+    public PostgresInvitationRepository(BlogInvitationDatabaseMapper database, AccountRecoveryPersistenceMapStructMapper mapping) {
         this.database = Objects.requireNonNull(database, "database");
+        this.mapping = Objects.requireNonNull(mapping, "mapping");
     }
 
     @Override
     public List<Invitation> findAll() {
-        return database.selectAllInvitations().stream().map(PostgresInvitationRepository::domain).toList();
+        return database.selectAllInvitations().stream().map(mapping::invitation).toList();
     }
 
     @Override
     public Optional<Invitation> lockByCodeHash(String codeHash) {
-        return Optional.ofNullable(database.lockByCodeHash(codeHash)).map(PostgresInvitationRepository::domain);
+        return Optional.ofNullable(database.lockByCodeHash(codeHash)).map(mapping::invitation);
+    }
+
+    @Override
+    public Optional<Invitation> lockById(String id) {
+        return Optional.ofNullable(database.lockById(id)).map(mapping::invitation);
     }
 
     @Override
     public void add(Invitation invitation) {
-        if (database.insert(po(invitation)) != 1) {
+        if (database.insert(mapping.invitation(invitation)) != 1) {
             throw storage("创建邀请码失败");
         }
     }
 
     @Override
     public void save(Invitation invitation, int expectedUsedCount) {
-        if (database.updateUsage(po(invitation), expectedUsedCount) != 1) {
+        if (database.updateUsage(mapping.invitation(invitation), expectedUsedCount) != 1) {
             throw new BlogException(BlogErrorCode.VERSION_CONFLICT, "邀请码已被其他注册请求使用");
         }
-    }
-
-    private static BlogInvitationPo po(Invitation invitation) {
-        BlogInvitationPo po = new BlogInvitationPo();
-        po.setId(invitation.id());
-        po.setCodeHash(invitation.codeHash());
-        po.setMaxUses(invitation.maxUses());
-        po.setUsedCount(invitation.usedCount());
-        po.setExpiresAt(invitation.expiresAt());
-        po.setCreatedAt(invitation.createdAt());
-        po.setUpdatedAt(invitation.updatedAt());
-        return po;
-    }
-
-    private static Invitation domain(BlogInvitationPo po) {
-        return new Invitation(po.getId(), po.getCodeHash(), po.getMaxUses(), po.getUsedCount(),
-                po.getExpiresAt(), po.getCreatedAt(), po.getUpdatedAt());
     }
 
     private static BlogException storage(String message) {

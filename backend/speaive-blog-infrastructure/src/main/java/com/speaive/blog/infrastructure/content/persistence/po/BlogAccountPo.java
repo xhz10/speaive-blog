@@ -34,6 +34,13 @@ public class BlogAccountPo {
     @TableField("settings_version")
     private long settingsVersion;
 
+    /** 密码凭证版本，与写作设置版本独立。 */
+    @TableField("credential_version")
+    private long credentialVersion;
+
+    public long getCredentialVersion() { return credentialVersion; }
+    public void setCredentialVersion(long value) { credentialVersion = value; }
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     public String getPasswordHash() { return passwordHash; }

@@ -29,7 +29,7 @@ const next = memberReturnPath(Astro.url.searchParams.get("next"));
         <label class="field">
           <span class="field-label" id="register-username-label">用户名</span>
           <input class="input" name="username" required minlength="3" maxlength="50"
-            pattern="[a-z0-9][a-z0-9_-]{2,49}" autocomplete="username" autocapitalize="none" spellcheck="false" aria-labelledby="register-username-label" aria-describedby="username-hint profile-hint" title="3—50 位小写字母、数字、下划线或短横线，以字母或数字开头" />
+            pattern={"[a-z0-9][a-z0-9_\\-]{2,49}"} autocomplete="username" autocapitalize="none" spellcheck="false" aria-labelledby="register-username-label" aria-describedby="username-hint profile-hint" title="3—50 位小写字母、数字、下划线或短横线，以字母或数字开头" />
           <span class="auth-input-hint" id="username-hint">3—50 位小写字母、数字、下划线或短横线；以字母或数字开头。</span>
         </label>
         <label class="field">
@@ -49,8 +49,11 @@ const next = memberReturnPath(Astro.url.searchParams.get("next"));
 <script>
   import { StudioClientError, studioRequest } from "../../lib/studio/client";
   import type { MemberSession } from "../../lib/studio/types";
+  import { initializePasswordValidation } from "../../lib/writing/password";
 
   const form = document.querySelector<HTMLFormElement>("[data-member-register]");
+  const validatePassword = form ? initializePasswordValidation(form, "password") : undefined;
+  let submitting = false;
   const username = form?.elements.namedItem("username") as HTMLInputElement | null;
   username?.addEventListener("input", () => {
     const preview = form!.querySelector<HTMLElement>("[data-profile-preview]")!;
@@ -58,11 +61,11 @@ const next = memberReturnPath(Astro.url.searchParams.get("next"));
   });
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!form.reportValidity()) return;
+    if (submitting || !validatePassword?.()) return;
     const submit = form.querySelector<HTMLButtonElement>("[data-auth-submit]")!;
     const errorBox = form.querySelector<HTMLElement>("[data-auth-error]")!;
     const data = new FormData(form);
-    submit.disabled = true;
+    submitting = true; submit.disabled = true;
     errorBox.hidden = true;
     try {
       await studioRequest<MemberSession>("/account/register", {
@@ -81,6 +84,7 @@ const next = memberReturnPath(Astro.url.searchParams.get("next"));
         ? "尝试次数过多，请稍后再试。"
         : error instanceof Error ? error.message : "注册失败，请稍后再试。";
       errorBox.hidden = false;
+      submitting = false;
       submit.disabled = false;
     }
   });

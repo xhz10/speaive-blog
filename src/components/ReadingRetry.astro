@@ -1,0 +1,52 @@
+---
+interface Props {
+  anchor?: string;
+  buttonClass?: string;
+}
+
+const { anchor, buttonClass } = Astro.props;
+const action = `${Astro.url.pathname}${anchor ? `#${anchor}` : ""}`;
+const retryId = crypto.randomUUID();
+---
+
+<!-- 每次渲染生成新的重试标识，避免浏览器将相同地址的锚点提交当作页内导航。 -->
+<form class="reading-retry" method="get" action={action} data-reading-retry>
+  {Array.from(Astro.url.searchParams.entries()).filter(([name]) => name !== "_retry").map(([name, value]) => (
+    <input type="hidden" name={name} value={value} data-retry-query />
+  ))}
+  <input type="hidden" name="_retry" value={retryId} />
+  <button type="submit" class={buttonClass}><slot /></button>
+</form>
+
+<script>
+  // 评论排序可以只更新地址栏，提交前以当前 URL 为准，保留刚选择的排序。
+  document.addEventListener("submit", event => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || !form.matches("[data-reading-retry]")) return;
+    form.querySelectorAll("[data-retry-query]").forEach(input => input.remove());
+    for (const [name, value] of new URLSearchParams(window.location.search)) {
+      if (name === "_retry") continue;
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      input.setAttribute("data-retry-query", "");
+      form.append(input);
+    }
+  });
+</script>
+
+<style>
+  .reading-retry { display: inline; }
+  .reading-retry button:not(.button) {
+    border: 0;
+    padding: 0;
+    margin-left: 8px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+</style>

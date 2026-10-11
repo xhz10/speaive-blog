@@ -22,4 +22,6 @@ public interface MemberAccountUseCase {
     InvitationResult createInvitation(CreateInvitationCommand command);
 
     InvitationListResult listInvitations();
+
+    InvitationResult revokeInvitation(String id);
 }

@@ -169,7 +169,7 @@ export async function getPublishedPost(slug: string): Promise<PublishedPost | nu
 }
 
 export async function listPublishedComments(slug: string): Promise<PublishedComment[]> {
-  const response = await request(`/api/v1/public/posts/${encodeURIComponent(slug)}/comments`, true);
+  const response = await request(`/api/v1/public/posts/${encodeURIComponent(slug)}/comments`, true, 3_000);
   if (response.status === 404) return [];
   const payload = await response.json() as CommentListResponse;
   return payload.items.map((comment) => ({
@@ -218,14 +218,14 @@ export async function getPublishedWorkNavigation(
   const query = new URLSearchParams({ contentType, contentSlug });
   if (workSlug) query.set("workSlug", workSlug);
   const response = await request(
-    `/api/v1/public/works/navigation?${query.toString()}`
+    `/api/v1/public/works/navigation?${query.toString()}`, false, 3_000
   );
   if (response.status === 204) return null;
   return await response.json() as PublishedWorkNavigation;
 }
 
 export async function getPublishedDiscussionDigest(slug: string): Promise<PublishedDiscussionDigest | null> {
-  const response = await request(`/api/v1/public/posts/${encodeURIComponent(slug)}/discussion-digest`, true);
+  const response = await request(`/api/v1/public/posts/${encodeURIComponent(slug)}/discussion-digest`, true, 3_000);
   if (response.status === 404) return null;
   const value = await response.json() as { body: string | null; state: PublishedDiscussionDigest["state"]; commentCount: number; updatedAt: string | null };
   return { ...value, updatedAt: value.updatedAt ? parseDate(value.updatedAt) : null };
@@ -251,10 +251,12 @@ export function backendUrl(path: string): URL {
   return new URL(path, base.endsWith("/") ? base : `${base}/`);
 }
 
-async function request(path: string, allowNotFound = false): Promise<Response> {
+/** 公开阅读请求有上限；附属内容使用更短等待，避免把正常正文拖住。 */
+async function request(path: string, allowNotFound = false, timeoutMs = 8_000): Promise<Response> {
   const response = await fetch(backendUrl(path), {
     headers: { Accept: "application/json" },
-    cache: "no-store"
+    cache: "no-store",
+    signal: AbortSignal.timeout(timeoutMs)
   });
   if (!response.ok && !(allowNotFound && response.status === 404)) {
     throw new Error(`博客服务请求失败：${response.status}`);

@@ -87,7 +87,7 @@ public class MemberAuthenticationController {
             throw new ApiHttpException(ApiErrorCode.INVALID_REQUEST, "此用户名由站长使用，请换一个用户名。", HttpStatus.BAD_REQUEST);
         }
         MemberResult member = accounts.register(new RegisterMemberCommand(
-                request.username(), request.displayName(), passwords.encode(request.password()),
+                request.username(), request.displayName(), MemberPasswordPolicy.encode(request.password(), passwords),
                 request.invitationCode()));
         authenticate(request.username(), request.password(), servletRequest, response);
         registrationAttemptLimiter.reset(clientAddress);
@@ -120,6 +120,9 @@ public class MemberAuthenticationController {
             HttpServletRequest request,
             HttpServletResponse response) {
         try {
+            if (!MemberPasswordPolicy.fitsBcryptLimit(password)) {
+                throw new org.springframework.security.authentication.BadCredentialsException("password too long");
+            }
             Authentication authentication = authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(username, password));
             boolean member = authentication.getAuthorities().stream()
@@ -158,12 +161,14 @@ public class MemberAuthenticationController {
             @Size(min = 12, max = 100, message = "邀请码格式无效")
             String invitationCode
     ) {
+        @Override public String toString() { return "RegisterRequest[凭证已隐藏]"; }
     }
 
     record LoginRequest(
             @NotBlank(message = "用户名不能为空") String username,
             @NotBlank(message = "密码不能为空") String password
     ) {
+        @Override public String toString() { return "LoginRequest[凭证已隐藏]"; }
     }
 
     record CsrfResponse(String token, String headerName, String parameterName) {

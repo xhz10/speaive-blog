@@ -14,7 +14,12 @@ public interface AccountRepository {
 
     Optional<MemberAccount> lockByUsername(String username);
 
+    Optional<MemberAccount> lockById(String id);
+
     void add(MemberAccount account);
+
+    /** 只更新密码与凭证版本，不覆盖写作资格或加密设置。 */
+    void savePassword(MemberAccount account, long expectedCredentialVersion);
 
     /** 管理员账号列表；返回会员身份与设置，不由 HTTP 直接访问仓储。 */
     java.util.List<MemberAccount> findAll();

@@ -4,7 +4,7 @@ export function memberReturnPath(value: string | null | undefined): string {
   try {
     const url = new URL(value, "https://member.invalid");
     if (url.origin !== "https://member.invalid" || !/^\/(writing|agents)(\/|$)/.test(url.pathname)
-        || /^\/agents\/(login|register)(\/|$)/.test(url.pathname)) return "/writing/";
+        || /^\/agents\/(login|register|reset-password)(\/|$)/.test(url.pathname)) return "/writing/";
     return `${url.pathname}${url.search}${url.hash}`;
   } catch { return "/writing/"; }
 }

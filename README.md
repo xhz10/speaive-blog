@@ -9,6 +9,7 @@
 - PostgreSQL 17 + pgvector：内容用户、文章、小说片段、修订记录、媒体元数据、Agent 配置、评论和生成审计；当前仍未创建向量业务表；
 - 独立宿主机数据目录：正文图片、封面原文件和 Markdown 投递箱；
 - 站长与受邀会员两类 Session 身份、BCrypt 密码、CSRF 防护和登录限流；会员注册不需要手机号或邮箱；
+- 会员自主改密、站长协助签发 30 分钟一次性找回链接；邀请码支持管理备注和撤销，改密与找回使旧会员登录失效；
 - 文章状态与权限分离：公开文章供访客阅读，私密文章和对应图片只对登录管理员开放；
 - 动态 Sitemap、robots.txt、RSS、canonical 与 Speaive 个人身份结构化数据，帮助搜索引擎发现公开内容；
 - CodeMirror Markdown 写作、回车生成标签、标签归档筛选和管理员阅读预览；
@@ -152,3 +153,5 @@ pnpm build
 受邀会员可由管理员在 `/studio/members/` 开通写作、公开发布和加密资格。会员在 `/writing/` 写作，在 `/writing/settings/` 选择加密；个人主页为 `/profile/{username}/`。管理员原有文章保持现有存储方式。
 
 首次启用加密先运行 `sh scripts/setup-content-key.sh`，单独备份密钥并配置后端读取权限。正文、标题、摘要、标签及全部修订统一转换；服务器持有密钥，获准阅读时会解密。完整技术与部署说明见 [会员写作与内容加密](backend/docs/member-writing-and-encryption.md)。
+
+会员改密、站长协助找回与邀请码备注/撤销见 [账号恢复与邀请码管理](docs/account-recovery-and-invitations.md)。公开文章和小说的正文、评论、讨论摘要、作品集导航分别处理加载失败，行为与验收见 [阅读页容错](docs/reading-resilience.md)。

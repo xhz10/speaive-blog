@@ -1,6 +1,8 @@
 package com.speaive.blog.interfaces.security;
 
 import com.speaive.blog.application.port.in.account.MemberAccountUseCase;
+import com.speaive.blog.application.port.in.account.PasswordManagementUseCase;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import com.speaive.blog.interfaces.http.error.ApiErrorCode;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -85,11 +87,7 @@ public class WebSecurityConfiguration {
                         .build();
             }
             return accounts.findCredentials(candidate)
-                    .map(credentials -> User.withUsername(credentials.username())
-                            .password(credentials.passwordHash())
-                            .roles("MEMBER")
-                            .disabled(!credentials.enabled())
-                            .build())
+                    .map(MemberUserDetails::new)
                     .orElseThrow(() -> new UsernameNotFoundException("账号不存在"));
         };
     }
@@ -127,15 +125,26 @@ public class WebSecurityConfiguration {
         return new LoginAttemptLimiter(maxAttempts, Duration.ofSeconds(windowSeconds), maxTrackedAddresses);
     }
 
+    /** 改密与匿名消费找回凭证独立限流，成功也计数，防止反复换密和穷举令牌。 */
+    @Bean
+    LoginAttemptLimiter passwordChangeAttemptLimiter() {
+        return new LoginAttemptLimiter(5, Duration.ofMinutes(15), 10000);
+    }
+    @Bean
+    LoginAttemptLimiter passwordResetAttemptLimiter() {
+        return new LoginAttemptLimiter(10, Duration.ofMinutes(15), 10000);
+    }
+
     @Bean
     SecurityFilterChain webSecurityFilterChain(
             HttpSecurity http,
             CookieCsrfTokenRepository csrfTokenRepository,
-            SecurityContextRepository securityContextRepository) throws Exception {
+            SecurityContextRepository securityContextRepository, PasswordManagementUseCase passwordManagement) throws Exception {
         CsrfTokenRequestAttributeHandler csrfRequestHandler = new CsrfTokenRequestAttributeHandler();
         csrfRequestHandler.setCsrfRequestAttributeName("_csrf");
 
         http
+                .addFilterAfter(new MemberCredentialVersionFilter(passwordManagement), SecurityContextHolderFilter.class)
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository)
                         .csrfTokenRequestHandler(csrfRequestHandler))
@@ -152,7 +161,7 @@ public class WebSecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/**", "/media/**",
                                 "/api/v1/studio/csrf", "/api/v1/account/csrf", "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/studio/login",
-                                "/api/v1/account/login", "/api/v1/account/register").permitAll()
+                                "/api/v1/account/login", "/api/v1/account/register", "/api/v1/account/password/reset").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/public/posts/*/visits").permitAll()
                         .requestMatchers("/api/v1/studio/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/account/**").hasRole("MEMBER")

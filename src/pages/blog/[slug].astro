@@ -2,19 +2,20 @@
 import { ArrowLeft, MessageCircle } from "@lucide/astro";
 import ArticleVisitTracker from "../../components/ArticleVisitTracker.astro";
 import CommentSection from "../../components/CommentSection.astro";
+import ReadingRetry from "../../components/ReadingRetry.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { formatDateTime } from "../../lib/date-time";
-import { getPublishedDiscussionDigest, getPublishedPost, getPublishedWorkNavigation, listPublishedComments } from "../../lib/public-api";
+import { loadArticlePage } from "../../lib/reading-page";
 
 const slug = Astro.params.slug ?? "";
 const workSlug = Astro.url.searchParams.get("work") || undefined;
-const post = await getPublishedPost(slug);
-const comments = post ? await listPublishedComments(slug) : [];
-const navigation = post ? await getPublishedWorkNavigation("POST", slug, workSlug) : null;
-const digest = post ? await getPublishedDiscussionDigest(slug) : null;
-if (!post) {
-  Astro.response.status = 404;
-}
+const result = await loadArticlePage(slug, workSlug);
+const ready = result.state === "ready" ? result : null;
+const post = ready?.post;
+const comments = ready?.comments ?? [];
+const navigation = ready?.navigation;
+if (!ready) Astro.response.status = result.state === "missing" ? 404 : 503;
+Astro.response.headers.set("Cache-Control", "no-store");
 ---
 
 {
@@ -50,7 +51,7 @@ if (!post) {
               }
               <a class="article-discussion-link" href="#comments">
                 <MessageCircle size={14} stroke-width={1.7} aria-hidden="true" />
-                {comments.length} 条评论
+                {ready?.commentsUnavailable ? "评论暂时不可用" : `${comments.length} 条评论`}
               </a>
               {post.tags.length > 0 && (
                 <ul class="article-tag-list" aria-label="文章标签">
@@ -81,16 +82,18 @@ if (!post) {
             </div>
           </nav>
         )}
-        <CommentSection comments={comments} digest={digest} />
+        {ready?.navigationUnavailable && <div class="reading-width reading-section-notice">作品集导航暂时没能加载。<ReadingRetry>重新加载</ReadingRetry></div>}
+        <CommentSection comments={comments} digest={ready?.digest ?? null}
+          unavailable={ready?.commentsUnavailable} digestUnavailable={ready?.digestUnavailable} />
       </article>
     </BaseLayout>
   ) : (
-    <BaseLayout title="文章不存在" noindex>
+    <BaseLayout title={result.state === "missing" ? "文章不存在" : "文章暂时无法加载"} noindex>
       <section class="not-found">
         <div>
-          <h1>404</h1>
-          <p>这篇文章不存在，或者尚未公开。</p>
-          <a class="button primary" href="/archive/">返回归档</a>
+          <h1>{result.state === "missing" ? "404" : "文章暂时没能加载"}</h1>
+          <p>{result.state === "missing" ? "这篇文章不存在，或者尚未公开。" : "连接暂时出了点问题，请稍后重新打开。"}</p>
+          {result.state === "missing" ? <a class="button primary" href="/archive/">返回归档</a> : <ReadingRetry buttonClass="button primary">重新加载</ReadingRetry>}
         </div>
       </section>
     </BaseLayout>

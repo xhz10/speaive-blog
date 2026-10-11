@@ -74,6 +74,7 @@ import com.speaive.blog.infrastructure.content.persistence.repository.PostgresNo
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresPostAiSummaryRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresAccountRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresInvitationRepository;
+import com.speaive.blog.infrastructure.content.persistence.mapping.AccountRecoveryPersistenceMapStructMapper;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresCommunityPostPolicyRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresCommunityCommentJobRepository;
 import com.speaive.blog.infrastructure.content.persistence.repository.PostgresCreativeWorkspaceRepository;
@@ -189,8 +190,8 @@ public class BlogBackendConfiguration {
     }
 
     @Bean
-    InvitationRepository invitationRepository(BlogInvitationDatabaseMapper invitations) {
-        return new PostgresInvitationRepository(invitations);
+    InvitationRepository invitationRepository(BlogInvitationDatabaseMapper invitations, AccountRecoveryPersistenceMapStructMapper mapping) {
+        return new PostgresInvitationRepository(invitations, mapping);
     }
 
     @Bean

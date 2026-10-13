@@ -1,0 +1,190 @@
+---
+import StudioLayout from "../../../layouts/StudioLayout.astro";
+import { fetchStudioApi } from "../../../lib/studio/server";
+import { humorMechanisms, type HumorMaterialList } from "../../../lib/studio/knowledge";
+let materials: HumorMaterialList = { items: [] };
+let errorMessage: string | undefined;
+try { materials = await fetchStudioApi<HumorMaterialList>(Astro.request, "/api/v1/studio/humor-materials"); }
+catch (error) { errorMessage = error instanceof Error ? error.message : "素材加载失败"; }
+---
+
+<StudioLayout title="Agent 灵感素材库">
+  <header class="knowledge-heading">
+    <a class="editor-back" href="/studio/agents/">返回 Agent 角色</a>
+    <p class="studio-kicker">Agent Inspiration</p>
+    <h1>给有趣的声音，添一点灵感。</h1>
+    <p>五个趣味角色共用这些素材，按各自的幽默机制取材。编辑笑点分析与原创示例，帮助它们写出贴题的评论。</p>
+    <p>{materials.items.length} 条素材 · {materials.items.filter(item => item.enabled).length} 条正在使用</p>
+  </header>
+  {errorMessage && <p class="notice error">{errorMessage}</p>}
+  <p class="notice" data-knowledge-notice role="status" hidden></p>
+
+  <section class="knowledge-preview" aria-labelledby="preview-title">
+    <h2 id="preview-title">检索预览</h2>
+    <form data-humor-search>
+      <label class="field">文章主题或评论关键词
+        <input class="input" name="q" maxlength="1000" placeholder="例如：缓存过期、加班、数据备份" required />
+      </label>
+      <label class="field">幽默机制
+        <select class="input" name="mechanism"><option value="">全部机制</option>
+          {Object.entries(humorMechanisms).map(([key, label]) => <option value={key}>{label}</option>)}
+        </select>
+      </label>
+      <button class="button" type="submit">查看可用素材</button>
+    </form>
+    <div class="knowledge-hits" data-humor-hits aria-live="polite"></div>
+  </section>
+
+  <div class="knowledge-workbench" data-humor-state={JSON.stringify(materials.items)}>
+    <aside class="knowledge-roster" aria-label="素材列表">
+      <div class="knowledge-roster-heading"><h2>精选素材</h2><button type="button" class="button ghost" data-new-material>新增</button></div>
+      {materials.items.length === 0 && <p class="muted">还没有素材。可以新增一条，或按项目说明导入首批精选。</p>}
+      <div class="knowledge-items">
+        {materials.items.map(item => <button type="button" class="knowledge-item" data-material-id={item.id} aria-pressed="false">
+          <strong>{item.excerpt}</strong><span>{humorMechanisms[item.mechanism]} · {item.enabled ? "启用" : "停用"}</span>
+          <small>{item.topics.join(" · ")}</small>
+        </button>)}
+      </div>
+    </aside>
+    <section class="knowledge-editor" aria-labelledby="material-title">
+      <h2 id="material-title" data-material-title>新增素材</h2>
+      <form data-humor-form>
+        <input type="hidden" name="id" /><input type="hidden" name="version" value="1" />
+        <label class="field">短摘录<textarea class="input" name="excerpt" rows="2" maxlength="500" required></textarea></label>
+        <div class="knowledge-fields">
+          <label class="field">幽默机制<select class="input" name="mechanism">
+            {Object.entries(humorMechanisms).map(([key, label]) => <option value={key}>{label}</option>)}
+          </select></label>
+          <label class="field">质量（1 到 5）<input class="input" name="quality" type="number" min="1" max="5" value="4" required /></label>
+        </div>
+        <label class="field">主题词（用逗号分隔，最多 12 个）<input class="input" name="topics" placeholder="过期，期限，失效，时间" required /></label>
+        <label class="field">笑点分析<textarea class="input" name="analysis" rows="3" maxlength="1200" required placeholder="正常理解是什么，转折发生在哪一步？"></textarea></label>
+        <label class="field">原创迁移示例<textarea class="input" name="adaptation" rows="3" maxlength="1200" required placeholder="借鉴机制，换成博客、编程或生活中的新场景。"></textarea></label>
+        <label class="field">来源标题<input class="input" name="sourceTitle" maxlength="200" required /></label>
+        <label class="field">来源链接<input class="input" name="sourceUrl" type="url" maxlength="2048" required /></label>
+        <label class="field">来源类型<select class="input" name="sourceKind">
+          <option value="PRIMARY_POST">原帖（读取情况见来源记录）</option>
+          <option value="PRIMARY_LISTING">原站公开列表</option>
+          <option value="REPRINT">公开转载</option>
+        </select></label>
+        <label class="knowledge-toggle"><input type="checkbox" name="enabled" checked />允许角色取材</label>
+        <p class="muted">停用后不再进入新的检索结果；已有评论会保留。</p>
+        <button class="button" type="submit" data-save-material>保存素材</button>
+        <a class="button ghost" data-material-source hidden target="_blank" rel="noreferrer">查看来源</a>
+      </form>
+    </section>
+  </div>
+</StudioLayout>
+
+<script>
+  import { studioRequest } from "../../../lib/studio/client";
+  import { humorMechanisms, type HumorMaterial, type HumorMaterialList } from "../../../lib/studio/knowledge";
+  const state = document.querySelector<HTMLElement>("[data-humor-state]");
+  const form = document.querySelector<HTMLFormElement>("[data-humor-form]");
+  const searchForm = document.querySelector<HTMLFormElement>("[data-humor-search]");
+  const notice = document.querySelector<HTMLElement>("[data-knowledge-notice]");
+  const items = new Map<string, HumorMaterial>((JSON.parse(state?.dataset.humorState ?? "[]") as HumorMaterial[]).map(item => [item.id, item]));
+  function message(text: string, error = false) {
+    if (notice) {
+      notice.textContent = text; notice.hidden = false; notice.classList.toggle("error", error);
+      if (error) notice.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+  function select(item?: HumorMaterial) {
+    if (!form) return;
+    form.reset();
+    for (const field of ["id", "excerpt", "sourceUrl", "sourceTitle", "sourceKind", "mechanism", "analysis", "adaptation", "quality", "version"] as const) {
+      const input = form.elements.namedItem(field) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+      if (item) input.value = String(item[field]);
+    }
+    (form.elements.namedItem("topics") as HTMLInputElement).value = item?.topics.join("，") ?? "";
+    (form.elements.namedItem("enabled") as HTMLInputElement).checked = item?.enabled ?? true;
+    (form.elements.namedItem("id") as HTMLInputElement).value = item?.id ?? "";
+    (form.elements.namedItem("version") as HTMLInputElement).value = String(item?.version ?? 1);
+    const title = document.querySelector<HTMLElement>("[data-material-title]");
+    if (title) title.textContent = item ? "编辑素材" : "新增素材";
+    const source = document.querySelector<HTMLAnchorElement>("[data-material-source]");
+    if (source) { source.hidden = !item; source.href = item?.sourceUrl ?? "#"; }
+    for (const button of document.querySelectorAll<HTMLButtonElement>("[data-material-id]")) {
+      const active = button.dataset.materialId === item?.id;
+      button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active));
+    }
+    if (item && window.matchMedia("(max-width: 800px)").matches) {
+      form.closest<HTMLElement>(".knowledge-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+  state?.addEventListener("click", event => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-material-id]");
+    if (button) select(items.get(button.dataset.materialId ?? ""));
+  });
+  document.querySelector<HTMLButtonElement>("[data-new-material]")?.addEventListener("click", () => select());
+  form?.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const data = new FormData(form);
+    const topics = String(data.get("topics")).split(/[,，、]/u).map(topic => topic.trim()).filter(Boolean);
+    if (topics.length > 12 || topics.some(topic => [...topic].length > 50)) { message("主题词最多 12 个，每个不超过 50 字。", true); return; }
+    const button = form.querySelector<HTMLButtonElement>("[data-save-material]")!;
+    button.disabled = true;
+    const id = String(data.get("id") ?? "");
+    const payload = {
+      excerpt: String(data.get("excerpt")).trim(), sourceUrl: String(data.get("sourceUrl")).trim(),
+      sourceTitle: String(data.get("sourceTitle")).trim(), sourceKind: String(data.get("sourceKind")),
+      topics, mechanism: String(data.get("mechanism")), analysis: String(data.get("analysis")).trim(),
+      adaptation: String(data.get("adaptation")).trim(), quality: Number(data.get("quality")),
+      enabled: data.has("enabled"), version: Number(data.get("version"))
+    };
+    try {
+      const saved = await studioRequest<HumorMaterial>(id ? `/studio/humor-materials/${encodeURIComponent(id)}` : "/studio/humor-materials", {
+        method: id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+      });
+      window.location.assign(`/studio/knowledge/?material=${encodeURIComponent(saved.id)}&saved=1`);
+    } catch (error) { message(error instanceof Error ? error.message : "保存失败", true); button.disabled = false; }
+  });
+  searchForm?.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!searchForm.reportValidity()) return;
+    const data = new FormData(searchForm);
+    const query = new URLSearchParams({ q: String(data.get("q")), mechanism: String(data.get("mechanism")) });
+    const results = document.querySelector<HTMLElement>("[data-humor-hits]")!;
+    const button = searchForm.querySelector<HTMLButtonElement>("button")!;
+    button.disabled = true; results.textContent = "正在查找素材……";
+    try {
+      const response = await studioRequest<HumorMaterialList>(`/studio/humor-materials/search?${query}`);
+      results.replaceChildren();
+      if (!response.items.length) results.textContent = "没有找到相关素材。试试更具体的主题词，角色也可以只按原有人设生成。";
+      for (const item of response.items) {
+        const hit = document.createElement("button"); hit.type = "button"; hit.className = "knowledge-item";
+        hit.textContent = `${item.excerpt} · ${humorMechanisms[item.mechanism]} · 相关度 ${item.score.toFixed(2)}`;
+        hit.addEventListener("click", () => select(item)); results.append(hit);
+      }
+    } catch (error) { results.textContent = error instanceof Error ? error.message : "检索失败"; }
+    finally { button.disabled = false; }
+  });
+  const params = new URLSearchParams(window.location.search);
+  select(items.get(params.get("material") ?? ""));
+  if (params.get("saved") === "1") message("素材已保存，后续评论生成会使用新的配置。");
+</script>
+
+<style>
+  .knowledge-heading, .knowledge-preview, .knowledge-workbench { width: min(1160px, 100%); margin: 0 auto 2rem; }
+  .knowledge-heading h1 { font-size: clamp(1.75rem, 4vw, 2.7rem); }
+  .knowledge-heading p { max-width: 75ch; }
+  .knowledge-preview, .knowledge-roster, .knowledge-editor { background: var(--surface, #fff); border: 1px solid var(--border, #deded9); border-radius: 16px; padding: 1.4rem; min-width: 0; }
+  .knowledge-preview form { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: 1rem; align-items: end; }
+  .knowledge-preview h2, .knowledge-editor h2, .knowledge-roster h2 { margin-top: 0; font-size: 1.15rem; }
+  .knowledge-workbench { display: grid; grid-template-columns: minmax(240px, .8fr) minmax(0, 1.6fr); gap: 1.5rem; align-items: start; }
+  .knowledge-roster-heading { display: flex; align-items: center; justify-content: space-between; gap: .7rem; }
+  .knowledge-items { display: grid; gap: .5rem; max-height: 850px; overflow-y: auto; }
+  :global(.knowledge-item) { display: grid; gap: .35rem; width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: .9rem; text-align: left; background: transparent; color: inherit; cursor: pointer; overflow-wrap: anywhere; }
+  :global(.knowledge-item:hover), :global(.knowledge-item.active) { background: var(--surface-muted); border-color: currentColor; }
+  .knowledge-item span, .knowledge-item small, .muted { font-size: .85rem; color: var(--muted, #686862); }
+  .knowledge-editor form { display: grid; gap: 1rem; }
+  .knowledge-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .field { display: grid; gap: .4rem; min-width: 0; font-size: .9rem; }
+  .input { width: 100%; min-width: 0; box-sizing: border-box; }
+  .knowledge-toggle { display: flex; align-items: center; gap: .6rem; }
+  .knowledge-hits { display: grid; gap: .5rem; margin-top: 1rem; }
+  @media (max-width: 800px) { .knowledge-workbench, .knowledge-preview form { grid-template-columns: 1fr; } .knowledge-items { max-height: 300px; } .knowledge-editor { scroll-margin-top: 7rem; } }
+  @media (max-width: 420px) { .knowledge-fields { grid-template-columns: 1fr; } .knowledge-preview, .knowledge-roster, .knowledge-editor { padding: 1rem; } }
+</style>

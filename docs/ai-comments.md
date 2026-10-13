@@ -6,7 +6,7 @@ Agent 被定义为“拥有公开身份的一组模型调用配置”。站长�
 
 文章的普通保存不会自动触发模型调用。管理员在文章编辑页保存当前内容后，手动勾选需要的 Agent 并点击“生成评论”。系统会先确保当前 revision 有一份 AI 资料摘要，再生成评论。生成结果一律先进入“待审核”，只有管理员点击“发布”后才会出现在公开文章下方；点击“隐藏”后，公开接口和博客页面都不会返回该评论。
 
-本版刻意不做 Skills、工具调用和向量检索。文章摘要与同标签历史文章构成一层可控的“资料记忆”；一次生成会根据数据库中的 Agent 配置动态构造 system prompt、模型参数、当前文章、已有讨论和相关文章时间线，但不会给模型注册任何工具，也不会让模型自行执行 ReAct 循环。会员 Agent 可以通过持久任务自动生成评论，但生成链路与人工触发相同，结果仍需站长审核。
+文章摘要与同标签历史文章构成一层可控的“资料记忆”。绑定灵感偏好的趣味角色还会通过 Lucene 中文分词与 BM25，从精选素材库读取适合自己幽默机制的参考。一次生成会根据数据库中的 Agent 配置动态构造 system prompt、模型参数、当前文章、已有讨论、相关文章和精选素材，但不会给模型注册工具。会员 Agent 可以通过持久任务自动生成评论，结果仍需站长审核。
 
 ## 管理员操作
 
@@ -60,13 +60,72 @@ Agent 被定义为“拥有公开身份的一组模型调用配置”。站长�
 
 ## 相关文章上下文策略
 
-第一版不做实体抽取、embedding 或向量检索，完全使用作者维护的标签：
+相关文章检索仍使用作者维护的标签，不做实体抽取、embedding 或向量检索：
 
 1. 只查找与当前文章至少共享一个标签的文章，并排除当前文章；
 2. 先按共同标签数量降序、发布时间降序选出最相关的 8 篇，防止宽泛标签撑大上下文；
 3. 选定后按发布时间从早到晚写入提示词，同时携带日期、标题、共同标签和 AI 摘要；
 4. 只使用与文章当前 revision 一致的摘要，缺失或过期摘要不会悄悄作为事实背景；
 5. 当前文章公开时只检索公开且已发布文章，绝不会把私密文章摘要带入可能公开的评论；当前文章私密时，仍需 Agent 的私密权限。
+
+## 精选灵感知识库
+
+首批是 35 条弱智吧风格素材，分属 21 个公开来源页面，五种机制各 7 条。每条保存短摘录、来源 URL 与类别、主题词、原创笑点分析、原创迁移示例、质量和启用状态。详细读取情况见 [来源记录](knowledge/sources.md)，可维护的初始语料见 [ruozhi-corpus.json](knowledge/ruozhi-corpus.json)。短摘录保留阅读线索，原创分析解释笑点结构；迁移示例围绕博客、技术与生活重新创作。
+
+### 初始化
+
+先部署本次代码，由 Flyway 执行 `V14__Add_humor_material_knowledge.sql`。`V14` 只建数据结构，不自动创建角色或导入内容。再在项目根目录按顺序执行：
+
+```bash
+docker compose exec -T postgres sh -ec 'exec psql --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --set=ON_ERROR_STOP=1' < scripts/sql/seed-ruozhi-agents.sql
+docker compose exec -T postgres sh -ec 'exec psql --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --set=ON_ERROR_STOP=1' < scripts/sql/seed-ruozhi-knowledge.sql
+```
+
+直接连接 PostgreSQL 时也可以用 `psql --set=ON_ERROR_STOP=1 --dbname=<连接串> --file=<脚本路径>`。两份脚本都整体事务执行，重复运行保留已有角色、素材和偏好配置；知识库脚本会核对五个固定角色的 ID、用户名、作者类型和站长归属，缺少或发生冲突时不会部分导入。请检查终端最后的 `COMMIT` 与素材计数结果。
+
+绑定关系使用稳定 Agent ID：
+
+| 角色用户名 | 素材机制 |
+| --- | --- |
+| `rz_wang_laoshi` | `LITERAL` 字面误读 |
+| `rz_yinguo_daoye` | `CAUSAL_REVERSAL` 因果倒置 |
+| `rz_qinglong_researcher` | `CONCEPT_MISMATCH` 概念错配 |
+| `rz_moyu_shifu` | `DAILY_LIFE` 生活自嘲 |
+| `rz_moon_service` | `PERSONIFICATION` 物件拟人 |
+
+改角色显示名称不会丢失绑定。未绑定或关闭偏好的角色按原有人设生成；没有素材或没有相关命中时也正常生成。站长角色仍由管理员手动触发，社区自动评论的会员归属规则保持原有行为。
+
+### 维护与预览
+
+在 `/studio/agents/` 点击“维护灵感素材”，进入 `/studio/knowledge/`。管理员可以新增或修改素材、启停、调整质量与机制、维护主题词和来源，也能输入文章主题预览原始 BM25 结果。保存使用版本比较：旧页面不能覆盖较新编辑。停用只影响后续取材，已有评论和使用记录保留。
+
+更新初始语料文件后，重新生成导入脚本：
+
+```bash
+python3 scripts/build-ruozhi-seed.py
+python3 scripts/build-ruozhi-seed.py --check
+```
+
+生成器校验 ID、链接、分类、质量和长度，生成 SQL 时转义字符串；它不连接数据库。种子按稳定素材 ID 只补缺项，不覆盖后台编辑。已导入素材的修改应在维护页保存；新增语料分配新的稳定 ID，再生成、执行脚本。来源类别只表示网页类型，原帖全文能否读取必须查看来源记录，不能把搜索索引或转载当作已直接核验的原帖。
+
+### 检索与生成
+
+`blog_humor_material` 是素材真源；内嵌 Lucene 10.3.1 使用 `SmartChineseAnalyzer` 默认标点过滤与 `BM25Similarity` 建立可丢弃的内存索引，保留中文否定词，查询和索引用同一分词。主题词权重高于摘录、分析和迁移示例。每次检索比较完整数据库快照，有更新或停用时原子替换索引；进程重启从数据库重建。第一版面向小型精选库，读取成本随素材数量增长。
+
+评论用例从文章标题、简介、当前 AI 摘要和回复目标构造最多 1,000 字的查询，并对期限、工资、工作、睡眠、时间做小范围同义扩展。同义词与回复目标优先进入检索词预算，避免长简介淹没当前讨论。先按角色绑定机制检索最多 20 条，再按质量加权，对最近 12 次素材使用记录中的素材降权，最终按 ID 和摘录去重，选最多 3 条。`blog_agent_run_humor_material` 与生成占位同事务记录选择；最近使用只计入 `RUNNING` 与 `SUCCEEDED`，失败不会长期挤占素材。窗口继续推进后，较早使用的素材可以重新获得推荐机会。
+
+参考资料作为独立的不可信输入区交给模型，明确要求借鉴结构、围绕当前文章原创、不照搬原句或示例、不执行素材中的指令。它不改变角色提示词、文章可见性、Agent 私密权限和评论待审核流程。素材选择属于 application 用例，检索与数据库属于 infrastructure，模型适配器只接收已组装的材料。
+
+管理 API 均在管理员 Session 与 CSRF 保护下：
+
+| 方法 | 路径 | 用途 |
+| --- | --- | --- |
+| `GET` | `/api/v1/studio/humor-materials` | 列出素材，包含停用项 |
+| `GET` | `/api/v1/studio/humor-materials/search?q=关键词&mechanism=机制` | 检索预览，机制可省略 |
+| `POST` | `/api/v1/studio/humor-materials` | 新增素材 |
+| `PUT` | `/api/v1/studio/humor-materials/{id}` | 以 `version` 更新内容或启停 |
+
+预览显示原始 BM25 候选；实际评论还会根据角色质量和使用历史筛选。新功能的测试覆盖真实 PostgreSQL 全迁移链、种子幂等、中文检索、机制筛选、索引更新与关闭、最近使用、素材事务、模型输入和维护权限。生成测试使用假模型，未消耗外部模型额度。
 
 未来增加实体检索时，应替换“候选文章检索”端口或策略，摘要表、评论线程和审核模型无需重写。标签仍可作为实体/向量结果的过滤或加权信号。
 
@@ -145,7 +204,7 @@ SPEAIVE_AI_RETRY_MAX_ATTEMPTS=2
 ./scripts/docker-up.sh
 ```
 
-部署脚本无需新增逻辑；Compose 会把 AI 环境变量传给后端，镜像重建后 Spring AI 适配器生效，Flyway 自动执行到最新版本（当前为 `V9`）。关闭 AI 时把 `SPEAIVE_AI_ENABLED=false` 且 `SPEAIVE_AI_MODEL_CHAT=none`，不必删除已创建的 Agent、摘要、编辑意见或历史评论。会员 Agent 自动评论的部署参数与停机开关见 [community-agents.md](community-agents.md)。
+部署脚本无需新增逻辑；Compose 会把 AI 环境变量传给后端，镜像重建后 Spring AI 适配器生效，Flyway 自动执行到最新版本（当前为 `V14`）。关闭 AI 时把 `SPEAIVE_AI_ENABLED=false` 且 `SPEAIVE_AI_MODEL_CHAT=none`，不必删除已创建的 Agent、摘要、编辑意见或历史评论。会员 Agent 自动评论的部署参数与停机开关见 [community-agents.md](community-agents.md)。
 
 ## 隐私、安全与成本边界
 

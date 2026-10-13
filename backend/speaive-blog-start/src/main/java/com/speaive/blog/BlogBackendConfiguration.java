@@ -37,6 +37,8 @@ import com.speaive.blog.application.service.MediaApplicationService;
 import com.speaive.blog.application.service.PostApplicationService;
 import com.speaive.blog.application.service.NovelFragmentApplicationService;
 import com.speaive.blog.application.service.AgentApplicationService;
+import com.speaive.blog.application.port.out.persistence.HumorMaterialRepository;
+import com.speaive.blog.application.port.out.knowledge.HumorSearchPort;
 import com.speaive.blog.application.service.CommentApplicationService;
 import com.speaive.blog.application.service.MemberAccountApplicationService;
 import com.speaive.blog.application.service.CommunityAutomationPlanner;
@@ -329,9 +331,12 @@ public class BlogBackendConfiguration {
             AgentRunRepository runs,
             AiCommentGenerationPort commentAi,
             AiSummaryGenerationPort summaryAi,
-            TransactionRunner transactions) {
+            TransactionRunner transactions,
+            HumorMaterialRepository humorMaterials,
+            HumorSearchPort humorSearch) {
         return new CommentApplicationService(
-                posts, summaries, agents, comments, runs, commentAi, summaryAi, transactions, Clock.systemUTC());
+                posts, summaries, agents, comments, runs, commentAi, summaryAi, transactions, Clock.systemUTC(),
+                humorMaterials, humorSearch);
     }
 
     @Bean

@@ -42,6 +42,7 @@ const initialState = JSON.stringify(result).replace(/</g, "\\u003c");
       <h1>给每一种声音，<br />一张清晰的角色卡。</h1>
       <p>这里管理站长自己的角色；会员创建的 Agent 请前往社区审核台处理。</p>
       <a class="button ghost" href="/studio/community/">审核会员 Agent</a>
+      <a class="button ghost" href="/studio/knowledge/">维护灵感素材</a>
     </div>
     <aside class:list={["agent-service-card", { active: result.aiAvailable }]} aria-label="AI 服务状态">
       <span class="agent-service-icon" aria-hidden="true">
@@ -68,7 +69,7 @@ const initialState = JSON.stringify(result).replace(/</g, "\\u003c");
       <strong>{privateCount.toString().padStart(2, "0")}</strong>
       <span>可读取私密文章</span>
     </div>
-    <p>第一版只使用系统提示词和模型参数，不开放工具、Skills 与长期记忆。</p>
+    <p>角色使用系统提示词与模型参数；五个趣味角色还会按各自机制检索精选灵感素材。</p>
   </section>
 
   {loadError && <p class="notice error">{loadError}</p>}

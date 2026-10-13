@@ -9,10 +9,14 @@ import com.speaive.blog.application.port.out.ai.AiCommentPrompt;
 import com.speaive.blog.application.port.out.ai.AiSummaryGeneration;
 import com.speaive.blog.application.port.out.ai.AiSummaryGenerationPort;
 import com.speaive.blog.application.port.out.ai.AiSummaryPrompt;
+import com.speaive.blog.application.port.out.knowledge.HumorSearchHit;
+import com.speaive.blog.application.port.out.knowledge.HumorSearchPort;
+import com.speaive.blog.application.port.out.knowledge.HumorSearchQuery;
 import com.speaive.blog.application.port.out.persistence.AgentRepository;
 import com.speaive.blog.application.port.out.persistence.AgentRunRepository;
 import com.speaive.blog.application.port.out.persistence.CommentQueryScope;
 import com.speaive.blog.application.port.out.persistence.CommentRepository;
+import com.speaive.blog.application.port.out.persistence.HumorMaterialRepository;
 import com.speaive.blog.application.port.out.persistence.PostAiSummaryRepository;
 import com.speaive.blog.application.port.out.persistence.PostQueryScope;
 import com.speaive.blog.application.port.out.persistence.PostRepository;
@@ -27,6 +31,9 @@ import com.speaive.blog.domain.agent.AgentRun;
 import com.speaive.blog.domain.comment.Comment;
 import com.speaive.blog.domain.comment.CommentStatus;
 import com.speaive.blog.domain.error.DomainException;
+import com.speaive.blog.domain.knowledge.AgentHumorProfile;
+import com.speaive.blog.domain.knowledge.HumorMaterial;
+import com.speaive.blog.domain.knowledge.HumorMechanism;
 import com.speaive.blog.domain.post.Post;
 import com.speaive.blog.domain.post.PostAiSummary;
 import com.speaive.blog.domain.post.PostSummary;
@@ -55,6 +62,9 @@ import java.util.stream.Collectors;
 public final class CommentApplicationService implements CommentUseCase {
     private static final Duration STALE_RUN_AFTER = Duration.ofMinutes(15);
     private static final int MAX_RELATED_POSTS = 8;
+    private static final int MAX_HUMOR_REFERENCES = 3;
+    private static final int HUMOR_CANDIDATE_LIMIT = 20;
+    private static final int RECENT_HUMOR_USES = 12;
 
     private final PostRepository posts;
     private final PostAiSummaryRepository summaries;
@@ -65,6 +75,8 @@ public final class CommentApplicationService implements CommentUseCase {
     private final AiSummaryGenerationPort summaryAi;
     private final TransactionRunner transactions;
     private final Clock clock;
+    private final HumorMaterialRepository humorMaterials;
+    private final HumorSearchPort humorSearch;
 
     public CommentApplicationService(
             PostRepository posts,
@@ -75,7 +87,9 @@ public final class CommentApplicationService implements CommentUseCase {
             AiCommentGenerationPort commentAi,
             AiSummaryGenerationPort summaryAi,
             TransactionRunner transactions,
-            Clock clock) {
+            Clock clock,
+            HumorMaterialRepository humorMaterials,
+            HumorSearchPort humorSearch) {
         this.posts = Objects.requireNonNull(posts, "posts");
         this.summaries = Objects.requireNonNull(summaries, "summaries");
         this.agents = Objects.requireNonNull(agents, "agents");
@@ -85,6 +99,8 @@ public final class CommentApplicationService implements CommentUseCase {
         this.summaryAi = Objects.requireNonNull(summaryAi, "summaryAi");
         this.transactions = Objects.requireNonNull(transactions, "transactions");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.humorMaterials = Objects.requireNonNull(humorMaterials, "humorMaterials");
+        this.humorSearch = Objects.requireNonNull(humorSearch, "humorSearch");
     }
 
     @Override
@@ -266,6 +282,13 @@ public final class CommentApplicationService implements CommentUseCase {
                 run.startedAt().minus(STALE_RUN_AFTER), run.startedAt());
         runs.add(run);
 
+        List<AiCommentPrompt.HumorReference> humorReferences = humorReferences(
+                post, currentSummary, parent, agent.id());
+        if (!humorReferences.isEmpty()) {
+            humorMaterials.recordUse(run.id(), humorReferences.stream()
+                    .map(AiCommentPrompt.HumorReference::id).toList(), run.startedAt());
+        }
+
         AiCommentPrompt prompt = new AiCommentPrompt(
                 agent.systemPrompt(), agent.model(), agent.temperature(), post.title(), post.description(), post.body(),
                 post.visibility().name(), post.tags(), currentSummary.body(), relatedPosts(post, agent),
@@ -275,8 +298,76 @@ public final class CommentApplicationService implements CommentUseCase {
                                 comment.body(), comment.createdAt()))
                         .toList(),
                 parent == null ? null : new AiCommentPrompt.ReplyTarget(
-                        parent.id(), parent.author().displayName(), parent.body()));
+                        parent.id(), parent.author().displayName(), parent.body()), null, humorReferences);
         return new PreparedGeneration(post, agent, parent, run, prompt);
+    }
+
+    private List<AiCommentPrompt.HumorReference> humorReferences(
+            Post post, PostAiSummary summary, Comment parent, String agentId) {
+        AgentHumorProfile profile = humorMaterials.findProfile(agentId)
+                .filter(AgentHumorProfile::enabled).orElse(null);
+        if (profile == null) {
+            return List.of();
+        }
+        String queryText = humorQueryText(post, summary, parent);
+        List<HumorSearchHit> candidates = humorSearch.search(
+                new HumorSearchQuery(queryText, profile.mechanism(), HUMOR_CANDIDATE_LIMIT));
+        Set<String> recent = new HashSet<>(humorMaterials.recentlyUsedMaterialIds(agentId, RECENT_HUMOR_USES));
+        Set<String> selectedIds = new HashSet<>();
+        Set<String> selectedExcerpts = new HashSet<>();
+        return candidates.stream()
+                .filter(hit -> Double.isFinite(hit.score()) && hit.score() > 0)
+                .filter(hit -> hit.material().enabled() && hit.material().mechanism() == profile.mechanism())
+                .sorted(Comparator.comparingDouble((HumorSearchHit hit) -> humorRank(hit, recent)).reversed()
+                        .thenComparing(hit -> hit.material().id()))
+                .filter(hit -> selectedIds.add(hit.material().id()))
+                .filter(hit -> selectedExcerpts.add(hit.material().excerpt().replaceAll("\\s+", "")))
+                .limit(MAX_HUMOR_REFERENCES)
+                .map(hit -> humorReference(hit.material()))
+                .toList();
+    }
+
+    private static double humorRank(HumorSearchHit hit, Set<String> recent) {
+        double qualityWeight = 0.6 + 0.1 * hit.material().quality();
+        return hit.score() * qualityWeight * (recent.contains(hit.material().id()) ? 0.35 : 1.0);
+    }
+
+    private static String humorQueryText(Post post, PostAiSummary summary, Comment parent) {
+        // 回复目标和扩展词先占用检索词预算，防止合法长简介耗尽下游的 64 个词。
+        String text = limitCodePoints((parent == null ? "" : limitCodePoints(parent.body(), 400) + '\n')
+                + post.title() + '\n' + post.description() + '\n' + summary.body(), 900);
+        StringBuilder expanded = new StringBuilder();
+        for (List<String> synonyms : List.of(
+                List.of("过期", "期限", "失效", "有效期"),
+                List.of("工资", "薪水", "薪资", "收入"),
+                List.of("上班", "工作", "加班", "打工"),
+                List.of("睡觉", "睡眠", "熬夜", "失眠"),
+                List.of("时间", "时钟", "钟表", "日期"))) {
+            if (synonyms.stream().anyMatch(text::contains)) {
+                expanded.append(String.join(" ", synonyms)).append('\n');
+            }
+        }
+        return limitCodePoints(expanded.append(text).toString(), 1_000);
+    }
+
+    private static String limitCodePoints(String text, int max) {
+        return text.codePointCount(0, text.length()) <= max
+                ? text : text.substring(0, text.offsetByCodePoints(0, max));
+    }
+
+    private static AiCommentPrompt.HumorReference humorReference(HumorMaterial material) {
+        return new AiCommentPrompt.HumorReference(material.id(), material.excerpt(), material.sourceUrl(),
+                humorMechanismLabel(material.mechanism()), material.analysis(), material.adaptation());
+    }
+
+    private static String humorMechanismLabel(HumorMechanism mechanism) {
+        return switch (mechanism) {
+            case LITERAL -> "字面理解";
+            case CAUSAL_REVERSAL -> "因果倒置";
+            case CONCEPT_MISMATCH -> "概念错位";
+            case DAILY_LIFE -> "生活账本";
+            case PERSONIFICATION -> "拟人";
+        };
     }
 
     private List<AiCommentPrompt.RelatedPost> relatedPosts(Post post, AgentProfile agent) {

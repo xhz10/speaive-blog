@@ -14,7 +14,21 @@
     <artifactId>speaive-blog-infrastructure</artifactId>
     <name>Speaive Blog Infrastructure</name>
 
+    <properties>
+        <lucene.version>10.3.1</lucene.version>
+    </properties>
+
     <dependencies>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-core</artifactId>
+            <version>${lucene.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-analysis-smartcn</artifactId>
+            <version>${lucene.version}</version>
+        </dependency>
         <dependency>
             <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
